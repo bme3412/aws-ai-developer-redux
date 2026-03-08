@@ -3,134 +3,124 @@
   "domainId": 1,
   "taskId": "1.2",
   "overview": {
-    "whyItMatters": "Choosing the right foundation model directly impacts cost, latency, and output quality. The exam heavily tests your ability to match model capabilities to requirements—this isn't about memorizing model names but understanding trade-offs between speed, cost, and capability. A single poorly-chosen model can result in 10x higher costs or unacceptable latency for your users.",
+    "whyItMatters": "Picking the wrong model is like using a sledgehammer to hang a picture frame. You'll get it done, but you'll pay way too much and probably break something. Knowing when to use a small, fast model versus when you actually need the big guns is one of the most important skills in GenAI development. Get this right and you'll save money while getting better results.",
     "estimatedMinutes": 35
   },
   "concepts": [
     {
       "id": "model-capabilities",
       "title": "Understanding Model Capabilities",
-      "content": "Foundation models differ dramatically in their capabilities, and understanding these differences is essential for making the right choice. The most important factors to consider are context window size, task specialization, reasoning ability, and output quality.\n\nContext window refers to how much text the model can process in a single request. Models like Claude 3 offer 200K token windows, allowing them to analyze entire codebases or lengthy documents. Smaller models may only support 4K-8K tokens. If your use case involves long documents, you need a model with an appropriate context window—otherwise you'll need to implement chunking strategies.\n\nTask specialization matters because models are trained with different objectives. Some excel at code generation (like CodeLlama), others at conversational interactions, and others at analytical reasoning. Claude models are known for nuanced reasoning and instruction-following. Llama models offer a balance of capability and efficiency. Amazon Titan models integrate deeply with other AWS services.\n\nLarger models like Claude 3 Opus or Claude Sonnet excel at complex multi-step reasoning, nuanced analysis, and tasks requiring deep understanding. However, they cost more per token and have higher latency. Smaller models like Claude Haiku or Llama 3 8B are significantly faster and cheaper—often 10-20x less expensive—making them ideal for simpler tasks like classification, entity extraction, or straightforward summarization. The key insight is matching model capability to task complexity: using Opus for simple classification is wasteful, while using Haiku for complex legal analysis will produce poor results.",
+      "content": "Not all AI models are created equal. Some are quick and cheap; others are slow and expensive but brilliant. Knowing the difference is half the battle.\n\n**Context window** is how much text the model can see at once. Claude 3 can handle 200K tokens—that's an entire book. Smaller models might only see 4K tokens—a few pages. If you're analyzing long documents, context window size matters a lot. Too small, and you'll need to chop your content into pieces.\n\n**Speed vs. smarts** is the fundamental trade-off. Big models like Claude Opus are incredibly capable—complex reasoning, nuanced writing, catching subtle errors. But they're slower (seconds, not milliseconds) and cost 10-20x more per token. Small models like Claude Haiku are blazing fast and dirt cheap, but they'll struggle with complex logic.\n\nHere's the key insight: **most tasks don't need the big model**. Classifying an email as spam? Extracting a name from text? Summarizing a paragraph? Small models nail these. Save the big guns for legal document analysis, complex coding tasks, or nuanced customer communications.\n\nThink of it like hiring: you don't need a PhD to answer the phone, but you do need one to design the rocket.",
       "keyPoints": [
-        "Context window: Determines maximum input size (4K to 200K+ tokens)",
-        "Latency: Larger models = slower responses (seconds vs milliseconds)",
-        "Cost: Charged per 1K input/output tokens; large models cost 10-20x more",
-        "Task fit: Match model strength to your specific use case"
+        "Context window: How much text the model sees (4K to 200K+ tokens)",
+        "Latency: Big models = seconds; small models = milliseconds",
+        "Cost: Large models cost 10-20x more per token than small ones",
+        "Match the model to the task—most tasks need smaller models"
       ],
-      "examTip": "Questions about 'cost-effective' solutions often point to smaller/faster models for simple tasks. If a question mentions 'complex reasoning' or 'nuanced analysis,' that's a signal for larger models."
+      "examTip": "'Cost-effective' almost always means smaller models for simple tasks. 'Complex reasoning' or 'nuanced analysis' signals larger models."
     },
     {
       "id": "model-evaluation",
       "title": "Evaluating and Comparing Models",
-      "content": "Selecting a model based on intuition or marketing claims is a common mistake. Instead, you should evaluate models systematically using your actual use case data. This data-driven approach ensures you choose the model that performs best for your specific requirements, not just the one that performs best on generic benchmarks.\n\nAmazon Bedrock Model Evaluations provides a structured way to compare models. You prepare a test dataset representative of your production workload—this might include example prompts, expected outputs, and edge cases you've encountered. Then you define evaluation criteria: accuracy (how often the model produces correct answers), relevance (how well responses address the question), toxicity (presence of harmful content), or custom metrics specific to your domain.\n\nThe evaluation runs your test dataset through multiple models and produces quantitative scores. This lets you compare not just raw quality but cost-per-quality—a model that's 5% less accurate but 80% cheaper might be the better choice for your use case. You should also consider latency requirements: a model that produces perfect responses in 5 seconds may be unusable for a real-time chatbot but perfect for batch processing.\n\nRe-evaluation is important when new models release or your requirements change. The foundation model landscape evolves rapidly, and a model that was best-in-class six months ago may now be outperformed by newer alternatives. Build evaluation into your workflow so you can continuously optimize model selection.",
+      "content": "Don't pick a model because it sounds impressive or because marketing said it's great. Test it with YOUR data and YOUR use cases.\n\n**Bedrock Model Evaluations** makes this easy. You create a test dataset—examples of inputs you'll actually send to the model, with expected outputs. Then you pick metrics: accuracy (did it get the right answer?), relevance (does the response make sense?), toxicity (anything inappropriate?). Run evaluations across multiple models and compare results.\n\nThe magic is in the comparison. Model A might be 95% accurate but cost $0.01 per request. Model B might be 97% accurate but cost $0.10. Is that 2% worth 10x the price? Usually not.\n\nAlso check **latency**. Average response time is one thing, but what about the worst case? A model that averages 500ms but occasionally takes 8 seconds will frustrate users. Look at p95 latency (the 95th percentile) to catch these outliers.\n\n**Re-evaluate regularly**. New models drop constantly. What was best-in-class last month might be outdated tomorrow. Build evaluation into your workflow so you can continuously optimize.",
       "keyPoints": [
-        "Use test datasets representative of your actual production workload",
-        "Define clear evaluation metrics before testing (accuracy, relevance, latency)",
+        "Use YOUR data for evaluation, not generic benchmarks",
         "Compare cost-per-quality, not just raw quality scores",
-        "Re-evaluate periodically as new models release"
+        "Check p95 latency, not just averages—outliers matter",
+        "Re-evaluate when new models release"
       ],
-      "examTip": "Bedrock Model Evaluations is the answer when questions ask about 'objectively comparing,' 'benchmarking,' or 'systematically evaluating' models. It's the managed service for model comparison."
+      "examTip": "Bedrock Model Evaluations is the answer for 'objectively comparing' or 'benchmarking' models. It's the managed way to do this."
     },
     {
       "id": "dynamic-model-selection",
       "title": "Dynamic Model Selection Patterns",
-      "content": "Production AI systems rarely use a single model for all requests. Instead, sophisticated architectures implement dynamic model selection—choosing the appropriate model at runtime based on request characteristics, cost constraints, or availability.\n\nThe simplest pattern is configuration-driven selection. Store model IDs in AWS AppConfig or Parameter Store rather than hardcoding them. Your application reads the configuration at runtime and routes requests accordingly. This enables instant model switching without code deployment—critical for A/B testing new models, responding to cost changes, or handling model deprecations.\n\nCascading is a powerful cost-optimization pattern. Route requests first to a fast, inexpensive model like Claude Haiku. If the model's confidence score is below a threshold, or if the response quality check fails, escalate to a more capable model like Claude Sonnet. This hybrid approach can reduce costs by 60-80% while maintaining quality for complex requests. The key is implementing reliable confidence scoring—this might use the model's own uncertainty signals or a separate classifier.\n\nA/B testing compares models in production with real user traffic. Route a percentage of requests to a new model and measure user satisfaction, task completion rates, or other business metrics. This provides real-world performance data that benchmarks can't capture. AWS AppConfig supports percentage-based routing for this purpose.\n\nFallback patterns handle model unavailability. If your primary model returns errors or exceeds latency thresholds, automatically route to a backup model. This might be a different model in Bedrock, a different region via Cross-Region Inference, or even a cached/simplified response for graceful degradation.",
+      "content": "Smart systems don't hardcode model choices—they adapt. Here's how the pros do it.\n\n**Configuration-driven selection** means storing model IDs in AWS AppConfig, not in code. Want to switch models? Update the config. No deployment needed. This also enables gradual rollouts: send 10% of traffic to a new model, watch the metrics, then ramp up if it works.\n\n**Cascading** is a clever cost-saver. Send every request to a cheap, fast model first. If it's confident in its answer, use it. If not, escalate to a more capable model. Think of it like customer support tiers—most questions get handled by the first line; only tough cases reach the experts. This can cut costs by 60-80% while maintaining quality for hard questions.\n\n**A/B testing** compares models in production. Route a percentage of real users to each model and measure what matters: satisfaction ratings, task completion, complaints. Benchmarks don't capture everything—real users reveal the truth.\n\n**Fallback patterns** handle failures gracefully. Primary model down? Automatically route to a backup. Latency spiking? Switch to a faster alternative. Cache common responses to serve when everything fails. Your app should degrade gracefully, not crash spectacularly.",
       "keyPoints": [
-        "AppConfig: Change models via configuration without code deployment",
-        "Cascading: Start cheap, escalate to capable models only when needed",
-        "A/B testing: Compare models with real production traffic",
-        "Fallback: Automatic switching when primary model fails or is slow"
+        "AppConfig: Change models without deploying code",
+        "Cascading: Cheap model first, escalate if needed",
+        "A/B testing: Compare models with real user traffic",
+        "Fallbacks: Automatic switching when things go wrong"
       ]
     },
     {
       "id": "model-customization",
       "title": "Model Customization Lifecycle",
-      "content": "When base foundation models don't meet your requirements despite optimized prompting, customization is the next step. However, customization adds complexity, cost, and maintenance burden—it should be a deliberate choice, not a default approach.\n\nFine-tuning adjusts a model's behavior using examples of desired inputs and outputs. If you need a model to always respond in a specific JSON format, provide 100+ examples of correctly formatted responses. If you want a particular tone or style, show the model many examples of that style. Fine-tuning is effective for format consistency, domain-specific terminology, and behavior adjustment. In Bedrock, you prepare a JSONL training file, configure the fine-tuning job, and receive a custom model version.\n\nContinued pre-training (also called domain-adaptive pre-training) adds new knowledge to a model. If your organization has proprietary terminology, internal processes, or domain-specific information not in the model's training data, continued pre-training can incorporate this knowledge. This requires more data than fine-tuning—typically thousands of documents—and is computationally more expensive.\n\nLoRA (Low-Rank Adaptation) adapters offer efficient fine-tuning with lower compute costs. Instead of updating all model weights, LoRA trains small adapter layers that modify the model's behavior. These adapters are smaller, faster to train, and can be swapped at inference time—allowing one base model to serve multiple customized use cases.\n\nThe Model Registry provides version control for your custom models. Track which training data produced each version, compare performance across versions, and rollback if a new version underperforms. This is essential for maintaining quality as you iterate on customization.\n\nCritically, always exhaust prompt engineering before attempting customization. Many 'customization requirements' can be solved with better prompts, system messages, or few-shot examples—at zero training cost.",
+      "content": "Sometimes base models aren't quite right. Before customizing, exhaust prompt engineering—it's free. Still not working? Here are your options.\n\n**Fine-tuning** teaches a model new tricks through examples. Want responses in a specific JSON format? Show it 100+ examples. Need a particular tone? Demonstrate it. Fine-tuning adjusts behavior without adding new knowledge. In Bedrock, you upload training data (JSONL format), configure the job, and get a custom model version.\n\n**Continued pre-training** adds new knowledge. If your company has proprietary terminology or processes the model has never seen, continued pre-training incorporates that knowledge. This requires more data and compute than fine-tuning—we're talking thousands of documents.\n\n**LoRA adapters** are the efficient option. Instead of updating millions of parameters, LoRA trains small adapter layers. They're faster to train, smaller to store, and can be swapped at inference time. One base model, multiple personalities.\n\n**Model Registry** tracks your custom models. Which training data produced each version? How did performance compare? If the new version is worse, roll back instantly.\n\nGolden rule: **prompt engineering first, always**. Many 'I need to fine-tune' situations are actually 'I need better prompts.' Fine-tuning costs time and money. Prompts are free to iterate.",
       "keyPoints": [
-        "Fine-tuning: Adjust behavior with input/output examples (format, style, tone)",
-        "Continued pre-training: Add domain-specific knowledge to the model",
-        "LoRA adapters: Efficient fine-tuning with lower compute, swappable at inference",
-        "Model Registry: Version control for custom models with rollback capability"
+        "Fine-tuning: Adjust behavior with examples (format, style, tone)",
+        "Continued pre-training: Add new domain knowledge",
+        "LoRA adapters: Efficient fine-tuning, swappable personalities",
+        "Model Registry: Version control with rollback capability"
       ],
-      "examTip": "Fine-tuning questions mention 'specific format' or 'consistent style.' Continued pre-training mentions 'domain knowledge' or 'proprietary terminology.' Always consider prompt engineering first."
+      "examTip": "'Specific format' or 'consistent style' = fine-tuning. 'Domain knowledge' or 'proprietary terminology' = continued pre-training. But consider prompt engineering first!"
     }
   ],
   "skillExplanations": [
     {
       "skillId": "1.2.1",
-      "explanation": "Effective model assessment requires defining evaluation criteria specific to your use case before running any tests. Generic benchmarks like MMLU or HellaSwag provide baseline comparisons but don't reflect your specific requirements.\n\nFor summarization tasks, use metrics like ROUGE (Recall-Oriented Understudy for Gisting Evaluation) that measure overlap between generated and reference summaries. For factual question-answering, measure accuracy against ground truth answers—be sure to account for semantically equivalent responses that differ in wording. For code generation, functional correctness (does the code execute and produce expected outputs?) matters more than syntactic similarity.\n\nBedrock Model Evaluations automates this workflow. You upload evaluation datasets, configure metrics, and run evaluations across multiple models simultaneously. The service produces comparison reports showing each model's performance on your criteria. This objective data prevents bias toward familiar models or vendor marketing.\n\nBeyond accuracy metrics, consider practical factors: inference cost per request, p95 latency (the 95th percentile response time), and consistency of outputs. A model might perform excellently on average but have occasional very slow responses that break user experience.",
+      "explanation": "Model assessment isn't guessing—it's measuring. Here's how to do it right.\n\nFirst, build a test dataset that represents real usage. Include typical cases, edge cases, and your hardest examples. If your summarization tool handles legal documents, include some dense contracts in your test set.\n\nDefine what 'good' means with metrics. For summarization, use ROUGE scores. For Q&A, measure accuracy against ground truth. For safety, check toxicity rates. Different tasks need different metrics.\n\nBedrock Model Evaluations runs your test data through multiple models and scores each one. The output is a comparison report showing which models perform best on YOUR data—not generic benchmarks that might not apply.\n\nDon't just look at quality. Factor in cost per request and latency. A model that's 3% better but costs 5x more might not be worth it. Build these trade-offs into your decision.",
       "awsServices": [
         {
           "serviceName": "Amazon Bedrock Model Evaluations",
-          "whenToUse": "Comparing multiple models objectively using your own test datasets. Automated benchmarking with custom evaluation criteria. Generating comparison reports for model selection decisions.",
+          "whenToUse": "Objective model comparison with your own test data. Automated benchmarking. Decision support.",
           "examKeywords": ["evaluate", "compare", "benchmark", "test dataset", "objective comparison"]
-        },
-        {
-          "serviceName": "Amazon Bedrock",
-          "whenToUse": "Access to multiple foundation models for comparison. On-demand inference for evaluation runs. No infrastructure to manage.",
-          "examKeywords": ["multiple models", "model access", "foundation models"]
         }
       ]
     },
     {
       "skillId": "1.2.2",
-      "explanation": "Dynamic model selection decouples your application logic from specific model choices, enabling operational flexibility that hardcoded model IDs cannot provide.\n\nThe recommended pattern stores model configuration in AWS AppConfig. Create a configuration profile containing the model ID, inference parameters (temperature, max tokens), and any routing rules. Your Lambda function fetches this configuration at startup (cached for performance) and uses it to invoke the appropriate Bedrock model. When you need to switch models, update the AppConfig configuration—your application picks up the change without redeployment.\n\nAppConfig provides additional features valuable for model management: gradual rollout (deploy new model to 10% of traffic, then 50%, then 100%), automatic rollback (revert to previous model if error rates spike), and environment-specific configuration (use cheaper models in development, premium models in production).\n\nFor simpler scenarios, AWS Systems Manager Parameter Store can hold model IDs. This provides secure storage with IAM-based access control but lacks AppConfig's gradual rollout features.\n\nThis pattern enables sophisticated operational practices: testing new models with a small traffic percentage before full rollout, instantly switching to backup models during incidents, or adjusting model selection based on time-of-day traffic patterns.",
+      "explanation": "Hardcoding model IDs is amateur hour. Production systems need flexibility.\n\nStore model configuration in **AWS AppConfig**. Your Lambda reads the config at startup (cached for speed) and uses whatever model ID is specified. Need to switch models? Update AppConfig. Your code picks it up without redeployment.\n\nAppConfig unlocks powerful patterns:\n- **Gradual rollout**: Send 10% of traffic to a new model, then 50%, then 100%\n- **Automatic rollback**: If error rates spike, revert automatically\n- **Environment-specific**: Use cheaper models in dev, premium in prod\n\nFor simpler cases, **Parameter Store** works too. It stores model IDs securely with IAM access control, but lacks AppConfig's fancy rollout features.\n\nThis flexibility matters operationally. Model deprecated? Switch instantly. Costs too high? Downgrade seamlessly. New model released? Test it without code changes.",
       "awsServices": [
         {
           "serviceName": "AWS AppConfig",
-          "whenToUse": "Feature flags for model switching without deployment. Gradual rollouts with percentage-based traffic routing. Automatic rollback if metrics degrade.",
+          "whenToUse": "Runtime model switching. Gradual rollouts. Automatic rollback on errors.",
           "examKeywords": ["feature flag", "configuration", "no code change", "runtime switch", "gradual rollout"]
         },
         {
-          "serviceName": "AWS Lambda",
-          "whenToUse": "Serverless compute that reads configuration and routes to appropriate models. Scales automatically with request volume.",
-          "examKeywords": ["serverless", "model invocation", "compute layer"]
-        },
-        {
           "serviceName": "AWS Systems Manager Parameter Store",
-          "whenToUse": "Simple configuration storage for model IDs. Secure storage with IAM access control. Good for basic use cases.",
+          "whenToUse": "Simple config storage. Secure model ID storage. Basic use cases.",
           "examKeywords": ["parameter", "configuration", "secure storage"]
         }
       ]
     },
     {
       "skillId": "1.2.3",
-      "explanation": "Resilient AI systems must handle failures gracefully because foundation model services, like any external dependency, can experience outages, throttling, or degraded performance.\n\nBedrock Cross-Region Inference is the first line of defense. When enabled, Bedrock automatically routes requests to the nearest available region if your primary region experiences issues. This provides seamless failover without application changes—your code calls the same endpoint, and Bedrock handles the routing. Cross-Region Inference is particularly valuable for applications requiring high availability SLAs.\n\nCircuit breaker patterns prevent cascade failures. When error rates exceed a threshold, stop sending requests to the failing model and immediately route to a fallback. AWS Step Functions can implement this pattern: track error counts, open the circuit when failures spike, periodically test if the service has recovered, and close the circuit to resume normal operation. This protects both your application and the downstream service from being overwhelmed.\n\nGraceful degradation provides useful responses even when models are unavailable. Options include serving cached responses for common queries, falling back to simpler rule-based systems, or returning a message explaining reduced functionality. The key is ensuring your application remains useful rather than completely failing.\n\nRetry logic should use exponential backoff with jitter to avoid thundering herd problems. If 1000 requests fail simultaneously and all retry at the same time, you'll likely cause another failure. Randomized delays spread out retries and improve recovery chances.",
+      "explanation": "Models fail. Regions go down. Latency spikes. Your app needs to handle it.\n\n**Cross-Region Inference** is the easy button for regional resilience. Enable it, and Bedrock automatically routes requests to available regions when your primary region has issues. No multi-region architecture to manage—it just works.\n\n**Circuit breakers** stop cascade failures. When error rates spike, stop sending requests (open the circuit). Periodically test if the service recovered. Once it's healthy, resume normal traffic (close the circuit). Step Functions can implement this pattern with state tracking.\n\n**Graceful degradation** keeps your app useful when AI is unavailable. Options:\n- Serve cached responses for common queries\n- Fall back to simpler, rule-based logic\n- Show a friendly message explaining reduced functionality\n\n**Retry logic** needs exponential backoff with jitter. If 1000 requests fail and all retry simultaneously, you'll cause another failure. Spread retries randomly over time to let the system recover.",
       "awsServices": [
         {
           "serviceName": "Amazon Bedrock Cross-Region Inference",
-          "whenToUse": "Automatic regional failover without code changes. High availability for critical applications. Seamless routing to available regions.",
+          "whenToUse": "Automatic regional failover. High availability without complexity.",
           "examKeywords": ["Cross-Region", "failover", "resilience", "availability", "multi-region"]
         },
         {
           "serviceName": "AWS Step Functions",
-          "whenToUse": "Implement circuit breaker patterns. Orchestrate retry logic with exponential backoff. Manage complex error handling workflows.",
-          "examKeywords": ["circuit breaker", "retry", "orchestration", "fallback", "error handling"]
+          "whenToUse": "Circuit breaker implementation. Retry orchestration. Fallback workflows.",
+          "examKeywords": ["circuit breaker", "retry", "orchestration", "fallback"]
         },
         {
           "serviceName": "Amazon ElastiCache",
-          "whenToUse": "Cache common responses for graceful degradation. Reduce load on model endpoints. Serve cached responses during outages.",
+          "whenToUse": "Cache responses for degradation. Reduce model load. Fast fallback.",
           "examKeywords": ["cache", "graceful degradation", "fallback responses"]
         }
       ]
     },
     {
       "skillId": "1.2.4",
-      "explanation": "Custom model lifecycle management ensures you can train, evaluate, deploy, and if necessary rollback custom models reliably. This is more complex than using base models and requires operational processes similar to traditional software deployment.\n\nThe lifecycle begins with training data preparation. Clean, high-quality training data is essential—garbage in, garbage out applies strongly to model training. Store training datasets in S3 with versioning enabled so you can track which data produced each model version.\n\nFor fine-tuning base Bedrock models, use Bedrock's built-in fine-tuning capability. Prepare a JSONL file with input/output pairs, configure the training job (learning rate, epochs), and submit. Bedrock handles the infrastructure. For more control or custom architectures, Amazon SageMaker provides full training pipeline capabilities including distributed training, hyperparameter tuning, and custom container support.\n\nAfter training, evaluate the custom model against your test dataset using the same metrics you used for base model selection. Compare performance to the base model—customization should provide measurable improvement to justify the added complexity.\n\nModel Registry tracks all model versions with metadata about training data, hyperparameters, and evaluation results. When you need to rollback, you can quickly identify and deploy a previous version.\n\nBlue-green deployment minimizes risk when deploying new model versions. Run the new model alongside the existing one, gradually shift traffic to the new version while monitoring metrics, and quickly rollback by shifting traffic back if issues arise.",
+      "explanation": "Custom models need lifecycle management just like traditional software.\n\n**Training data is everything**. Garbage in, garbage out. Store training datasets in S3 with versioning so you know exactly what data produced each model version. Clean, high-quality data matters more than quantity.\n\nFor **fine-tuning Bedrock models**, prepare a JSONL file with input/output pairs. Configure the training job (learning rate, epochs). Bedrock handles the infrastructure. Your custom model version appears alongside base models.\n\nFor **full control**, SageMaker provides complete training pipelines. Custom containers, distributed training, hyperparameter tuning—everything you'd need for complex ML workflows.\n\n**Evaluate after training**. Run your test dataset against the custom model and compare to the base model. Customization should show measurable improvement—if it doesn't, your prompts might just need work.\n\n**Model Registry** tracks versions. Store metadata about training data, parameters, and evaluation results. When you need to rollback, you can find and deploy a previous version instantly.\n\n**Blue-green deployment** minimizes risk. Run old and new models simultaneously. Gradually shift traffic. If problems appear, shift back. Your users never notice.",
       "awsServices": [
         {
           "serviceName": "Amazon SageMaker",
-          "whenToUse": "Full custom model training with complete control. Complex ML pipelines requiring distributed training. Hyperparameter tuning and custom containers.",
+          "whenToUse": "Full custom training with complete control. Complex ML pipelines.",
           "examKeywords": ["custom training", "model registry", "ML pipeline", "full control"]
         },
         {
           "serviceName": "Amazon Bedrock Custom Models",
-          "whenToUse": "Fine-tuning base foundation models with managed infrastructure. Simpler workflow than full SageMaker training.",
+          "whenToUse": "Fine-tune foundation models. Simpler than full SageMaker.",
           "examKeywords": ["fine-tune", "customize base model", "managed fine-tuning"]
         },
         {
           "serviceName": "Amazon S3",
-          "whenToUse": "Store training datasets with versioning. Track data lineage for model reproducibility.",
+          "whenToUse": "Training data storage with versioning. Track data lineage.",
           "examKeywords": ["training data", "versioning", "data storage"]
         }
       ]
@@ -139,38 +129,30 @@
   "serviceComparisons": [
     {
       "title": "Model Size Selection Guide",
-      "services": ["Large Models (Opus/Sonnet)", "Small Models (Haiku/Llama 8B)", "Custom Fine-tuned Models"],
+      "services": ["Large Models (Opus/Sonnet)", "Small Models (Haiku/Llama 8B)", "Custom Fine-tuned"],
       "criteria": [
         {
-          "criterion": "Best use cases",
+          "criterion": "Best for",
           "values": {
-            "Large Models (Opus/Sonnet)": "Complex reasoning, multi-step analysis, nuanced writing, code review",
-            "Small Models (Haiku/Llama 8B)": "Classification, entity extraction, simple QA, high-volume summarization",
-            "Custom Fine-tuned Models": "Domain-specific terminology, consistent output formats, specialized behavior"
+            "Large Models (Opus/Sonnet)": "Complex reasoning, nuanced writing, code review",
+            "Small Models (Haiku/Llama 8B)": "Classification, extraction, simple Q&A, high volume",
+            "Custom Fine-tuned": "Domain terminology, specific formats, specialized behavior"
           }
         },
         {
-          "criterion": "Typical latency",
+          "criterion": "Latency",
           "values": {
-            "Large Models (Opus/Sonnet)": "1-10+ seconds depending on output length",
-            "Small Models (Haiku/Llama 8B)": "100-500ms for typical requests",
-            "Custom Fine-tuned Models": "Varies by base model size and hosting configuration"
+            "Large Models (Opus/Sonnet)": "1-10+ seconds",
+            "Small Models (Haiku/Llama 8B)": "100-500ms",
+            "Custom Fine-tuned": "Depends on base model size"
           }
         },
         {
           "criterion": "Relative cost",
           "values": {
-            "Large Models (Opus/Sonnet)": "Highest (10-20x vs small models)",
-            "Small Models (Haiku/Llama 8B)": "Lowest per-token cost",
-            "Custom Fine-tuned Models": "Training cost + inference cost (may exceed base model)"
-          }
-        },
-        {
-          "criterion": "When to avoid",
-          "values": {
-            "Large Models (Opus/Sonnet)": "High-volume simple tasks, latency-sensitive applications",
-            "Small Models (Haiku/Llama 8B)": "Complex reasoning, nuanced analysis, expert-level tasks",
-            "Custom Fine-tuned Models": "When prompt engineering solves the problem, limited training data"
+            "Large Models (Opus/Sonnet)": "10-20x more expensive",
+            "Small Models (Haiku/Llama 8B)": "Cheapest per token",
+            "Custom Fine-tuned": "Training + inference costs"
           }
         }
       ]
@@ -178,34 +160,33 @@
   ],
   "examStrategies": [
     {
-      "questionPattern": "MOST cost-effective model selection",
-      "approach": "Start with the smallest model that can handle the task. Look for complexity indicators in the question—simple classification or extraction suggests small models, while 'complex reasoning' or 'nuanced analysis' suggests larger models. Consider cascading patterns that use cheap models first and escalate only when needed.",
-      "keywords": ["cost-effective", "minimize cost", "budget", "economical", "reduce spending"]
+      "questionPattern": "MOST cost-effective",
+      "approach": "Start small. Can the task be done by a cheap model? Classification, extraction, simple summarization usually can. Only go big when complexity demands it. Consider cascading: cheap first, escalate if needed.",
+      "keywords": ["cost-effective", "minimize cost", "budget", "economical"]
     },
     {
-      "questionPattern": "change models without code deployment",
-      "approach": "AWS AppConfig is the primary answer for runtime model switching. Parameter Store works for simpler cases. Look for requirements around gradual rollout or A/B testing—these point specifically to AppConfig. Eliminate any answer requiring code changes or redeployment.",
-      "keywords": ["no code change", "runtime", "configuration", "without deploying", "dynamic switching"]
+      "questionPattern": "change models without deployment",
+      "approach": "AWS AppConfig is THE answer. Parameter Store works for simpler cases. Any answer requiring code changes or redeployment is wrong.",
+      "keywords": ["no code change", "runtime", "configuration", "dynamic switching"]
     },
     {
       "questionPattern": "high availability or resilience",
-      "approach": "Cross-Region Inference is the first answer for Bedrock availability. For broader resilience, add circuit breakers (Step Functions), caching (ElastiCache), and graceful degradation patterns. Multi-region deployment with Route 53 failover applies to the full application stack.",
-      "keywords": ["availability", "resilience", "failover", "fault-tolerant", "disaster recovery"]
+      "approach": "Cross-Region Inference for Bedrock failover. Circuit breakers for graceful failure. Caching for degradation. Multi-region deployment for full stack resilience.",
+      "keywords": ["availability", "resilience", "failover", "fault-tolerant"]
     }
   ],
   "keyTakeaways": [
-    "Match model size to task complexity—using large models for simple tasks wastes money",
-    "Bedrock Model Evaluations provides objective model comparison using your data",
-    "AWS AppConfig enables model switching without code deployment, including gradual rollouts",
-    "Cross-Region Inference provides automatic regional failover for high availability",
-    "Fine-tune for format/style consistency; continued pre-training for domain knowledge",
-    "Always exhaust prompt engineering before investing in model customization"
+    "Match model size to task complexity—big models for simple tasks waste money",
+    "Bedrock Model Evaluations compares models objectively with YOUR data",
+    "AppConfig enables model switching without code deployment",
+    "Cross-Region Inference provides automatic failover—easy high availability",
+    "Try prompt engineering before fine-tuning—it's free to iterate"
   ],
   "commonMistakes": [
-    "Defaulting to the largest model without evaluating whether smaller models suffice",
-    "Fine-tuning when prompt engineering with examples would achieve the same result",
-    "Deploying to a single region without Cross-Region Inference for critical applications",
-    "Hardcoding model IDs instead of using configuration for operational flexibility",
-    "Not implementing fallback patterns for graceful degradation during outages"
+    "Defaulting to the biggest model without checking if smaller works",
+    "Fine-tuning when better prompts would solve the problem",
+    "Single-region deployment for critical apps (no failover)",
+    "Hardcoding model IDs instead of using configuration",
+    "No fallback plan when models are unavailable"
   ]
 }

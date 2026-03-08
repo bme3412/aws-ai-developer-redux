@@ -3,119 +3,119 @@
   "domainId": 1,
   "taskId": "1.5",
   "overview": {
-    "whyItMatters": "Retrieval quality directly determines RAG output quality. Even the most capable foundation model cannot produce accurate responses if it receives irrelevant or incomplete context. Poor retrieval means the FM lacks the information it needs; excellent retrieval enables accurate, grounded responses that cite your actual documents. The exam tests chunking strategies, embedding models, search techniques, and query optimization—mastering these separates functional RAG from exceptional RAG.",
+    "whyItMatters": "Here's the thing about RAG: your AI is only as good as what it retrieves. Hand it irrelevant documents and even the smartest model will give garbage answers. Hand it exactly the right context and it looks like magic. Retrieval is where RAG applications succeed or fail. Mastering chunking, embeddings, hybrid search, and query optimization—these are the levers that turn 'meh' RAG into 'wow' RAG.",
     "estimatedMinutes": 40
   },
   "concepts": [
     {
       "id": "chunking-deep-dive",
       "title": "Document Chunking Strategies",
-      "content": "Chunking is the process of splitting documents into smaller pieces for embedding and retrieval. This seemingly simple step has profound impacts on retrieval quality, and getting it wrong is one of the most common RAG failures.\n\nThe fundamental tension is between precision and context. Smaller chunks are more precise—they match queries more specifically—but they may lack the context needed for the FM to understand and use the information. Larger chunks preserve context but may contain irrelevant information that dilutes the semantic signal, causing them to match queries they shouldn't.\n\nFixed-size chunking splits documents every N tokens regardless of content. This is simple to implement and produces predictable chunk sizes, which helps with embedding model token limits. However, it may split mid-sentence or mid-paragraph, creating chunks that lack coherent meaning. A chunk that starts with 'however, the alternative approach...' without context is difficult for both retrieval and generation.\n\nSemantic chunking respects document structure by splitting at natural boundaries—paragraph breaks, section headings, or sentence endings. This produces coherent chunks but with variable sizes. Very short paragraphs may produce tiny chunks lacking context; dense technical sections may exceed embedding model limits.\n\nHierarchical chunking addresses the precision-context trade-off by creating multiple levels. Parent chunks contain summaries or entire sections; child chunks contain detailed content. During retrieval, you can match against parents to identify relevant sections, then retrieve children for specific details. The FM receives both the specific match and its surrounding context.\n\nSliding window chunking adds overlap between adjacent chunks. If a relevant passage spans a chunk boundary, both chunks will contain it. This redundancy improves recall at the cost of increased storage and potential duplicate retrieval results.\n\nBedrock Knowledge Bases provides configurable chunking with adjustable chunk size and overlap parameters. For custom implementations, you must build your own chunking pipeline—Lambda functions are common for this purpose. Experiment with different chunk sizes (typically 256-1024 tokens) to find what works best for your specific content and queries.",
+      "content": "Chunking sounds boring until you realize it's where most RAG failures happen. Chunk wrong and your retrieval breaks—either missing relevant info or drowning the model in irrelevant context.\n\nThe fundamental tension: **precision vs. context**. Small chunks match queries precisely but might lack the surrounding context your model needs to understand them. Large chunks preserve context but contain so much irrelevant text that their semantic signal gets diluted. A 2000-token chunk about 'everything in Chapter 5' won't match as well as a focused chunk about 'exactly the paragraph answering the user's question.'\n\n**Fixed-size chunking** is the blunt instrument: split every 512 tokens, done. Predictable, simple to implement, fits neatly into embedding model limits. But it might slice a sentence right in half. A chunk that starts with 'However, this approach fails when...' is useless without knowing what 'this approach' refers to.\n\n**Semantic chunking** is smarter—it splits at natural boundaries like paragraph breaks and section headings. You get coherent chunks that stand alone. The trade-off? Sizes vary wildly. Some paragraphs are tiny; dense technical sections might exceed your limits.\n\n**Hierarchical chunking** is the clever solution. Create parent chunks that summarize entire sections, and child chunks with the details. Search against parents to find relevant sections, then grab their children for specifics. You get both the forest and the trees.\n\n**Overlapping chunks** add redundancy at boundaries. If your chunks are 512 tokens with 50-token overlap, adjacent chunks share content. When an answer spans a boundary, both chunks contain it. Better recall, more storage.\n\nBedrock KB handles chunking with configurable size and overlap. For custom pipelines, you build your own with Lambda. Either way, test different sizes with your actual data—there's no universal 'best' size.",
       "keyPoints": [
-        "Fixed-size: Simple, predictable, but may split mid-thought",
+        "Fixed-size: Simple and predictable, but may split mid-thought",
         "Semantic: Respects document structure, variable sizes",
-        "Hierarchical: Parent summaries + child details for context preservation",
-        "Sliding window: Overlap chunks to capture boundary content"
+        "Hierarchical: Parent summaries + child details for best of both",
+        "Overlapping: Shared content at boundaries catches spanning answers"
       ],
-      "examTip": "If a question mentions 'context preservation' or 'parent-child relationships,' think hierarchical chunking. 'Simplest approach' points to fixed-size with Bedrock KB defaults."
+      "examTip": "'Context preservation' or 'parent-child' → hierarchical chunking. 'Simplest approach' → fixed-size with Bedrock KB defaults."
     },
     {
       "id": "embedding-models",
       "title": "Embedding Model Selection",
-      "content": "Embedding models convert text into numerical vectors that capture semantic meaning. The quality of these embeddings directly impacts retrieval accuracy—if the embedding model doesn't understand your domain vocabulary or fails to capture nuanced meaning, retrieval will suffer.\n\nAmazon Titan Embeddings is AWS's native embedding model, producing 1536-dimensional vectors. It's a solid general-purpose choice that handles most content types well. Titan Embeddings V2 improved multilingual support and performance on various benchmarks. For most Bedrock Knowledge Bases use cases, Titan Embeddings is the default and recommended choice.\n\nCohere Embed is available through Bedrock and offers strong multilingual capabilities. If your documents span multiple languages or your users query in various languages, Cohere Embed may outperform Titan. It also tends to perform well on search-specific benchmarks.\n\nDimensionality trade-offs matter for storage and computation. Higher-dimensional vectors (1536 vs 384) capture more nuanced semantic relationships but require more storage space and computation time. For most applications, the default 1536 dimensions provide a good balance.\n\nDomain evaluation is critical. An embedding model that performs well on general benchmarks may underperform on your specific domain. If your content uses specialized terminology—medical, legal, technical—evaluate embedding quality on representative queries from your domain before committing.\n\nBatch embedding generation matters at scale. When processing thousands of documents, use batch inference rather than individual API calls. This reduces costs and improves throughput. Bedrock supports batch inference for embedding generation.\n\nEmbedding model consistency is essential. All documents and all queries must use the same embedding model. You cannot embed documents with Titan and query with Cohere—the vector spaces are incompatible. If you change embedding models, you must re-embed all documents.",
+      "content": "Embeddings are the translation layer between human language and mathematical search. Pick a bad embedding model and your retrieval is doomed before it starts—similar meanings won't map to similar vectors.\n\n**Amazon Titan Embeddings V2** is the AWS default, producing 1536-dimensional vectors. It handles English well and has decent multilingual support. For most Bedrock KB use cases, just use Titan—it's solid and well-integrated.\n\n**Cohere Embed** is available through Bedrock and shines for multilingual content. If your documents span multiple languages or users query in various languages, Cohere often outperforms Titan. It also ranks well on search-specific benchmarks.\n\n**Dimensionality** is a trade-off you should understand. More dimensions (1536 vs 384) capture more nuanced semantic relationships, but cost more storage and compute. For most applications, 1536 is the sweet spot—enough nuance without breaking the bank.\n\nHere's the thing that trips people up: **domain matters**. An embedding model that crushes general benchmarks might struggle with your specific content. Medical terminology, legal jargon, technical docs—specialized domains can confuse general-purpose models. Evaluate with YOUR queries on YOUR documents before committing.\n\n**Batch embedding** saves money at scale. Processing thousands of documents? Use batch inference instead of individual API calls. Lower cost, better throughput.\n\nCritical rule: **all documents and all queries must use the same embedding model**. You can't embed docs with Titan and query with Cohere—the vector spaces are completely different. Switching models means re-embedding everything.",
       "keyPoints": [
-        "Titan Embeddings V2: AWS default, 1536 dimensions, good general-purpose",
-        "Cohere Embed: Strong multilingual support, excellent for search tasks",
-        "Dimensionality: Higher captures more nuance, costs more storage/compute",
-        "Batch generation: Use batch inference for large document sets"
+        "Titan Embeddings V2: AWS default, 1536 dimensions, solid general-purpose",
+        "Cohere Embed: Excellent multilingual, strong search benchmarks",
+        "Dimensionality: Higher = more nuance, more cost",
+        "Batch embedding: Use batch inference for large document sets"
       ],
-      "examTip": "Titan Embeddings is the default choice unless the question mentions multilingual requirements (Cohere) or domain-specific concerns. Always use the same model for documents and queries."
+      "examTip": "Titan is the default unless the question mentions multilingual (→ Cohere) or domain-specific concerns. Same model for docs AND queries—always."
     },
     {
       "id": "search-techniques",
       "title": "Vector Search Techniques",
-      "content": "Basic vector search finds documents whose embeddings are most similar to the query embedding. This works well for semantic queries but has limitations—it may miss relevant documents that use different terminology or include important keywords not well-captured by embeddings.\n\nHybrid search combines vector similarity with traditional keyword matching (typically BM25). The intuition is that some queries benefit from exact keyword matches—searching for a specific error code, product name, or technical term—while others benefit from semantic understanding. Hybrid search fusion algorithms combine scores from both approaches, often outperforming either alone.\n\nBedrock Knowledge Bases supports hybrid retrieval mode, which combines semantic and keyword search automatically. OpenSearch's neural plugin provides more configurable hybrid search with adjustable weights between vector and keyword scores.\n\nReranking uses a second model to reorder initial retrieval results. A retrieval model (fast but less accurate) returns candidate documents, then a reranker model (slower but more accurate) scores each query-document pair and reorders by relevance. This two-stage approach is more computationally expensive but significantly improves precision for complex queries.\n\nMaximal Marginal Relevance (MMR) addresses result diversity. Standard retrieval may return multiple chunks from the same document, all saying similar things. MMR penalizes redundancy, selecting results that are both relevant and diverse. This is particularly valuable when your FM context window is limited and you want to maximize information density.\n\nFiltering constrains results by metadata attributes. Pre-filtering (before vector search) is more efficient but requires indexed filter fields. Post-filtering (after vector search) is simpler but may return fewer results than requested. Most production systems use pre-filtering for common filters like document type or access level.",
+      "content": "Basic vector search finds documents whose embeddings are closest to your query embedding. Works great for semantic queries. But it has blind spots—it might miss relevant documents that use different words or include important keywords that embeddings don't capture well.\n\n**Hybrid search** fixes this by combining vector similarity with old-school keyword matching (BM25). Think about it: if someone searches for error code 'E-1042', pure vector search might return docs about 'errors' generally. Hybrid search nails the exact match AND understands context. This combo often beats either approach alone.\n\nBedrock KB supports **HYBRID retrieval mode**—flipping it on is a no-brainer for most apps. OpenSearch gives you more control with its neural plugin, letting you tune the balance between keyword and semantic scores.\n\n**Reranking** is the secret weapon for high-stakes retrieval. Here's how it works: vector search quickly grabs top-N candidates, then a more sophisticated model scores each query-document pair and reorders them. The reranker is slower but much more accurate. Two-stage retrieval: fast-then-accurate.\n\n**MMR (Maximal Marginal Relevance)** solves the redundancy problem. Without it, you might get five chunks from the same document all saying the same thing. MMR penalizes redundancy, selecting results that are both relevant AND diverse. When your context window is limited, diversity matters.\n\n**Filtering** constrains results by metadata. Pre-filtering (before search) is efficient—search a smaller pile. Post-filtering (after search) is simpler but might return too few results. Most production systems pre-filter on common constraints like document type or access level.",
       "keyPoints": [
-        "Pure vector: Semantic similarity only, may miss keyword matches",
-        "Hybrid search: BM25 keyword + vector similarity fusion",
-        "Reranking: Two-stage retrieval with cross-encoder scoring",
-        "MMR: Maximal Marginal Relevance for diverse results"
+        "Pure vector: Semantic similarity only, may miss exact keyword matches",
+        "Hybrid search: BM25 keywords + vector similarity = best of both",
+        "Reranking: Two-stage retrieval with accurate cross-encoder scoring",
+        "MMR: Maximal Marginal Relevance for diverse, non-redundant results"
       ],
-      "examTip": "Hybrid search is almost always better than pure vector for production RAG. Bedrock KB supports HYBRID retrieval mode. Reranking adds precision but increases latency."
+      "examTip": "Hybrid search beats pure vector for production RAG—almost always. Reranking adds precision but increases latency."
     },
     {
       "id": "query-optimization",
       "title": "Query Handling Techniques",
-      "content": "Raw user queries often don't match how information is expressed in documents. Query optimization techniques bridge this gap, transforming user input into more effective retrieval queries.\n\nQuery expansion adds related terms to broaden retrieval. If a user searches for 'AWS compute options,' expansion might add 'EC2,' 'Lambda,' 'Fargate,' 'ECS'—terms likely to appear in relevant documents even if not in the original query. This can be implemented with synonym dictionaries or by asking an FM to suggest related terms.\n\nQuery decomposition breaks complex questions into simpler sub-queries. 'Compare the cost and performance of EC2 vs Lambda for batch processing' contains multiple information needs. Decompose it into: 'EC2 batch processing cost,' 'Lambda batch processing cost,' 'EC2 batch processing performance,' 'Lambda batch processing performance.' Retrieve for each sub-query separately, then combine results.\n\nHyDE (Hypothetical Document Embeddings) is a powerful technique for difficult queries. Instead of embedding the query directly, ask an FM to generate a hypothetical document that would answer the query. Embed that hypothetical document and use it for retrieval. This works because the hypothetical document is written in 'document style' rather than 'query style,' often matching actual documents more effectively.\n\nQuery reformulation uses an FM to rephrase ambiguous or poorly-formed queries. User queries may be incomplete, misspelled, or phrased as commands rather than questions. An FM can reformulate 'how 2 setup vpc peering' into a cleaner query that retrieves better.\n\nConversational context matters for multi-turn interactions. A query like 'what about the pricing?' is meaningless without the previous conversation. Maintain conversation history and include relevant context when constructing retrieval queries. This might involve extracting entities from prior turns or including the previous user question.\n\nStep Functions can orchestrate complex query pipelines that combine multiple techniques—expand, decompose, retrieve, rerank, and combine results.",
+      "content": "Users type messy queries. They're ambiguous, use different words than your documents, and sometimes ask three questions at once. Query optimization bridges this gap between what users type and what documents contain.\n\n**Query expansion** adds related terms to catch more relevant docs. User asks about 'AWS compute options'? Expand to include 'EC2,' 'Lambda,' 'Fargate,' 'ECS.' Documents might use any of these terms. You can build synonym dictionaries or ask an FM to suggest related terms.\n\n**Query decomposition** handles complex multi-part questions. 'Compare the cost and performance of EC2 vs Lambda for batch processing' is really four questions: EC2 cost, Lambda cost, EC2 performance, Lambda performance. Break it apart, retrieve for each sub-query, combine results. The FM gets all the relevant context instead of a muddled mix.\n\n**HyDE (Hypothetical Document Embeddings)** is a clever trick for difficult queries. Instead of embedding the query directly, ask an FM to write a hypothetical answer document. Then embed THAT and use it for retrieval. Why does this work? The hypothetical document is written in 'document style,' matching how your actual documents are written much better than a terse query.\n\n**Query reformulation** cleans up messy input. Users type 'how 2 setup vpc peering???'—an FM can turn that into a proper query that retrieves better.\n\n**Conversational context** matters for multi-turn chats. 'What about the pricing?' means nothing without knowing what 'that' refers to from earlier. Include relevant conversation history when building retrieval queries.\n\nStep Functions can orchestrate complex query pipelines that expand, decompose, retrieve, rerank, and combine—all with proper error handling.",
       "keyPoints": [
-        "Query expansion: Add synonyms and related terms",
-        "Query decomposition: Break complex queries into sub-queries",
-        "HyDE: Generate hypothetical answer document for retrieval",
-        "Reformulation: Clean up ambiguous or poorly-formed queries"
+        "Query expansion: Add synonyms and related terms for better recall",
+        "Query decomposition: Break complex questions into simpler sub-queries",
+        "HyDE: Generate hypothetical answer document for better retrieval",
+        "Reformulation: Clean up messy, ambiguous user queries"
       ]
     }
   ],
   "skillExplanations": [
     {
       "skillId": "1.5.1",
-      "explanation": "Document segmentation determines retrieval granularity—how specific or broad your retrieval results can be. The right segmentation strategy depends on your content type, query patterns, and FM context limits.\n\nFor structured documents with clear hierarchies (manuals, legal documents, technical specifications), semantic chunking that respects section boundaries works well. Each section becomes a coherent chunk, and section headings can serve as metadata for filtering.\n\nFor unstructured content (emails, chat logs, meeting transcripts), fixed-size chunking with overlap may be more appropriate since natural boundaries are less clear.\n\nBedrock Knowledge Bases provides automatic chunking with configurable parameters. You set target chunk size and overlap percentage; Bedrock handles the splitting. For most use cases, starting with defaults (around 300 tokens, 10% overlap) and adjusting based on retrieval quality is a reasonable approach.\n\nCustom chunking pipelines offer more control. Lambda functions triggered by S3 uploads can implement domain-specific logic—splitting code files by function, legal documents by clause, or technical docs by procedure step. This requires more development effort but can significantly improve retrieval for specialized content.",
+      "explanation": "Document segmentation determines how granular your retrieval can be. Get it right and you retrieve exactly what's needed. Get it wrong and you either miss relevant content or drown the model in noise.\n\nFor **structured documents** with clear hierarchies (manuals, legal docs, technical specs), semantic chunking works well. Split at section boundaries. Use headings as metadata for filtering.\n\nFor **unstructured content** (emails, chat logs, transcripts), fixed-size chunking with overlap may be better since natural boundaries are less clear.\n\nBedrock Knowledge Bases provides automatic chunking with configurable parameters. Set target chunk size (around 300 tokens is a good starting point) and overlap percentage (10% is common). Adjust based on retrieval quality with your actual queries.\n\nCustom chunking pipelines offer more control. Lambda functions triggered by S3 uploads can implement domain-specific logic—split code by function, legal docs by clause, procedures by step. More work, better results for specialized content.",
       "awsServices": [
         {
           "serviceName": "Amazon Bedrock Knowledge Bases",
-          "whenToUse": "Automatic chunking with configurable chunk size and overlap. Handles most document types without custom code.",
+          "whenToUse": "Automatic chunking with configurable size and overlap. Handles most document types.",
           "examKeywords": ["automatic chunking", "managed", "configurable size"]
         },
         {
           "serviceName": "AWS Lambda",
-          "whenToUse": "Custom chunking logic for specialized content types. Semantic boundary detection requiring domain knowledge.",
+          "whenToUse": "Custom chunking for specialized content. Semantic boundary detection with domain knowledge.",
           "examKeywords": ["custom chunking", "semantic", "boundary detection"]
         }
       ]
     },
     {
       "skillId": "1.5.2",
-      "explanation": "Embedding generation converts your documents into the vector representation that enables semantic search. Quality embeddings are essential—no amount of search optimization can compensate for poor embeddings.\n\nTitan Embeddings V2 is the standard choice for Bedrock workloads. It handles English content well and has improved multilingual capabilities. For most use cases, it's the recommended starting point.\n\nEvaluate embedding quality before production deployment. Create a test set of queries with known relevant documents. Generate embeddings and measure recall@k (how many relevant documents appear in top k results). Compare different embedding models on your specific data—general benchmarks don't always predict domain-specific performance.\n\nBatch embedding generation is essential for efficiency at scale. Processing thousands of documents with individual API calls is slow and expensive. Bedrock supports batch inference, and for custom pipelines, you should batch documents and make fewer, larger API calls.\n\nEmbedding caching prevents redundant computation. Store embeddings alongside document IDs so you don't re-embed unchanged documents. When documents update, only re-embed the changed content. This is particularly important for incremental knowledge base updates.",
+      "explanation": "Embedding generation turns your documents into the vectors that enable semantic search. Quality embeddings are foundational—no amount of fancy search can fix bad embeddings.\n\n**Titan Embeddings V2** is the go-to for Bedrock workloads. Good English performance, improving multilingual support. For most use cases, just use it and move on.\n\nBefore going to production, **evaluate embedding quality** on your specific domain. Create a test set: queries with known relevant documents. Generate embeddings and measure recall@k—how many relevant docs appear in top k results? Compare embedding models on YOUR data; benchmarks don't always predict domain-specific performance.\n\n**Batch embedding** is essential at scale. Processing thousands of documents with individual API calls is slow and expensive. Use Bedrock batch inference or batch your own calls for efficiency.\n\n**Cache embeddings** to avoid recomputing. Store embeddings alongside document IDs. When documents update, only re-embed what changed. This matters a lot for incremental knowledge base updates.",
       "awsServices": [
         {
           "serviceName": "Amazon Titan Embeddings",
-          "whenToUse": "Default embedding model for Bedrock workloads. 1536 dimensions, good general-purpose performance.",
+          "whenToUse": "Default embedding model for Bedrock. 1536 dimensions, solid general-purpose.",
           "examKeywords": ["Titan", "embeddings", "1536 dimensions", "default"]
         },
         {
           "serviceName": "Amazon Bedrock",
-          "whenToUse": "Access to multiple embedding models including Cohere Embed. Batch inference for efficient large-scale embedding.",
+          "whenToUse": "Access multiple embedding models including Cohere. Batch inference for scale.",
           "examKeywords": ["embedding model", "batch inference", "Cohere"]
         }
       ]
     },
     {
       "skillId": "1.5.3",
-      "explanation": "Vector search retrieves documents semantically similar to query embeddings. The search implementation significantly impacts retrieval quality and performance.\n\nOpenSearch k-NN provides scalable vector search with HNSW (Hierarchical Navigable Small World) indexes. HNSW enables fast approximate nearest neighbor search—it may not find the mathematically exact nearest neighbors, but it finds very close approximations much faster than exact search. For most applications, this trade-off is worthwhile.\n\nAurora pgvector adds vector operations to PostgreSQL. For teams already using PostgreSQL, pgvector integrates vector search into existing database infrastructure. Query syntax uses familiar SQL with distance operators. pgvector supports both exact and approximate (IVFFlat) search.\n\nBedrock Knowledge Bases abstracts the search layer entirely. You query the knowledge base; Bedrock handles the vector search internally. This is the simplest option but offers less control over search parameters.\n\nTuning search parameters affects the precision-recall trade-off. In OpenSearch, the ef_search parameter controls how many candidates HNSW considers—higher values improve recall but slow search. Test different parameter values with your actual queries to find the optimal balance.",
+      "explanation": "Vector search is where retrieval rubber meets the road. Implementation details significantly impact both quality and performance.\n\n**OpenSearch k-NN** provides scalable vector search with HNSW indexes. HNSW finds approximate nearest neighbors incredibly fast—it may not be mathematically perfect, but it's close enough and way faster than exact search. For most applications, this trade-off is exactly right.\n\n**Aurora pgvector** adds vector operations to PostgreSQL. If you already use PostgreSQL, querying vectors with familiar SQL is a big win. pgvector supports both exact search (accurate but slow at scale) and approximate search (IVFFlat indexes).\n\n**Bedrock Knowledge Bases** abstracts the search layer completely. You call the retrieve API; Bedrock handles vector search internally. Simplest option, least control.\n\n**Tuning search parameters** affects precision-recall trade-offs. In OpenSearch, the ef_search parameter controls how many candidates HNSW considers. Higher values = better recall, slower search. Test different values with your actual queries to find the balance.",
       "awsServices": [
         {
           "serviceName": "Amazon OpenSearch Service",
-          "whenToUse": "Large-scale k-NN search with HNSW indexes. Fine-grained control over search parameters and sharding.",
+          "whenToUse": "Large-scale k-NN with HNSW. Fine control over search parameters and sharding.",
           "examKeywords": ["k-NN", "vector search", "HNSW", "scale"]
         },
         {
           "serviceName": "Amazon Aurora PostgreSQL",
-          "whenToUse": "Vector search for PostgreSQL workloads. SQL-compatible queries with pgvector extension.",
+          "whenToUse": "Vector search for PostgreSQL shops. SQL-compatible queries with pgvector.",
           "examKeywords": ["pgvector", "PostgreSQL", "SQL", "IVFFlat"]
         },
         {
           "serviceName": "Amazon Bedrock Knowledge Bases",
-          "whenToUse": "Managed vector search with zero configuration. Simplest option for most RAG applications.",
+          "whenToUse": "Managed vector search, zero configuration. Simplest for most RAG apps.",
           "examKeywords": ["managed", "knowledge base", "retrieve API"]
         }
       ]
     },
     {
       "skillId": "1.5.4",
-      "explanation": "Advanced search techniques improve retrieval precision beyond basic vector similarity. These techniques are particularly valuable for complex queries and high-stakes applications where retrieval accuracy is critical.\n\nHybrid search fusion combines vector and keyword scores. OpenSearch's neural plugin supports weighted combinations—you can emphasize keyword matching for precise technical queries or semantic similarity for conceptual questions. Bedrock KB's HYBRID mode provides this automatically with sensible defaults.\n\nReranker models score query-document pairs with more computational power than initial retrieval. Bedrock offers reranker models that can be applied to retrieval results. The pattern is: retrieve top-N candidates with fast vector search, then rerank those N documents with a more accurate (slower) model, returning top-K. This two-stage approach balances efficiency and accuracy.\n\nCross-encoder reranking is particularly effective because it jointly processes the query and document, capturing relevance signals that separate embedding models miss. The downside is computational cost—cross-encoders cannot be pre-computed and must run at query time.",
+      "explanation": "Advanced search techniques squeeze more precision out of retrieval. Worth the complexity for high-stakes applications where accuracy justifies latency.\n\n**Hybrid search fusion** combines vector and keyword scores. OpenSearch's neural plugin lets you tune weights—emphasize keywords for precise technical queries, semantics for conceptual questions. Bedrock KB's HYBRID mode does this automatically with sensible defaults.\n\n**Reranker models** score query-document pairs with more computational power than initial retrieval. Pattern: retrieve top-N quickly with vector search, then rerank those N documents with a more accurate (slower) cross-encoder, return top-K. Bedrock offers reranker models you can apply to retrieval results.\n\n**Cross-encoder reranking** is powerful because it jointly processes query and document, catching relevance signals that separate embeddings miss. The downside? Can't be pre-computed—must run at query time. Use for precision-critical applications where extra latency is acceptable.",
       "awsServices": [
         {
           "serviceName": "Amazon OpenSearch Service",
-          "whenToUse": "Neural plugin for hybrid search. Custom scoring functions. BM25 + vector fusion.",
+          "whenToUse": "Neural plugin for hybrid search. Custom scoring. BM25 + vector fusion.",
           "examKeywords": ["hybrid search", "neural plugin", "BM25", "fusion"]
         },
         {
@@ -127,23 +127,23 @@
     },
     {
       "skillId": "1.5.5",
-      "explanation": "Query handling transforms user input into effective retrieval queries. Raw user queries are often suboptimal for retrieval—they may be ambiguous, incomplete, or phrased differently than document content.\n\nQuery expansion uses an FM to add related terms. A query about 'serverless compute' might expand to include 'Lambda,' 'Fargate,' 'event-driven,' and other related concepts. This improves recall by matching documents that use different but related terminology.\n\nQuery decomposition handles multi-part questions by breaking them into simpler sub-queries. This is essential for complex analytical queries that span multiple topics. Retrieve for each sub-query, then aggregate results for the FM.\n\nStep Functions orchestrates complex query pipelines. A sophisticated system might: (1) reformulate the query for clarity, (2) expand with related terms, (3) decompose into sub-queries, (4) retrieve for each sub-query, (5) rerank combined results, (6) apply MMR for diversity. Step Functions manages this multi-stage workflow with proper error handling and retry logic.\n\nConversational query handling requires context awareness. In a multi-turn conversation, queries often reference earlier context ('what about that?'). Include relevant conversation history when constructing retrieval queries.",
+      "explanation": "Query handling transforms messy user input into effective retrieval queries. The gap between how users ask and how documents are written is where retrieval often fails.\n\n**Query expansion** uses an FM to add related terms. 'Serverless compute' expands to include 'Lambda,' 'Fargate,' 'event-driven'—catching docs that use different terminology. Improves recall.\n\n**Query decomposition** breaks complex questions into sub-queries. Essential for analytical questions spanning multiple topics. Retrieve for each, aggregate results. The FM gets comprehensive context instead of partial matches.\n\n**Step Functions** orchestrates complex query pipelines. A sophisticated system might: (1) reformulate for clarity, (2) expand with related terms, (3) decompose into sub-queries, (4) retrieve for each, (5) rerank combined results, (6) apply MMR for diversity. Step Functions manages this multi-stage workflow with proper error handling.\n\n**Conversational query handling** requires context awareness. In multi-turn chats, 'what about that?' references earlier context. Include relevant conversation history when constructing retrieval queries.",
       "awsServices": [
         {
           "serviceName": "Amazon Bedrock",
-          "whenToUse": "FM-based query expansion, reformulation, and decomposition. Generate hypothetical documents for HyDE.",
+          "whenToUse": "FM-based query expansion, reformulation, decomposition. Generate hypothetical docs for HyDE.",
           "examKeywords": ["query expansion", "reformulation", "HyDE", "decomposition"]
         },
         {
           "serviceName": "AWS Step Functions",
-          "whenToUse": "Orchestrate multi-stage query processing pipelines. Handle complex branching and error recovery.",
+          "whenToUse": "Orchestrate multi-stage query pipelines. Handle complex branching and errors.",
           "examKeywords": ["orchestrate", "multi-stage", "workflow", "pipeline"]
         }
       ]
     },
     {
       "skillId": "1.5.6",
-      "explanation": "Access mechanisms provide standardized interfaces between FMs and retrieval systems. These interfaces enable tool use and agentic patterns where the FM decides when and how to retrieve information.\n\nFunction calling allows FMs to invoke retrieval tools. Define a retrieval function with parameters (query, filters, top_k), and the FM can call it when it needs external information. This enables more flexible retrieval patterns than always-retrieve approaches.\n\nBedrock's Converse API supports tools natively. You define tool schemas, and the FM returns tool_use blocks when it wants to invoke a tool. Your application executes the tool and returns results for the FM to incorporate.\n\nLambda functions serve as flexible API endpoints for retrieval. The FM invokes a Lambda function (via tool calling), Lambda performs the retrieval (querying OpenSearch, Aurora, or Bedrock KB), and returns results to the FM.\n\nModel Context Protocol (MCP) is an emerging standard for tool integration. It provides a consistent interface for FMs to interact with external tools and data sources, potentially simplifying multi-tool architectures.",
+      "explanation": "Access mechanisms provide standardized interfaces between FMs and retrieval systems. These interfaces enable tool use and agentic patterns where the model decides when and how to retrieve.\n\n**Function calling** lets FMs invoke retrieval tools. Define a retrieval function with parameters (query, filters, top_k), and the FM calls it when it needs external information. More flexible than always-retrieve approaches.\n\nBedrock's **Converse API** supports tools natively. Define tool schemas, and the FM returns tool_use blocks when it wants to invoke a tool. Your application executes the tool and returns results for the FM to incorporate.\n\n**Lambda functions** serve as flexible API endpoints for retrieval. The FM invokes Lambda via tool calling, Lambda performs the retrieval (querying OpenSearch, Aurora, or Bedrock KB), and returns results to the FM.\n\n**Model Context Protocol (MCP)** is an emerging standard for tool integration. Provides a consistent interface for FMs to interact with external tools and data sources—potentially simplifying multi-tool architectures.",
       "awsServices": [
         {
           "serviceName": "Amazon Bedrock",
@@ -164,11 +164,11 @@
       "services": ["Pure Vector Search", "Hybrid Search", "Hybrid + Reranking"],
       "criteria": [
         {
-          "criterion": "Best for query types",
+          "criterion": "Best for",
           "values": {
-            "Pure Vector Search": "Conceptual, semantic queries seeking understanding",
+            "Pure Vector Search": "Conceptual, semantic queries",
             "Hybrid Search": "Mixed queries with keywords and concepts",
-            "Hybrid + Reranking": "Precision-critical applications, complex queries"
+            "Hybrid + Reranking": "Precision-critical, complex queries"
           }
         },
         {
@@ -176,7 +176,7 @@
           "values": {
             "Pure Vector Search": "Good for semantic similarity",
             "Hybrid Search": "Better—captures keywords pure vector misses",
-            "Hybrid + Reranking": "Highest—cross-encoder scoring is most accurate"
+            "Hybrid + Reranking": "Highest—cross-encoder is most accurate"
           }
         },
         {
@@ -192,7 +192,7 @@
           "values": {
             "Pure Vector Search": "Latency-critical, simple semantic matching",
             "Hybrid Search": "Most production RAG (default choice)",
-            "Hybrid + Reranking": "High-stakes applications where accuracy justifies latency"
+            "Hybrid + Reranking": "High-stakes where accuracy > latency"
           }
         }
       ]
@@ -201,26 +201,26 @@
   "examStrategies": [
     {
       "questionPattern": "improve retrieval quality",
-      "approach": "Look for hybrid search, reranking, or query expansion in the answer options. These techniques directly improve retrieval precision. Order of impact for most scenarios: hybrid search > reranking > query expansion. If question mentions 'without increasing latency,' favor hybrid over reranking.",
+      "approach": "Look for hybrid search, reranking, or query expansion. These directly improve precision. Order of impact: hybrid search > reranking > query expansion. If question says 'without increasing latency,' favor hybrid over reranking.",
       "keywords": ["improve", "quality", "relevance", "precision", "better retrieval"]
     },
     {
       "questionPattern": "complex or multi-part questions",
-      "approach": "Query decomposition breaks complex queries into simpler sub-queries. Step Functions orchestrates the multi-stage processing. Look for answers mentioning decomposition, multi-stage retrieval, or orchestration.",
+      "approach": "Query decomposition breaks complex queries into simpler sub-queries. Step Functions orchestrates multi-stage processing. Look for decomposition, multi-stage, or orchestration in answers.",
       "keywords": ["complex", "multi-part", "decomposition", "compound questions"]
     },
     {
       "questionPattern": "scale or performance",
-      "approach": "OpenSearch with HNSW indexes enables fast approximate search at scale. Batch embedding generation improves ingestion throughput. Asynchronous processing handles non-real-time retrieval efficiently.",
+      "approach": "OpenSearch with HNSW indexes for fast approximate search at scale. Batch embedding for ingestion throughput. Async processing for non-real-time retrieval.",
       "keywords": ["scale", "performance", "throughput", "latency", "millions of documents"]
     }
   ],
   "keyTakeaways": [
-    "Chunking strategy directly impacts retrieval quality—test different sizes with your content",
-    "Titan Embeddings V2 is the default choice; evaluate alternatives on your specific domain",
-    "Hybrid search (keyword + vector) outperforms pure vector for most production use cases",
-    "Reranking improves precision significantly but adds latency—use for high-stakes applications",
-    "Query optimization (expansion, decomposition, HyDE) bridges the query-document vocabulary gap"
+    "Chunking strategy directly impacts retrieval—test different sizes with your content",
+    "Titan Embeddings V2 is the default; evaluate alternatives on your specific domain",
+    "Hybrid search (keyword + vector) beats pure vector for most production RAG",
+    "Reranking improves precision significantly but adds latency—use for high-stakes",
+    "Query optimization (expansion, decomposition, HyDE) bridges the query-document gap"
   ],
   "commonMistakes": [
     "Using only vector search when hybrid would produce better results",

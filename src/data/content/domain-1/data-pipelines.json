@@ -3,134 +3,124 @@
   "domainId": 1,
   "taskId": "1.3",
   "overview": {
-    "whyItMatters": "Foundation models are only as good as the data they receive. The principle of 'garbage in, garbage out' applies strongly to GenAI—malformed inputs, missing data, and quality issues all degrade FM outputs. Data validation ensures inputs meet quality standards; processing pipelines transform raw data into FM-ready formats. The exam tests your ability to build robust data workflows that catch problems early, transform diverse data types, and prepare inputs that maximize FM effectiveness.",
+    "whyItMatters": "Garbage in, garbage out—this old rule applies double for AI. Feed your model messy data, and you'll get messy responses. But clean, well-formatted inputs? That's how you get impressive results without changing a single line of your prompt. This topic is about everything that happens to data before it reaches the model.",
     "estimatedMinutes": 30
   },
   "concepts": [
     {
       "id": "data-quality",
       "title": "Data Quality for GenAI",
-      "content": "Foundation model inputs require specific quality standards, and violations often fail silently—the FM produces bad output rather than throwing an error. Proactive validation catches problems before they waste inference costs or deliver poor results to users.\n\nFormat validation ensures inputs have correct structure. Text must be properly encoded (UTF-8), free of binary artifacts, and within expected length limits. JSON payloads must parse correctly. Images must be in supported formats with valid dimensions. These seem basic, but real-world data pipelines encounter every edge case imaginable.\n\nCompleteness checking detects missing required fields. If your prompt template expects a customer name and purchase history, validate that both are present before constructing the prompt. Missing data leads to generic, unhelpful responses or, worse, hallucinations where the FM invents missing information.\n\nAnomaly detection identifies unexpected values. A product price of -$5.00 or a date in year 2099 signals data corruption that should stop processing. Domain-specific rules catch issues that generic validation misses.\n\nAWS Glue Data Quality provides declarative rule definitions using DQDL (Data Quality Definition Language). Define rules like 'price > 0' or 'email matches pattern' and apply them to batch data. Rules run automatically during Glue ETL jobs, failing pipelines when quality thresholds aren't met.\n\nSageMaker Data Wrangler offers visual data preparation with 300+ built-in transformations. It's excellent for exploratory work—understanding data distributions, identifying quality issues, and building transformation recipes that can be exported to production pipelines.\n\nFor real-time validation, Lambda functions implement custom logic. Check inputs against your specific business rules before forwarding to FMs. This catches issues that generic tools miss.",
+      "content": "Here's the frustrating thing about AI: it won't tell you when input data is bad. It'll just produce garbage output and act like everything's fine. That's why validation matters so much.\n\n**Format validation** catches the obvious stuff. Is the text actually UTF-8? Is that JSON parseable? Is the image actually an image, not a corrupted file? These sound basic, but you'd be amazed what shows up in production data.\n\n**Completeness checking** ensures nothing's missing. Your prompt template expects a customer name and order history? Make sure both actually exist before building the prompt. Missing data leads to weird, generic responses—or worse, the model invents information to fill the gap.\n\n**Anomaly detection** flags the weird stuff. A product price of -$50? A date in year 2099? An email that's 500 characters long? Something's wrong. Domain-specific rules catch these issues.\n\n**AWS Glue Data Quality** handles batch validation with declarative rules. Write rules like 'price > 0' or 'email contains @' in DQDL syntax. Run them automatically in your Glue ETL jobs. If data fails quality checks, stop the pipeline before wasting money on bad AI calls.\n\n**SageMaker Data Wrangler** is your visual Swiss Army knife for data prep. Explore distributions, spot anomalies, build transformation recipes—all through a GUI. Great for understanding your data before building production pipelines.\n\nFor **real-time validation**, Lambda functions are your friend. Custom business logic that checks inputs the moment they arrive. Reject bad data immediately instead of discovering problems after expensive processing.",
       "keyPoints": [
-        "Format validation: Correct encoding, expected structure, valid JSON",
+        "Format: Valid encoding, parseable JSON, correct file types",
         "Completeness: All required fields present, no truncation",
-        "Anomaly detection: Outliers, impossible values, corrupted data",
-        "Constraint enforcement: Length limits, allowed values, data type checks"
+        "Anomalies: Catch impossible values and obvious errors",
+        "Glue Data Quality: Batch rules; Lambda: Real-time custom checks"
       ],
-      "examTip": "Questions mentioning 'data quality rules' or 'validation before processing' typically point to Glue Data Quality. For real-time validation, Lambda is the answer."
+      "examTip": "'Data quality rules' or 'batch validation' = Glue Data Quality. 'Real-time custom validation' = Lambda."
     },
     {
       "id": "multimodal-processing",
       "title": "Multimodal Data Processing",
-      "content": "Modern foundation models accept multiple input types—text, images, documents, audio—but each modality requires specific preprocessing. Understanding these requirements is essential for building applications that leverage multimodal capabilities.\n\nImage processing prepares visual inputs for multimodal FMs. Images must be resized to reasonable dimensions (models have resolution limits), converted to supported formats (JPEG, PNG), and encoded as base64 strings for API transmission. Compression reduces payload size without significantly impacting model understanding. For Bedrock multimodal models, images are included directly in the message content.\n\nDocument processing extracts text and structure from complex documents. PDFs, Word documents, and scanned images require specialized handling. Amazon Textract performs OCR (Optical Character Recognition) on images and PDFs, extracting text while preserving layout information. For structured documents like forms and tables, Textract can identify fields and their values. This extracted text then feeds into text-based FM processing.\n\nAudio processing converts speech to text for language model consumption. Amazon Transcribe handles speech-to-text conversion with support for multiple languages, speaker identification, and custom vocabularies. Real-time transcription enables live applications; batch transcription handles recorded audio efficiently.\n\nVideo processing combines multiple modalities. Extract key frames as images for visual analysis. Transcribe the audio track for spoken content. Some advanced workflows analyze both visual and audio content, then synthesize insights.\n\nBuild modality-specific preprocessing stages in your pipeline. SageMaker Processing jobs handle batch transformations at scale. Lambda functions process individual items in real-time. Step Functions orchestrates multi-stage pipelines that combine different preprocessing steps.\n\nError handling is critical for multimodal pipelines. Images may be corrupted, audio may be silent or garbled, documents may be password-protected. Design your pipeline to handle these gracefully—skip bad inputs, log issues, and continue processing rather than failing the entire batch.",
+      "content": "Modern AI doesn't just read text—it sees images, reads documents, and hears audio. But each type needs specific prep work before the model can use it.\n\n**Images** need resizing and encoding. Models have resolution limits, so scale down massive images. Convert to supported formats (JPEG, PNG). Encode as base64 for API transmission. For Bedrock's multimodal models, images go directly into the message content.\n\n**Documents** (PDFs, Word files, scanned pages) need text extraction. **Amazon Textract** is your OCR powerhouse—it pulls text from images and PDFs while preserving structure. For forms and tables, Textract identifies fields and their values, maintaining relationships that simple OCR loses.\n\n**Audio** becomes text through **Amazon Transcribe**. It handles multiple languages, identifies different speakers, and can use custom vocabularies for industry jargon. Real-time transcription works for live apps; batch mode handles recordings efficiently.\n\n**Video** is the combo meal—extract key frames for image analysis, transcribe the audio track for spoken content. Some workflows analyze both and synthesize insights.\n\nBuild **modality-specific preprocessing stages**. SageMaker Processing jobs handle heavy batch transformations. Lambda processes items in real-time. Step Functions orchestrates multi-stage pipelines.\n\nCritical: **handle errors gracefully**. Corrupted images, garbled audio, password-protected PDFs—they all happen. Skip bad inputs, log issues, continue processing. Don't let one bad file crash your entire pipeline.",
       "keyPoints": [
-        "Images: Resize, compress, base64 encode, validate dimensions",
-        "Documents: Extract text via Textract, preserve structure when possible",
-        "Audio: Transcribe to text using Amazon Transcribe",
+        "Images: Resize, compress, base64 encode for API calls",
+        "Documents: Textract extracts text while preserving structure",
+        "Audio: Transcribe converts speech to text",
         "Video: Extract frames + transcribe audio track"
       ],
-      "examTip": "When scenarios involve documents or images, look for Textract (documents) or Bedrock multimodal models (images). Transcribe handles audio."
+      "examTip": "Documents or images? Look for Textract. Audio? Look for Transcribe. Vision analysis? Bedrock multimodal models."
     },
     {
       "id": "json-formatting",
       "title": "API-Ready Data Formatting",
-      "content": "Foundation model APIs expect specific input formats. Understanding these formats and building reliable serialization is essential for integrating FMs into applications.\n\nBedrock's Messages API uses a conversation format with roles and content. Messages have 'user' or 'assistant' roles, and content can include text and images. System messages establish context and constraints. This format is consistent across models but each model may have specific limits and supported features.\n\nThe structure looks like: {messages: [{role: 'user', content: [{type: 'text', text: '...'}]}]}. Getting this structure wrong—missing brackets, wrong field names, improper nesting—causes API errors that may be cryptic. Build robust serialization that handles edge cases.\n\nToken limits require input management. If your input exceeds the model's context limit, the request fails. Either truncate input to fit (losing information) or chunk it and process in multiple calls (adding complexity). Know your model's limits and design accordingly.\n\nSpecial characters need escaping in JSON. Newlines, quotes, backslashes, and control characters must be properly escaped or they'll break JSON parsing. Use proper JSON serialization libraries rather than string concatenation.\n\nSageMaker endpoints have custom payload schemas. When using SageMaker-hosted models, the input format depends on how the endpoint was configured. Document your expected schemas and validate inputs against them.\n\nBuild a consistent formatting layer in your application. Rather than constructing JSON throughout your codebase, create utility functions that handle serialization reliably. This prevents formatting bugs and makes API changes easier to manage.",
+      "content": "AI APIs are picky about input format. Get it wrong and your request fails—sometimes with cryptic errors that take forever to debug.\n\n**Bedrock's Messages API** uses a specific structure: messages with roles ('user' or 'assistant'), content arrays that can include text and images, and a system message for instructions. It looks like:\n\n```json\n{messages: [{role: 'user', content: [{type: 'text', text: '...'}]}]}\n```\n\nMiss a bracket? Wrong field name? Improper nesting? Request fails.\n\n**Token limits** are real constraints. Every model has a maximum context size. If your input exceeds it, the request fails or gets truncated. Know your model's limits. Options for oversized inputs: truncate (lose data), summarize (adds processing), or chunk and aggregate (complex but complete).\n\n**Special characters** need proper escaping in JSON. Newlines, quotes, backslashes, control characters—they'll all break your JSON if not escaped correctly. Use proper serialization libraries, not string concatenation.\n\n**SageMaker endpoints** have custom schemas. Each endpoint defines its own expected format. Document these clearly and validate inputs against them.\n\nBest practice: **build a formatting layer**. Don't construct JSON throughout your codebase. Create utility functions that handle serialization consistently. When the API changes (and it will), you fix one place.",
       "keyPoints": [
-        "Bedrock Messages API: Roles (user/assistant) + content array format",
-        "Token limits: Know model limits, truncate or chunk as needed",
-        "Escaping: Handle special characters properly in JSON",
-        "Consistency: Build a formatting layer rather than ad-hoc serialization"
+        "Messages API: Roles + content arrays + system message",
+        "Token limits: Know your model's limits, handle oversized inputs",
+        "Special characters: Use proper JSON serialization, not string concat",
+        "Consistency: Build a formatting layer, don't repeat yourself"
       ]
     },
     {
       "id": "input-enhancement",
       "title": "Input Enhancement Techniques",
-      "content": "Raw user input often benefits from preprocessing that improves FM response quality. Rather than sending exactly what the user typed, enhance and enrich inputs to give the FM better context for generating useful responses.\n\nEntity extraction identifies important elements in user input. Amazon Comprehend extracts entities (names, dates, locations, organizations), key phrases, and sentiment. This extracted information can route requests to appropriate handlers, filter responses, or be injected into prompts for context.\n\nText normalization fixes common input issues. Expand abbreviations ('u' → 'you'), correct obvious misspellings, standardize date formats, and remove excessive punctuation. The FM handles imperfect input, but clean input often produces cleaner output.\n\nContext enrichment adds relevant background information. If a user asks about 'my order,' inject their recent order details into the prompt. If they reference a product by nickname, resolve it to the full product name. This context enables more specific, helpful responses.\n\nQuery expansion adds related terms to improve retrieval. For RAG applications, a query about 'compute options' might be expanded to include 'EC2,' 'Lambda,' 'Fargate'—terms likely to appear in relevant documents. This bridges vocabulary gaps between how users ask questions and how documents are written.\n\nPersonalization adapts prompts based on user characteristics. Include relevant user history, preferences, or role information in the prompt. A technical user might get detailed explanations; a casual user might get simpler responses.\n\nThese enhancements run before FM invocation, typically in Lambda functions. They're preprocessing steps that transform raw input into optimized prompts. Track which enhancements improve output quality—not all preprocessing is beneficial, and some may add latency without meaningful improvement.",
+      "content": "Raw user input is often... raw. Typos, abbreviations, missing context. You can improve AI responses dramatically by preprocessing input before it reaches the model.\n\n**Entity extraction** identifies the important stuff. **Amazon Comprehend** pulls out names, dates, locations, and organizations. It detects sentiment and key phrases. Use this info to route requests, filter responses, or add context to prompts.\n\n**Text normalization** cleans things up. Expand 'u' to 'you'. Fix obvious typos. Standardize date formats. Remove excessive punctuation. The model handles imperfect input, but cleaner input often produces cleaner output.\n\n**Context enrichment** adds background. User asks about 'my order'? Inject their recent order details into the prompt. References a product by nickname? Resolve it to the full name. This context enables specific, helpful responses instead of generic ones.\n\n**Query expansion** broadens retrieval. A question about 'compute options' might expand to include 'EC2', 'Lambda', 'Fargate'. This helps RAG systems find relevant documents that use different terminology.\n\n**Personalization** tailors responses. Include relevant user history, preferences, or role. A developer might want technical details; an exec might want a summary.\n\nThese enhancements run **before** the AI call, typically in Lambda. They transform raw input into optimized prompts. But measure effectiveness—not all preprocessing helps, and some adds latency without improving results.",
       "keyPoints": [
-        "Entity extraction: Identify names, dates, locations using Comprehend",
-        "Normalization: Fix spelling, expand abbreviations, standardize formats",
-        "Context injection: Add user history, relevant documents, preferences",
-        "Query expansion: Add synonyms and related terms for retrieval"
+        "Entity extraction: Comprehend pulls names, dates, sentiment",
+        "Normalization: Fix typos, expand abbreviations, standardize",
+        "Context injection: Add user history, resolve references",
+        "Query expansion: Add synonyms for better retrieval"
       ]
     }
   ],
   "skillExplanations": [
     {
       "skillId": "1.3.1",
-      "explanation": "Data quality workflows validate inputs before expensive FM processing. Catching bad data early prevents wasted inference costs and poor user experiences.\n\nGlue Data Quality defines rules declaratively using DQDL. Rules can check completeness (required fields present), uniqueness (no duplicates), validity (values match patterns), and custom conditions. Rules integrate into Glue ETL jobs, failing pipelines when quality falls below thresholds.\n\nSageMaker Data Wrangler provides visual data preparation. Its interface enables quick exploration—view distributions, identify anomalies, understand data characteristics. Data Wrangler recipes can be exported to production pipelines, bridging exploratory analysis and automated processing.\n\nLambda implements custom validation for real-time inputs. Check business-specific rules that generic tools can't express: verify referenced products exist in your catalog, ensure prices fall within valid ranges, confirm customer IDs match authenticated users. This application-specific validation catches issues domain-generic tools miss.\n\nDesign validation to fail fast. If input is invalid, reject it immediately rather than letting it propagate through expensive processing only to produce garbage output. Return clear error messages that help users fix their inputs.",
+      "explanation": "Validation catches problems before they become expensive mistakes.\n\n**Glue Data Quality** defines rules declaratively. Write rules like 'Completeness of customer_id > 99%' or 'price between 0 and 10000'. Rules run automatically in Glue ETL jobs. If data fails, the pipeline stops—you don't waste money processing garbage.\n\n**Data Wrangler** helps you understand data visually. View distributions, spot outliers, explore relationships. It's great for building intuition about your data before writing validation rules. Export recipes to production pipelines.\n\n**Lambda** handles real-time custom validation. Check that referenced products exist in your catalog. Verify prices fall within valid ranges. Confirm customer IDs match authenticated users. Business-specific rules that generic tools can't express.\n\nDesign validation to **fail fast**. If input is bad, reject immediately. Return clear error messages so users can fix their input. Don't let bad data travel through expensive processing only to produce garbage at the end.",
       "awsServices": [
         {
           "serviceName": "AWS Glue Data Quality",
-          "whenToUse": "Declarative quality rules for batch data processing. Automated monitoring and alerting. Integration with Glue ETL pipelines.",
-          "examKeywords": ["data quality", "validation rules", "completeness", "accuracy", "DQDL"]
+          "whenToUse": "Batch validation with declarative rules. Quality monitoring for data lakes.",
+          "examKeywords": ["data quality", "validation rules", "completeness", "DQDL"]
         },
         {
           "serviceName": "Amazon SageMaker Data Wrangler",
-          "whenToUse": "Visual data exploration and preparation. Quick understanding of data characteristics. Recipe development for production.",
-          "examKeywords": ["data wrangler", "visual", "transformation", "prepare", "explore"]
+          "whenToUse": "Visual exploration. Understanding data before building pipelines.",
+          "examKeywords": ["data wrangler", "visual", "transformation", "explore"]
         },
         {
           "serviceName": "AWS Lambda",
-          "whenToUse": "Real-time custom validation. Business-specific rules. Per-request input checking.",
-          "examKeywords": ["custom", "real-time", "serverless validation", "business rules"]
+          "whenToUse": "Real-time custom validation. Business rules per request.",
+          "examKeywords": ["custom", "real-time", "business rules"]
         }
       ]
     },
     {
       "skillId": "1.3.2",
-      "explanation": "Multimodal processing converts diverse input types into formats foundation models can consume. Each modality has specific requirements and processing techniques.\n\nBedrock multimodal models accept images directly. Claude and other vision-capable models process images as part of message content. Images must be base64-encoded and within size limits. The model analyzes visual content and can answer questions about images, extract text, describe scenes, and more.\n\nSageMaker Processing jobs handle batch transformations at scale. When you need to preprocess thousands of images or documents, Processing jobs run on managed infrastructure with automatic scaling. This is more cost-effective than Lambda for high-volume batch work.\n\nAmazon Textract extracts text from documents with structure preservation. For forms and tables, Textract identifies fields and values, maintaining relationships that simple OCR loses. This extracted, structured data feeds into FM prompts for document analysis, comparison, or summarization.\n\nAmazon Transcribe converts audio to text with speaker identification and timestamp alignment. Custom vocabularies improve accuracy for domain-specific terminology. Real-time streaming supports live applications; batch mode handles recorded content.",
+      "explanation": "Each input type needs specific preparation to work with AI models.\n\n**Bedrock multimodal models** accept images directly in the message content. Base64-encode them, keep them within size limits, and they're ready. The model can analyze visual content, answer questions about images, or describe what it sees.\n\n**SageMaker Processing** handles heavy batch transformations. Need to preprocess 10,000 images? Processing jobs run on managed infrastructure that scales automatically. More efficient than Lambda for high-volume batch work.\n\n**Textract** extracts text while preserving structure. For forms and tables, it identifies fields and their values. The structured output feeds directly into AI prompts for document analysis.\n\n**Transcribe** converts speech to text with speaker identification. Custom vocabularies improve accuracy for your industry's jargon. Real-time mode works for live apps; batch handles recordings.\n\nRemember: each modality has failure modes. Corrupted images, garbled audio, locked PDFs. Build error handling into your pipeline.",
       "awsServices": [
         {
           "serviceName": "Amazon Bedrock",
-          "whenToUse": "Multimodal FMs that natively accept images with text. Vision capabilities for image analysis.",
-          "examKeywords": ["multimodal", "image understanding", "vision", "Claude vision"]
-        },
-        {
-          "serviceName": "Amazon SageMaker Processing",
-          "whenToUse": "Batch transformation jobs at scale. Heavy preprocessing of large datasets.",
-          "examKeywords": ["batch", "processing job", "transform", "scale"]
+          "whenToUse": "Multimodal FMs accepting images directly. Vision analysis.",
+          "examKeywords": ["multimodal", "image understanding", "vision"]
         },
         {
           "serviceName": "Amazon Textract",
-          "whenToUse": "Extract text from documents and images. Form and table structure preservation.",
-          "examKeywords": ["textract", "OCR", "document", "extract text"]
+          "whenToUse": "Document OCR. Form and table extraction.",
+          "examKeywords": ["textract", "OCR", "document", "forms"]
         },
         {
           "serviceName": "Amazon Transcribe",
-          "whenToUse": "Convert audio to text. Speech recognition with speaker identification.",
-          "examKeywords": ["transcribe", "audio", "speech-to-text", "voice"]
+          "whenToUse": "Speech to text. Audio processing.",
+          "examKeywords": ["transcribe", "audio", "speech-to-text"]
         }
       ]
     },
     {
       "skillId": "1.3.3",
-      "explanation": "API-ready formatting transforms your application data into structures the FM APIs expect. Correct formatting is essential—malformed requests fail, and subtle formatting issues can degrade output quality.\n\nBedrock's Messages API provides a consistent interface across models. Understand the message structure: roles (system, user, assistant), content types (text, image), and model-specific parameters (temperature, max_tokens). Build utilities that construct valid messages reliably.\n\nSageMaker endpoints accept custom payload formats defined during deployment. When you deploy models to SageMaker, you control the input schema. Document expected formats and validate inputs against schemas before sending requests.\n\nToken counting is essential for managing context limits. Before sending a request, estimate token count and handle cases where input exceeds limits. Options include truncation (simple but loses data), summarization (preserves meaning but adds processing), or chunking with aggregation (complex but complete).\n\nError handling must gracefully manage formatting failures. Parse errors, encoding issues, and unexpected responses all occur in production. Build robust error handling that logs issues, returns meaningful errors to users, and enables debugging.",
+      "explanation": "Getting the format right means your requests work. Getting it wrong means cryptic errors.\n\n**Bedrock's Messages API** is your interface to most foundation models. Learn its structure: system messages for instructions, user/assistant roles for conversation, content arrays for multimodal inputs. Build utilities that construct valid messages reliably.\n\n**Token counting** before sending requests prevents surprises. If input exceeds limits, decide how to handle it: truncate (simple but loses data), summarize first (adds processing), or chunk with aggregation (complex but complete).\n\n**Error handling** catches the inevitable failures. Parse errors, encoding issues, malformed responses—they all happen. Build robust handling that logs problems, returns meaningful errors, and makes debugging possible.\n\nThe key insight: **centralize formatting logic**. Don't build JSON in ten different places. Create a formatting layer that everyone uses. When APIs change, you update one file.",
       "awsServices": [
         {
           "serviceName": "Amazon Bedrock",
-          "whenToUse": "Standard FM invocation with Messages API format. Consistent interface across multiple models.",
-          "examKeywords": ["messages API", "invoke model", "converse", "format"]
-        },
-        {
-          "serviceName": "Amazon SageMaker",
-          "whenToUse": "Custom endpoints with application-specific payload formats.",
-          "examKeywords": ["endpoint", "custom payload", "inference", "schema"]
+          "whenToUse": "Messages API for FM invocation. Standard interface.",
+          "examKeywords": ["messages API", "invoke model", "converse"]
         }
       ]
     },
     {
       "skillId": "1.3.4",
-      "explanation": "Input enhancement improves FM responses by enriching raw user input with context, structure, and additional information. These preprocessing steps optimize prompts without changing the underlying model.\n\nAmazon Comprehend provides entity extraction and NLP analysis. Extract entities (people, places, organizations, dates), detect sentiment, identify key phrases, and classify topics. This information can route requests, filter responses, or provide context in prompts.\n\nLambda functions implement custom enhancement logic. Normalize text, expand abbreviations, inject user context, enrich with external data, or transform inputs into consistent formats. Custom code enables business-specific enhancements that generic tools can't provide.\n\nContext injection adds relevant background to prompts. Retrieve user history, related documents, or domain knowledge, and include it in the prompt. This gives the FM information it needs to generate relevant, personalized responses.\n\nMeasure enhancement effectiveness. Not all preprocessing improves outcomes—some may add latency without benefit. A/B test enhanced vs. raw inputs to quantify improvement. Focus enhancement effort where it demonstrably helps.",
+      "explanation": "Enhancement makes raw input work better without changing the model.\n\n**Comprehend** extracts entities and sentiment from text. Use it for routing (is this a complaint?), filtering (is sentiment negative?), or context (what product are they discussing?). It's faster and cheaper than using an FM for these standard NLP tasks.\n\n**Lambda** implements custom enhancement. Normalize text, expand abbreviations, inject user context, enrich with database lookups. Business-specific processing that generic tools can't handle.\n\n**Context injection** is powerful. A generic 'what's my order status?' becomes specific when you inject: 'Customer John Smith (ID: 12345) has order #98765, shipped yesterday, arriving Friday.' The AI can give a useful, personalized response.\n\n**Measure what works**. Not all preprocessing improves results. Some adds latency without benefit. A/B test enhanced vs. raw inputs. Focus effort where it demonstrably helps.",
       "awsServices": [
         {
           "serviceName": "Amazon Comprehend",
-          "whenToUse": "Extract entities, sentiment, and key phrases from text. NLP analysis of user input.",
-          "examKeywords": ["entity extraction", "NLP", "sentiment", "key phrases", "comprehend"]
+          "whenToUse": "Entity extraction, sentiment, key phrases. Standard NLP tasks.",
+          "examKeywords": ["entity extraction", "NLP", "sentiment", "comprehend"]
         },
         {
           "serviceName": "AWS Lambda",
-          "whenToUse": "Custom text processing and normalization. Context injection and enrichment.",
-          "examKeywords": ["preprocess", "normalize", "enhance", "custom logic"]
+          "whenToUse": "Custom text processing. Context injection. Enrichment.",
+          "examKeywords": ["preprocess", "normalize", "enhance"]
         }
       ]
     }
@@ -138,38 +128,30 @@
   "serviceComparisons": [
     {
       "title": "Data Processing Services",
-      "services": ["Glue Data Quality", "SageMaker Data Wrangler", "Lambda"],
+      "services": ["Glue Data Quality", "Data Wrangler", "Lambda"],
       "criteria": [
         {
           "criterion": "Best for",
           "values": {
-            "Glue Data Quality": "Batch data validation with declarative rules",
-            "SageMaker Data Wrangler": "Visual data exploration and recipe development",
-            "Lambda": "Real-time custom processing per request"
+            "Glue Data Quality": "Batch validation with declarative rules",
+            "Data Wrangler": "Visual exploration and recipe development",
+            "Lambda": "Real-time custom processing"
           }
         },
         {
           "criterion": "Interface",
           "values": {
-            "Glue Data Quality": "Declarative DQDL rule definitions",
-            "SageMaker Data Wrangler": "Visual no-code UI with 300+ transformations",
-            "Lambda": "Full code control (Python, Node.js, etc.)"
+            "Glue Data Quality": "DQDL rule definitions",
+            "Data Wrangler": "Visual no-code UI",
+            "Lambda": "Full code control"
           }
         },
         {
           "criterion": "Scale pattern",
           "values": {
-            "Glue Data Quality": "Batch processing integrated with Glue ETL",
-            "SageMaker Data Wrangler": "Interactive analysis, exports to pipelines",
-            "Lambda": "Per-request processing with auto-scaling"
-          }
-        },
-        {
-          "criterion": "When to choose",
-          "values": {
-            "Glue Data Quality": "Systematic quality monitoring for data lakes",
-            "SageMaker Data Wrangler": "Exploratory work, quick prototyping",
-            "Lambda": "Real-time validation, custom business rules"
+            "Glue Data Quality": "Batch in Glue ETL jobs",
+            "Data Wrangler": "Interactive analysis",
+            "Lambda": "Per-request with auto-scaling"
           }
         }
       ]
@@ -178,32 +160,32 @@
   "examStrategies": [
     {
       "questionPattern": "validate data quality",
-      "approach": "Glue Data Quality for batch validation with declarative rules on data lakes and ETL pipelines. Lambda for real-time custom validation per request. Look for keywords indicating batch vs. real-time to choose between them.",
-      "keywords": ["data quality", "validate", "quality rules", "completeness", "accuracy"]
+      "approach": "Glue Data Quality for batch ETL validation. Lambda for real-time custom rules. Look for batch vs. real-time keywords.",
+      "keywords": ["data quality", "validate", "quality rules", "completeness"]
     },
     {
       "questionPattern": "process documents or images",
-      "approach": "Textract extracts text from documents and images. Bedrock multimodal models analyze images directly. Transcribe converts audio to text. Match the input modality to the appropriate service.",
-      "keywords": ["document", "image", "audio", "multimodal", "extract", "OCR"]
+      "approach": "Textract for documents (OCR, forms, tables). Bedrock multimodal for image understanding. Transcribe for audio. Match the modality to the service.",
+      "keywords": ["document", "image", "audio", "extract", "OCR"]
     },
     {
       "questionPattern": "extract entities or sentiment",
-      "approach": "Amazon Comprehend handles entity extraction, sentiment analysis, and key phrase extraction. It's more cost-effective than using FMs for these standard NLP tasks.",
-      "keywords": ["entity", "sentiment", "key phrases", "NLP", "extract"]
+      "approach": "Amazon Comprehend—faster and cheaper than using FMs for standard NLP tasks.",
+      "keywords": ["entity", "sentiment", "key phrases", "NLP"]
     }
   ],
   "keyTakeaways": [
-    "Validate data BEFORE sending to FMs—catching errors early saves cost and improves quality",
-    "Glue Data Quality provides declarative rules for batch data validation",
-    "Comprehend extracts entities and sentiment efficiently—cheaper than FM inference",
-    "Multimodal processing: Textract for documents, Transcribe for audio, Bedrock for images",
-    "Build consistent JSON formatting utilities rather than ad-hoc serialization"
+    "Validate BEFORE sending to AI—catch errors early, save money",
+    "Glue Data Quality = batch rules; Lambda = real-time custom logic",
+    "Comprehend for entities/sentiment—cheaper than FM calls",
+    "Textract for documents, Transcribe for audio, Bedrock for images",
+    "Build a formatting layer—don't repeat JSON construction everywhere"
   ],
   "commonMistakes": [
-    "Skipping validation and relying on FM error handling (FMs produce bad output, not errors)",
-    "Using expensive FMs for tasks like entity extraction that Comprehend handles better",
-    "Forgetting to handle token limits—inputs exceeding limits fail or truncate",
-    "Not encoding images properly for multimodal models (base64, correct format)",
-    "Building formatting logic throughout codebase instead of centralized utilities"
+    "Skipping validation (AI produces garbage, not errors)",
+    "Using expensive FMs for tasks Comprehend handles better",
+    "Forgetting token limits (inputs get truncated or fail)",
+    "Not base64-encoding images correctly for multimodal",
+    "Building formatting logic everywhere instead of centralizing"
   ]
 }
