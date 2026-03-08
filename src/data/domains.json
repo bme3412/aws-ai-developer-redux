@@ -1,0 +1,670 @@
+{
+  "domains": [
+    {
+      "id": 1,
+      "name": "Foundation Model Integration, Data Management & Compliance",
+      "shortName": "FM Integration & Data",
+      "weight": 31,
+      "priority": "critical",
+      "estimatedQuestions": 20,
+      "tasks": [
+        {
+          "id": "1.1",
+          "name": "Analyze Requirements & Design GenAI Solutions",
+          "articleSlug": "architectural-design",
+          "skills": [
+            {
+              "id": "1.1.1",
+              "description": "Architectural designs aligned to business needs (FMs, integration patterns, deployment strategies)",
+              "services": ["Amazon Bedrock", "AWS Well-Architected Framework"]
+            },
+            {
+              "id": "1.1.2",
+              "description": "Proof-of-concept implementations via Amazon Bedrock",
+              "services": ["Amazon Bedrock"]
+            },
+            {
+              "id": "1.1.3",
+              "description": "Standardized components using Well-Architected Framework + GenAI Lens",
+              "services": ["AWS Well-Architected Framework"]
+            }
+          ]
+        },
+        {
+          "id": "1.2",
+          "name": "Select & Configure Foundation Models",
+          "articleSlug": "model-selection",
+          "labSlug": "bedrock-playground",
+          "skills": [
+            {
+              "id": "1.2.1",
+              "description": "FM assessment: performance benchmarks, capability analysis, limitation evaluation",
+              "services": ["Amazon Bedrock", "Amazon Bedrock Model Evaluations"]
+            },
+            {
+              "id": "1.2.2",
+              "description": "Dynamic model selection without code changes",
+              "services": ["AWS Lambda", "Amazon API Gateway", "AWS AppConfig"]
+            },
+            {
+              "id": "1.2.3",
+              "description": "Resilient AI: circuit breakers, Cross-Region Inference, graceful degradation",
+              "services": ["AWS Step Functions", "Amazon Bedrock"]
+            },
+            {
+              "id": "1.2.4",
+              "description": "FM customization lifecycle: fine-tuned models, LoRA/adapters, Model Registry, rollback",
+              "services": ["Amazon SageMaker", "Amazon Bedrock"]
+            }
+          ]
+        },
+        {
+          "id": "1.3",
+          "name": "Data Validation & Processing Pipelines for FM Consumption",
+          "articleSlug": "data-pipelines",
+          "skills": [
+            {
+              "id": "1.3.1",
+              "description": "Data quality workflows: Glue Data Quality, SageMaker Data Wrangler, custom Lambda",
+              "services": ["AWS Glue", "Amazon SageMaker Data Wrangler", "AWS Lambda"]
+            },
+            {
+              "id": "1.3.2",
+              "description": "Multimodal data processing: Bedrock multimodal models, SageMaker Processing, Transcribe",
+              "services": ["Amazon Bedrock", "Amazon SageMaker", "Amazon Transcribe"]
+            },
+            {
+              "id": "1.3.3",
+              "description": "JSON formatting for Bedrock API, structured data for SageMaker endpoints",
+              "services": ["Amazon Bedrock", "Amazon SageMaker"]
+            },
+            {
+              "id": "1.3.4",
+              "description": "Input enhancement: text reformatting, entity extraction, normalization",
+              "services": ["Amazon Bedrock", "Amazon Comprehend", "AWS Lambda"]
+            }
+          ]
+        },
+        {
+          "id": "1.4",
+          "name": "Vector Store Solutions",
+          "articleSlug": "vector-stores",
+          "labSlug": "rag-builder",
+          "skills": [
+            {
+              "id": "1.4.1",
+              "description": "Vector DB architectures: Bedrock Knowledge Bases, OpenSearch, Aurora pgvector, DynamoDB",
+              "services": ["Amazon Bedrock Knowledge Bases", "Amazon OpenSearch Service", "Amazon Aurora", "Amazon DynamoDB"]
+            },
+            {
+              "id": "1.4.2",
+              "description": "Metadata frameworks: S3 object metadata, custom attributes, tagging for domain classification",
+              "services": ["Amazon S3"]
+            },
+            {
+              "id": "1.4.3",
+              "description": "High-performance: OpenSearch sharding, multi-index, hierarchical indexing",
+              "services": ["Amazon OpenSearch Service"]
+            },
+            {
+              "id": "1.4.4",
+              "description": "Integration with document management, knowledge bases, internal wikis",
+              "services": ["Amazon Bedrock Knowledge Bases", "Amazon S3"]
+            },
+            {
+              "id": "1.4.5",
+              "description": "Data maintenance: incremental updates, change detection, sync workflows",
+              "services": ["Amazon S3", "AWS Lambda", "AWS Step Functions"]
+            }
+          ]
+        },
+        {
+          "id": "1.5",
+          "name": "Retrieval Mechanisms for FM Augmentation",
+          "articleSlug": "retrieval-mechanisms",
+          "labSlug": "rag-builder",
+          "skills": [
+            {
+              "id": "1.5.1",
+              "description": "Document segmentation: Bedrock chunking, Lambda fixed-size, hierarchical chunking",
+              "services": ["Amazon Bedrock Knowledge Bases", "AWS Lambda"]
+            },
+            {
+              "id": "1.5.2",
+              "description": "Embeddings: Titan embeddings, embedding model evaluation, batch generation",
+              "services": ["Amazon Bedrock", "Amazon Titan"]
+            },
+            {
+              "id": "1.5.3",
+              "description": "Vector search: OpenSearch, Aurora pgvector, Bedrock Knowledge Bases managed vector store",
+              "services": ["Amazon OpenSearch Service", "Amazon Aurora", "Amazon Bedrock Knowledge Bases"]
+            },
+            {
+              "id": "1.5.4",
+              "description": "Advanced search: semantic, hybrid (keyword + vector), Bedrock reranker models",
+              "services": ["Amazon OpenSearch Service", "Amazon Bedrock"]
+            },
+            {
+              "id": "1.5.5",
+              "description": "Query handling: query expansion, decomposition, transformation",
+              "services": ["Amazon Bedrock", "AWS Lambda", "AWS Step Functions"]
+            },
+            {
+              "id": "1.5.6",
+              "description": "Access mechanisms: function calling, MCP clients, standardized API patterns",
+              "services": ["Amazon Bedrock", "AWS Lambda"]
+            }
+          ]
+        },
+        {
+          "id": "1.6",
+          "name": "Prompt Engineering Strategies & Governance",
+          "articleSlug": "prompt-engineering",
+          "labSlug": "prompt-lab",
+          "skills": [
+            {
+              "id": "1.6.1",
+              "description": "Bedrock Prompt Management for role definitions, Guardrails, template configs",
+              "services": ["Amazon Bedrock Prompt Management", "Amazon Bedrock Guardrails"]
+            },
+            {
+              "id": "1.6.2",
+              "description": "Interactive AI: clarification workflows, intent recognition, conversation history",
+              "services": ["AWS Step Functions", "Amazon Comprehend", "Amazon DynamoDB"]
+            },
+            {
+              "id": "1.6.3",
+              "description": "Prompt governance: parameterized templates, approval workflows, version control",
+              "services": ["Amazon S3", "AWS CloudTrail"]
+            },
+            {
+              "id": "1.6.4",
+              "description": "Quality assurance: output verification, edge case testing, regression monitoring",
+              "services": ["AWS Lambda", "AWS Step Functions", "Amazon CloudWatch"]
+            },
+            {
+              "id": "1.6.5",
+              "description": "Advanced prompting: structured inputs, chain-of-thought, feedback loops",
+              "services": ["Amazon Bedrock"]
+            },
+            {
+              "id": "1.6.6",
+              "description": "Complex prompt systems: Bedrock Prompt Flows, conditional branching, reusable components",
+              "services": ["Amazon Bedrock Prompt Flows"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Implementation & Integration",
+      "shortName": "Implementation",
+      "weight": 26,
+      "priority": "critical",
+      "estimatedQuestions": 17,
+      "tasks": [
+        {
+          "id": "2.1",
+          "name": "Agentic AI Solutions & Tool Integrations",
+          "articleSlug": "agentic-ai",
+          "labSlug": "agent-workshop",
+          "skills": [
+            {
+              "id": "2.1.1",
+              "description": "Autonomous systems: Strands Agents, AWS Agent Squad, MCP for agent-tool interactions",
+              "services": ["Amazon Bedrock Agents", "AWS Lambda"]
+            },
+            {
+              "id": "2.1.2",
+              "description": "Problem-solving: Step Functions for ReAct patterns, chain-of-thought reasoning",
+              "services": ["AWS Step Functions", "Amazon Bedrock"]
+            },
+            {
+              "id": "2.1.3",
+              "description": "Safeguards: stopping conditions, timeouts, IAM resource boundaries, circuit breakers",
+              "services": ["AWS IAM", "AWS Step Functions"]
+            },
+            {
+              "id": "2.1.4",
+              "description": "Multi-model coordination: specialized FMs, custom aggregation, model selection",
+              "services": ["Amazon Bedrock", "AWS Step Functions"]
+            },
+            {
+              "id": "2.1.5",
+              "description": "Human-in-the-loop: review/approval workflows, feedback collection",
+              "services": ["AWS Step Functions", "Amazon API Gateway"]
+            },
+            {
+              "id": "2.1.6",
+              "description": "Tool integrations: custom behaviors, standardized function definitions, error handling",
+              "services": ["Amazon Bedrock Agents", "AWS Lambda"]
+            },
+            {
+              "id": "2.1.7",
+              "description": "MCP servers: Lambda stateless MCP, ECS complex MCP, MCP client libraries",
+              "services": ["AWS Lambda", "Amazon ECS"]
+            }
+          ]
+        },
+        {
+          "id": "2.2",
+          "name": "Model Deployment Strategies",
+          "articleSlug": "model-deployment",
+          "skills": [
+            {
+              "id": "2.2.1",
+              "description": "Deployment patterns: Lambda on-demand, Bedrock provisioned throughput, SageMaker hybrid",
+              "services": ["AWS Lambda", "Amazon Bedrock", "Amazon SageMaker"]
+            },
+            {
+              "id": "2.2.2",
+              "description": "LLM-specific deployment: container-based for memory/GPU/token processing",
+              "services": ["Amazon ECS", "Amazon EKS", "AWS Fargate"]
+            },
+            {
+              "id": "2.2.3",
+              "description": "Optimization: model selection, smaller models for specific tasks, API-based cascading",
+              "services": ["Amazon Bedrock", "Amazon SageMaker"]
+            }
+          ]
+        },
+        {
+          "id": "2.3",
+          "name": "Enterprise Integration Architectures",
+          "articleSlug": "enterprise-integration",
+          "skills": [
+            {
+              "id": "2.3.1",
+              "description": "Legacy system integration: API-based, event-driven loose coupling, data sync",
+              "services": ["Amazon API Gateway", "Amazon EventBridge", "AWS AppFlow"]
+            },
+            {
+              "id": "2.3.2",
+              "description": "Application enhancement: microservices, webhooks, event-driven patterns",
+              "services": ["Amazon API Gateway", "AWS Lambda", "Amazon EventBridge"]
+            },
+            {
+              "id": "2.3.3",
+              "description": "Security: identity federation, RBAC for model/data access, least privilege",
+              "services": ["AWS IAM", "Amazon Cognito"]
+            },
+            {
+              "id": "2.3.4",
+              "description": "Cross-environment: Outposts on-premises, Wavelength edge, secure routing",
+              "services": ["AWS Outposts", "AWS Wavelength", "Amazon VPC"]
+            },
+            {
+              "id": "2.3.5",
+              "description": "CI/CD: CodePipeline, CodeBuild, automated testing, security scans, GenAI gateway",
+              "services": ["AWS CodePipeline", "AWS CodeBuild"]
+            }
+          ]
+        },
+        {
+          "id": "2.4",
+          "name": "FM API Integrations",
+          "articleSlug": "fm-api-integrations",
+          "skills": [
+            {
+              "id": "2.4.1",
+              "description": "Synchronous: Bedrock APIs from various compute, AWS SDKs, API Gateway validation",
+              "services": ["Amazon Bedrock", "Amazon API Gateway"]
+            },
+            {
+              "id": "2.4.2",
+              "description": "Asynchronous: SQS processing, batch inference",
+              "services": ["Amazon SQS", "Amazon Bedrock"]
+            },
+            {
+              "id": "2.4.3",
+              "description": "Streaming: Bedrock streaming APIs, WebSockets/SSE, chunked transfer encoding",
+              "services": ["Amazon Bedrock", "Amazon API Gateway"]
+            },
+            {
+              "id": "2.4.4",
+              "description": "Resilient: exponential backoff, rate limiting, fallback/degradation, X-Ray",
+              "services": ["AWS X-Ray", "Amazon Bedrock"]
+            },
+            {
+              "id": "2.4.5",
+              "description": "Intelligent routing: static routing, dynamic content-based routing, metric-based",
+              "services": ["AWS Step Functions", "Amazon Bedrock"]
+            }
+          ]
+        },
+        {
+          "id": "2.5",
+          "name": "Application Integration Patterns & Dev Tools",
+          "articleSlug": "app-integration-patterns",
+          "skills": [
+            {
+              "id": "2.5.1",
+              "description": "API interfaces: API Gateway streaming, token limit management, retry strategies",
+              "services": ["Amazon API Gateway"]
+            },
+            {
+              "id": "2.5.2",
+              "description": "UI development: Amplify components, OpenAPI specs, Bedrock Prompt Flows no-code",
+              "services": ["AWS Amplify", "Amazon Bedrock Prompt Flows"]
+            },
+            {
+              "id": "2.5.3",
+              "description": "Business systems: CRM enhancements, document processing, Q Business, Bedrock Data Automation",
+              "services": ["AWS Lambda", "AWS Step Functions", "Amazon Q Business", "Amazon Bedrock Data Automation"]
+            },
+            {
+              "id": "2.5.4",
+              "description": "Developer productivity: Q Developer for code generation/refactoring, API assistance",
+              "services": ["Amazon Q Developer"]
+            },
+            {
+              "id": "2.5.5",
+              "description": "Advanced apps: Strands + Agent Squad orchestration, agent patterns, prompt chaining",
+              "services": ["Amazon Bedrock Agents", "AWS Step Functions", "Amazon Bedrock Prompt Flows"]
+            },
+            {
+              "id": "2.5.6",
+              "description": "Troubleshooting: CloudWatch Logs Insights, X-Ray tracing, Q Developer error recognition",
+              "services": ["Amazon CloudWatch", "AWS X-Ray", "Amazon Q Developer"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "AI Safety, Security & Governance",
+      "shortName": "Safety & Security",
+      "weight": 20,
+      "priority": "high",
+      "estimatedQuestions": 13,
+      "tasks": [
+        {
+          "id": "3.1",
+          "name": "Input & Output Safety Controls",
+          "articleSlug": "input-output-safety",
+          "labSlug": "guardrails-demo",
+          "skills": [
+            {
+              "id": "3.1.1",
+              "description": "Input safety: Bedrock guardrails content filtering, moderation, real-time validation",
+              "services": ["Amazon Bedrock Guardrails", "AWS Step Functions", "AWS Lambda"]
+            },
+            {
+              "id": "3.1.2",
+              "description": "Output safety: response filtering, toxicity detection, deterministic results",
+              "services": ["Amazon Bedrock Guardrails"]
+            },
+            {
+              "id": "3.1.3",
+              "description": "Hallucination reduction: Knowledge Base grounding, confidence scoring, structured outputs",
+              "services": ["Amazon Bedrock Knowledge Bases"]
+            },
+            {
+              "id": "3.1.4",
+              "description": "Defense-in-depth: Comprehend pre-processing, guardrails, Lambda post-processing",
+              "services": ["Amazon Comprehend", "Amazon Bedrock Guardrails", "AWS Lambda", "Amazon API Gateway"]
+            },
+            {
+              "id": "3.1.5",
+              "description": "Threat detection: prompt injection/jailbreak detection, input sanitization, adversarial testing",
+              "services": ["Amazon Bedrock Guardrails"]
+            }
+          ]
+        },
+        {
+          "id": "3.2",
+          "name": "Data Security & Privacy",
+          "articleSlug": "data-security-privacy",
+          "skills": [
+            {
+              "id": "3.2.1",
+              "description": "Secure environments: VPC endpoints, IAM data access, Lake Formation, CloudWatch monitoring",
+              "services": ["Amazon VPC", "AWS IAM", "AWS Lake Formation", "Amazon CloudWatch"]
+            },
+            {
+              "id": "3.2.2",
+              "description": "PII protection: Comprehend/Macie PII detection, Bedrock privacy features, S3 Lifecycle",
+              "services": ["Amazon Comprehend", "Amazon Macie", "Amazon Bedrock Guardrails", "Amazon S3"]
+            },
+            {
+              "id": "3.2.3",
+              "description": "Anonymization: data masking, PII detection, anonymization strategies",
+              "services": ["Amazon Comprehend"]
+            }
+          ]
+        },
+        {
+          "id": "3.3",
+          "name": "AI Governance & Compliance",
+          "articleSlug": "governance-compliance",
+          "skills": [
+            {
+              "id": "3.3.1",
+              "description": "Compliance frameworks: SageMaker model cards, Glue data lineage, metadata tagging",
+              "services": ["Amazon SageMaker", "AWS Glue", "Amazon CloudWatch"]
+            },
+            {
+              "id": "3.3.2",
+              "description": "Data source tracking: Glue Data Catalog, metadata tagging, CloudTrail audit logging",
+              "services": ["AWS Glue Data Catalog", "AWS CloudTrail"]
+            },
+            {
+              "id": "3.3.3",
+              "description": "Governance systems: organizational policies, regulatory requirements, responsible AI",
+              "services": ["AWS Organizations", "AWS Config"]
+            },
+            {
+              "id": "3.3.4",
+              "description": "Continuous monitoring: misuse/drift/policy violation detection, bias monitoring, alerting",
+              "services": ["Amazon CloudWatch", "Amazon Bedrock"]
+            }
+          ]
+        },
+        {
+          "id": "3.4",
+          "name": "Responsible AI Principles",
+          "articleSlug": "responsible-ai",
+          "skills": [
+            {
+              "id": "3.4.1",
+              "description": "Transparency: reasoning displays, confidence metrics, source attribution, agent tracing",
+              "services": ["Amazon CloudWatch", "Amazon Bedrock Agents"]
+            },
+            {
+              "id": "3.4.2",
+              "description": "Fairness: fairness metrics, A/B testing, LLM-as-a-judge evaluations",
+              "services": ["Amazon CloudWatch", "Amazon Bedrock Prompt Management", "Amazon Bedrock Model Evaluations"]
+            },
+            {
+              "id": "3.4.3",
+              "description": "Policy compliance: Bedrock guardrails, model cards, Lambda compliance checks",
+              "services": ["Amazon Bedrock Guardrails", "Amazon SageMaker", "AWS Lambda"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Operational Efficiency & Optimization",
+      "shortName": "Optimization",
+      "weight": 12,
+      "priority": "medium",
+      "estimatedQuestions": 8,
+      "tasks": [
+        {
+          "id": "4.1",
+          "name": "Cost Optimization & Resource Efficiency",
+          "articleSlug": "cost-optimization",
+          "skills": [
+            {
+              "id": "4.1.1",
+              "description": "Token efficiency: estimation/tracking, context window optimization, prompt compression",
+              "services": ["Amazon Bedrock", "Amazon CloudWatch"]
+            },
+            {
+              "id": "4.1.2",
+              "description": "Model selection: cost-capability tradeoffs, tiered FM usage, price-to-performance",
+              "services": ["Amazon Bedrock"]
+            },
+            {
+              "id": "4.1.3",
+              "description": "Resource utilization: batching, capacity planning, auto-scaling, provisioned throughput",
+              "services": ["Amazon Bedrock", "Amazon SageMaker"]
+            },
+            {
+              "id": "4.1.4",
+              "description": "Caching: semantic caching, result fingerprinting, edge caching, prompt caching",
+              "services": ["Amazon ElastiCache", "Amazon CloudFront", "Amazon Bedrock"]
+            }
+          ]
+        },
+        {
+          "id": "4.2",
+          "name": "Application Performance Optimization",
+          "articleSlug": "performance-optimization",
+          "skills": [
+            {
+              "id": "4.2.1",
+              "description": "Latency: pre-computation, latency-optimized models, parallel requests, streaming",
+              "services": ["Amazon Bedrock", "Amazon CloudFront"]
+            },
+            {
+              "id": "4.2.2",
+              "description": "Retrieval performance: index optimization, query preprocessing, hybrid search",
+              "services": ["Amazon OpenSearch Service", "Amazon Bedrock Knowledge Bases"]
+            },
+            {
+              "id": "4.2.3",
+              "description": "Throughput: token processing optimization, batch inference, concurrent invocations",
+              "services": ["Amazon Bedrock", "Amazon SageMaker"]
+            },
+            {
+              "id": "4.2.4",
+              "description": "FM tuning: temperature, top-k/top-p selection, A/B testing improvements",
+              "services": ["Amazon Bedrock"]
+            },
+            {
+              "id": "4.2.5",
+              "description": "Resource allocation: capacity planning for tokens, utilization monitoring, auto-scaling",
+              "services": ["Amazon CloudWatch", "AWS Auto Scaling"]
+            },
+            {
+              "id": "4.2.6",
+              "description": "System performance: API call profiling, vector DB optimization, inference latency",
+              "services": ["AWS X-Ray", "Amazon OpenSearch Service"]
+            }
+          ]
+        },
+        {
+          "id": "4.3",
+          "name": "Monitoring Systems",
+          "articleSlug": "monitoring-systems",
+          "skills": [
+            {
+              "id": "4.3.1",
+              "description": "Observability: operational metrics, performance tracing, FM interaction tracing",
+              "services": ["Amazon CloudWatch", "AWS X-Ray"]
+            },
+            {
+              "id": "4.3.2",
+              "description": "GenAI monitoring: token usage, prompt effectiveness, hallucination rates, anomaly detection",
+              "services": ["Amazon CloudWatch", "Amazon Bedrock"]
+            },
+            {
+              "id": "4.3.3",
+              "description": "Integrated dashboards: operational metrics, business impact, compliance, audit logging",
+              "services": ["Amazon CloudWatch", "AWS CloudTrail"]
+            },
+            {
+              "id": "4.3.4",
+              "description": "Tool performance: call pattern tracking, tool calling observability, multi-agent tracking",
+              "services": ["Amazon CloudWatch", "AWS X-Ray"]
+            },
+            {
+              "id": "4.3.5",
+              "description": "Vector store ops: performance monitoring, automated index optimization, data quality",
+              "services": ["Amazon OpenSearch Service", "Amazon CloudWatch"]
+            },
+            {
+              "id": "4.3.6",
+              "description": "Troubleshooting: golden datasets, output diffing, reasoning path tracing",
+              "services": ["Amazon Bedrock Model Evaluations", "Amazon CloudWatch"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Testing, Validation & Troubleshooting",
+      "shortName": "Testing & Validation",
+      "weight": 11,
+      "priority": "medium",
+      "estimatedQuestions": 7,
+      "tasks": [
+        {
+          "id": "5.1",
+          "name": "Evaluation Systems for GenAI",
+          "articleSlug": "evaluation-systems",
+          "skills": [
+            {
+              "id": "5.1.1",
+              "description": "Assessment frameworks: relevance, factual accuracy, consistency, fluency metrics",
+              "services": ["Amazon Bedrock Model Evaluations"]
+            },
+            {
+              "id": "5.1.2",
+              "description": "Model evaluation: Bedrock Model Evaluations, A/B testing, canary testing, cost-performance",
+              "services": ["Amazon Bedrock Model Evaluations"]
+            },
+            {
+              "id": "5.1.3",
+              "description": "User-centered evaluation: feedback interfaces, rating systems, annotation workflows",
+              "services": ["Amazon API Gateway", "Amazon DynamoDB"]
+            },
+            {
+              "id": "5.1.4",
+              "description": "Quality assurance: automated testing, regression detection, benchmark maintenance",
+              "services": ["AWS Lambda", "Amazon CloudWatch"]
+            }
+          ]
+        },
+        {
+          "id": "5.2",
+          "name": "Troubleshooting GenAI Applications",
+          "articleSlug": "troubleshooting",
+          "skills": [
+            {
+              "id": "5.2.1",
+              "description": "Content handling: context window overflow diagnostics, dynamic chunking, prompt optimization",
+              "services": ["Amazon Bedrock", "Amazon CloudWatch"]
+            },
+            {
+              "id": "5.2.2",
+              "description": "Retrieval issues: embedding quality analysis, indexing validation, search relevance tuning",
+              "services": ["Amazon OpenSearch Service", "Amazon Bedrock Knowledge Bases"]
+            },
+            {
+              "id": "5.2.3",
+              "description": "API troubleshooting: token limit management, rate limit handling, timeout resolution",
+              "services": ["Amazon Bedrock", "Amazon CloudWatch"]
+            },
+            {
+              "id": "5.2.4",
+              "description": "Tool/agent debugging: tool call analysis, agent decision path tracing, parameter validation",
+              "services": ["Amazon Bedrock Agents", "AWS X-Ray"]
+            },
+            {
+              "id": "5.2.5",
+              "description": "Performance diagnosis: latency profiling, throughput analysis, bottleneck identification",
+              "services": ["AWS X-Ray", "Amazon CloudWatch"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

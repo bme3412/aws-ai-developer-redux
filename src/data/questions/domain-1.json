@@ -1,0 +1,1538 @@
+{
+  "domain": 1,
+  "questions": [
+    {
+      "id": "d1-q01",
+      "domain": 1,
+      "task": "1.1",
+      "skills": ["1.1.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A financial services company is building a customer-facing chatbot that will handle account inquiries. The chatbot must provide sub-second response times, support thousands of concurrent users during peak hours, and minimize operational overhead. The development team wants to rapidly prototype the solution before committing to infrastructure decisions.",
+      "question": "Which architectural approach provides the MOST operationally efficient path from prototype to production?",
+      "options": [
+        {"id": "a", "text": "Deploy a self-managed LLM on Amazon EC2 instances with Auto Scaling groups for handling concurrent users"},
+        {"id": "b", "text": "Use Amazon Bedrock with on-demand inference for prototyping, then evaluate Provisioned Throughput for production based on traffic patterns"},
+        {"id": "c", "text": "Build custom model training pipelines in Amazon SageMaker with dedicated inference endpoints"},
+        {"id": "d", "text": "Deploy the model on Amazon EKS with horizontal pod autoscaling and custom load balancing"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Amazon Bedrock with on-demand inference provides the fastest path to prototype without infrastructure management. Starting with on-demand allows rapid iteration, and moving to Provisioned Throughput for production addresses the consistent latency and scale requirements while maintaining operational efficiency.",
+      "incorrectExplanations": {
+        "a": "Self-managed EC2 increases operational overhead significantly and doesn't provide the managed experience needed for rapid prototyping.",
+        "c": "SageMaker custom training is overkill when using foundation models through Bedrock. It adds unnecessary complexity for standard FM use cases.",
+        "d": "EKS deployment requires significant operational expertise and doesn't provide the managed FM access that simplifies development."
+      },
+      "parseStrategy": {
+        "keyPhrase": "MOST operationally efficient",
+        "eliminationHints": [
+          "Self-managed (EC2, EKS) = high operational overhead",
+          "Custom training pipelines = unnecessary for FM use cases",
+          "Look for managed services that reduce ops burden"
+        ],
+        "decisionFramework": "For 'operationally efficient,' default to managed services. Bedrock = managed FM access without infrastructure."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Questions asking for 'operational efficiency' typically point toward managed services over self-managed infrastructure."
+    },
+    {
+      "id": "d1-q02",
+      "domain": 1,
+      "task": "1.2",
+      "skills": ["1.2.1", "1.2.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A healthcare technology company is developing a medical document summarization application. The application must process clinical notes and generate summaries. The team needs to compare multiple foundation models to determine which provides the best accuracy for medical terminology while staying within budget. They want to make model selection decisions based on objective data rather than subjective evaluation.",
+      "question": "Which approach enables the team to make data-driven model selection decisions?",
+      "options": [
+        {"id": "a", "text": "Use Amazon Bedrock Model Evaluations with a custom dataset of medical documents and defined accuracy metrics"},
+        {"id": "b", "text": "Manually review outputs from each model using domain experts and select based on their feedback"},
+        {"id": "c", "text": "Choose the model with the largest parameter count as it will have the best accuracy"},
+        {"id": "d", "text": "Select the model with the lowest per-token cost to maximize budget efficiency"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Amazon Bedrock Model Evaluations allows you to compare models using your own test datasets with defined evaluation criteria. This provides objective, quantitative comparisons across multiple models, enabling data-driven selection based on actual performance on your domain-specific data.",
+      "incorrectExplanations": {
+        "b": "Manual expert review is subjective and doesn't scale. It doesn't provide quantitative metrics for comparison.",
+        "c": "Parameter count doesn't directly correlate with accuracy for specific domains. Smaller models can outperform larger ones on certain tasks.",
+        "d": "Lowest cost doesn't address the accuracy requirement. This approach ignores the primary selection criterion."
+      },
+      "parseStrategy": {
+        "keyPhrase": "data-driven model selection",
+        "eliminationHints": [
+          "Manual/subjective = not data-driven",
+          "Parameter count = not a performance metric",
+          "Cost-only = ignores accuracy requirement"
+        ],
+        "decisionFramework": "Bedrock Model Evaluations is the answer for objective/data-driven model comparison."
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "When questions mention 'objective comparison' or 'benchmarking' models, think Bedrock Model Evaluations."
+    },
+    {
+      "id": "d1-q03",
+      "domain": 1,
+      "task": "1.2",
+      "skills": ["1.2.2"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "An e-commerce company has deployed a product recommendation system using Amazon Bedrock. The team wants to A/B test a new foundation model against the current production model. They need to gradually roll out the new model to 10% of traffic, monitor performance metrics, and have the ability to instantly roll back if quality degrades. The solution must not require code deployments for model switching.",
+      "question": "Which configuration enables gradual model rollout with instant rollback capability without code changes?",
+      "options": [
+        {"id": "a", "text": "Use AWS AppConfig with feature flags to control model selection, storing model IDs as configuration parameters that Lambda reads at runtime"},
+        {"id": "b", "text": "Deploy two separate Lambda functions for each model and use API Gateway weighted routing"},
+        {"id": "c", "text": "Store model selection logic in environment variables and redeploy Lambda when switching models"},
+        {"id": "d", "text": "Use Amazon CloudFront with origin groups to route traffic between different model endpoints"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "AWS AppConfig with feature flags enables dynamic model selection without code deployments. You can configure percentage-based rollouts (10% to new model), monitor with CloudWatch, and instantly roll back by changing the configuration. Lambda reads the active model ID from AppConfig at runtime.",
+      "incorrectExplanations": {
+        "b": "Separate Lambda functions with API Gateway weighted routing requires infrastructure changes for rollouts and doesn't provide instant rollback.",
+        "c": "Environment variable changes require Lambda redeployment, violating the 'no code changes' requirement.",
+        "d": "CloudFront origin groups are for infrastructure failover, not application-level model switching with percentage-based rollouts."
+      },
+      "parseStrategy": {
+        "keyPhrase": "without code changes",
+        "eliminationHints": [
+          "Redeployment = code changes",
+          "Environment variables = requires deploy",
+          "Look for runtime configuration"
+        ],
+        "decisionFramework": "AppConfig = runtime configuration changes without deployment. Perfect for feature flags and model switching."
+      },
+      "services": ["AWS AppConfig", "AWS Lambda"],
+      "examTip": "AppConfig is the go-to for feature flags and runtime configuration without deployment."
+    },
+    {
+      "id": "d1-q04",
+      "domain": 1,
+      "task": "1.2",
+      "skills": ["1.2.3"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A global media company runs a content generation application using Amazon Bedrock. The application serves users worldwide and must maintain high availability. Recently, a regional AWS outage caused service disruption. The team needs to implement resilience without managing multiple deployments or significantly increasing complexity.",
+      "question": "What is the SIMPLEST way to improve application resilience against regional outages?",
+      "options": [
+        {"id": "a", "text": "Deploy the application in multiple regions with Route 53 health checks and failover routing"},
+        {"id": "b", "text": "Enable Cross-Region Inference in Amazon Bedrock to automatically route requests to available regions"},
+        {"id": "c", "text": "Implement custom retry logic with exponential backoff to handle transient failures"},
+        {"id": "d", "text": "Use Amazon SageMaker multi-model endpoints deployed across regions"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Cross-Region Inference in Amazon Bedrock automatically routes requests to available regions during outages. This is a single configuration change that provides regional resilience without managing multiple deployments or implementing custom failover logic.",
+      "incorrectExplanations": {
+        "a": "Multi-region deployment with Route 53 requires significant infrastructure management and increases complexity.",
+        "c": "Retry logic handles transient failures but doesn't address regional outages where the entire region is unavailable.",
+        "d": "SageMaker multi-model endpoints require infrastructure management and don't provide the simplicity of Bedrock's managed cross-region inference."
+      },
+      "parseStrategy": {
+        "keyPhrase": "SIMPLEST way",
+        "eliminationHints": [
+          "Multi-region deployment = complex",
+          "Custom retry = doesn't solve regional outages",
+          "Look for built-in managed features"
+        ],
+        "decisionFramework": "For 'simplest,' choose built-in AWS features over custom solutions. Cross-Region Inference is a checkbox feature."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Cross-Region Inference is Bedrock's built-in regional resilience feature. No infrastructure to manage."
+    },
+    {
+      "id": "d1-q05",
+      "domain": 1,
+      "task": "1.3",
+      "skills": ["1.3.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A legal technology company is building a contract analysis system that processes thousands of PDF documents daily. Before sending documents to a foundation model for analysis, the team needs to validate data quality including completeness of required fields, proper formatting, and detection of anomalies. They want declarative quality rules that can be monitored automatically.",
+      "question": "Which service provides declarative data quality validation with automated monitoring?",
+      "options": [
+        {"id": "a", "text": "AWS Glue Data Quality with DQDL rules for validation and CloudWatch for monitoring"},
+        {"id": "b", "text": "Custom Lambda functions with if/else validation logic and SNS notifications"},
+        {"id": "c", "text": "Amazon Comprehend for document analysis with custom entity recognition"},
+        {"id": "d", "text": "Amazon SageMaker Data Wrangler for visual data exploration and transformation"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "AWS Glue Data Quality provides declarative quality rules using DQDL (Data Quality Definition Language). You define rules for completeness, validity, and anomaly detection, and Glue automatically evaluates data against these rules with CloudWatch integration for monitoring.",
+      "incorrectExplanations": {
+        "b": "Custom Lambda validation is imperative, not declarative. It requires writing and maintaining validation logic code.",
+        "c": "Comprehend is for NLP analysis (entity extraction, sentiment), not general data quality validation.",
+        "d": "Data Wrangler is for visual data exploration and transformation, not automated quality validation with declarative rules."
+      },
+      "parseStrategy": {
+        "keyPhrase": "declarative data quality validation",
+        "eliminationHints": [
+          "Lambda/code = imperative, not declarative",
+          "Comprehend = NLP, not quality validation",
+          "Data Wrangler = exploration, not validation rules"
+        ],
+        "decisionFramework": "Glue Data Quality = declarative rules (DQDL) for data validation."
+      },
+      "services": ["AWS Glue Data Quality", "Amazon CloudWatch"],
+      "examTip": "Glue Data Quality uses DQDL for declarative validation rules. Keywords: completeness, validity, freshness."
+    },
+    {
+      "id": "d1-q06",
+      "domain": 1,
+      "task": "1.3",
+      "skills": ["1.3.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A media company is building an application that analyzes podcast episodes. The application needs to process audio files, extract the spoken content, and send it to a foundation model for summarization. The solution should handle various audio formats and support batch processing of multiple episodes.",
+      "question": "Which AWS service should be used to convert audio content to text before foundation model processing?",
+      "options": [
+        {"id": "a", "text": "Amazon Transcribe for speech-to-text conversion, then send transcripts to Amazon Bedrock"},
+        {"id": "b", "text": "Amazon Polly to convert audio to a standardized format for model processing"},
+        {"id": "c", "text": "Send audio files directly to Amazon Bedrock multimodal models for processing"},
+        {"id": "d", "text": "Use Amazon Rekognition to extract audio content from media files"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Amazon Transcribe converts speech to text, supporting various audio formats and batch processing. The transcribed text can then be sent to Amazon Bedrock for summarization. This is the standard pipeline for processing audio content with language models.",
+      "incorrectExplanations": {
+        "b": "Amazon Polly is text-to-speech (the opposite direction). It converts text to audio, not audio to text.",
+        "c": "Bedrock multimodal models process images and text, not audio files. Audio requires transcription first.",
+        "d": "Amazon Rekognition is for image and video analysis (visual content), not audio processing."
+      },
+      "parseStrategy": {
+        "keyPhrase": "convert audio to text",
+        "eliminationHints": [
+          "Polly = text-to-speech (opposite direction)",
+          "Bedrock multimodal = images, not audio",
+          "Rekognition = visual analysis"
+        ],
+        "decisionFramework": "Audio → Text = Amazon Transcribe. Text → Audio = Amazon Polly."
+      },
+      "services": ["Amazon Transcribe", "Amazon Bedrock"],
+      "examTip": "Remember the direction: Transcribe = speech-to-text, Polly = text-to-speech."
+    },
+    {
+      "id": "d1-q07",
+      "domain": 1,
+      "task": "1.4",
+      "skills": ["1.4.1"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A consulting firm is building a RAG-based knowledge assistant that will search across 500,000 internal documents. The solution needs to be production-ready within 2 weeks, require minimal operational overhead, and support automatic synchronization when documents are updated in S3. The team has no experience managing search infrastructure.",
+      "question": "Which vector store solution meets the requirements with minimal operational burden?",
+      "options": [
+        {"id": "a", "text": "Amazon OpenSearch Service with the k-NN plugin and custom Lambda functions for S3 sync"},
+        {"id": "b", "text": "Amazon Bedrock Knowledge Bases with managed vector store, pointing to the S3 document source"},
+        {"id": "c", "text": "Amazon Aurora PostgreSQL with pgvector extension and custom ETL pipelines"},
+        {"id": "d", "text": "Self-managed Elasticsearch cluster on EC2 with custom embedding pipelines"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Amazon Bedrock Knowledge Bases with managed vector store provides the fastest path to production RAG. It handles chunking, embedding, indexing, and S3 synchronization automatically. The team doesn't need search infrastructure experience—they just point it at S3.",
+      "incorrectExplanations": {
+        "a": "OpenSearch requires cluster management, index configuration, and custom Lambda functions for sync—significant operational overhead.",
+        "c": "Aurora pgvector requires database administration, custom ETL pipelines for sync, and embedding infrastructure.",
+        "d": "Self-managed Elasticsearch has the highest operational burden—cluster management, scaling, and custom pipelines."
+      },
+      "parseStrategy": {
+        "keyPhrase": "minimal operational burden",
+        "eliminationHints": [
+          "Self-managed = high ops burden",
+          "Custom Lambda/ETL = additional complexity",
+          "Look for 'managed' or 'automatic'"
+        ],
+        "decisionFramework": "For minimal ops, Bedrock KB managed vector store is almost always correct. It's fully managed."
+      },
+      "services": ["Amazon Bedrock Knowledge Bases"],
+      "examTip": "Bedrock KB managed store = simplest RAG path. Handles chunking, embedding, indexing, sync automatically."
+    },
+    {
+      "id": "d1-q08",
+      "domain": 1,
+      "task": "1.4",
+      "skills": ["1.4.1", "1.4.3"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "An enterprise software company needs to build a search system for their technical documentation. The system must support both keyword search (for exact error codes and version numbers) and semantic search (for conceptual questions). They also need fine-grained control over search ranking and the ability to shard data across multiple indexes for different product lines.",
+      "question": "Which vector store solution provides the required hybrid search and sharding capabilities?",
+      "options": [
+        {"id": "a", "text": "Amazon Bedrock Knowledge Bases with HYBRID retrieval mode"},
+        {"id": "b", "text": "Amazon OpenSearch Service with the Neural plugin for hybrid search and multi-index sharding"},
+        {"id": "c", "text": "Amazon Aurora PostgreSQL with pgvector and full-text search combination"},
+        {"id": "d", "text": "Amazon DynamoDB with custom embedding storage and Global Secondary Indexes"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Amazon OpenSearch Service with the Neural plugin provides true hybrid search combining BM25 keyword matching and vector similarity. It offers fine-grained control over ranking and native multi-index support with configurable sharding per index. This is the right choice when you need advanced search features.",
+      "incorrectExplanations": {
+        "a": "Bedrock KB HYBRID mode provides basic hybrid search but lacks the fine-grained ranking control and multi-index sharding capabilities.",
+        "c": "Aurora pgvector can combine vector and full-text search, but requires manual implementation and doesn't provide native sharding for the vector workload.",
+        "d": "DynamoDB is not designed for vector search. Using it for embeddings would require custom search logic without native hybrid capabilities."
+      },
+      "parseStrategy": {
+        "keyPhrase": "hybrid search and sharding",
+        "eliminationHints": [
+          "DynamoDB = not a vector store",
+          "Basic hybrid needs ≠ advanced control",
+          "Look for explicit hybrid + sharding capabilities"
+        ],
+        "decisionFramework": "Advanced search features (sharding, ranking control, multi-index) → OpenSearch. Simple managed → Bedrock KB."
+      },
+      "services": ["Amazon OpenSearch Service"],
+      "examTip": "OpenSearch = advanced search with control. Bedrock KB = simple managed. Match complexity to requirements."
+    },
+    {
+      "id": "d1-q09",
+      "domain": 1,
+      "task": "1.5",
+      "skills": ["1.5.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A research organization is building a RAG system for scientific papers. The papers contain complex hierarchical structures with abstracts, multiple sections, figures with captions, and references. Simple fixed-size chunking loses important context because it splits content mid-paragraph and separates figures from their descriptions.",
+      "question": "Which chunking strategy best preserves document structure and context relationships?",
+      "options": [
+        {"id": "a", "text": "Fixed-size chunking with 512-token chunks for consistent embedding dimensions"},
+        {"id": "b", "text": "Hierarchical chunking that creates parent summaries with child detail chunks"},
+        {"id": "c", "text": "Sentence-level chunking where each sentence becomes a separate chunk"},
+        {"id": "d", "text": "Random sampling of paragraphs to reduce storage requirements"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Hierarchical chunking preserves document structure by creating parent-child relationships. Parent chunks contain summaries or section overviews, while child chunks contain detailed content. This maintains context and allows retrieval at different granularity levels, ideal for complex structured documents.",
+      "incorrectExplanations": {
+        "a": "Fixed-size chunking ignores document structure and splits content arbitrarily, exactly the problem described.",
+        "c": "Sentence-level chunking creates too many small chunks without context, making it harder to understand relationships.",
+        "d": "Random sampling loses information and doesn't address the structure preservation requirement."
+      },
+      "parseStrategy": {
+        "keyPhrase": "preserves document structure",
+        "eliminationHints": [
+          "Fixed-size = ignores structure",
+          "Sentence-level = too granular, no context",
+          "Look for structure-aware approaches"
+        ],
+        "decisionFramework": "Hierarchical chunking = parent-child relationships for structured documents."
+      },
+      "services": ["Amazon Bedrock Knowledge Bases", "AWS Lambda"],
+      "examTip": "Hierarchical chunking is for complex documents. Fixed-size is for simple, homogeneous content."
+    },
+    {
+      "id": "d1-q10",
+      "domain": 1,
+      "task": "1.5",
+      "skills": ["1.5.4"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A customer support platform uses RAG to find relevant knowledge base articles. Users report that search results often miss relevant articles when using different terminology than what's in the documents. For example, searching for 'login issues' doesn't return articles about 'authentication problems' even though they cover the same topic.",
+      "question": "Which technique would MOST effectively address the terminology mismatch issue?",
+      "options": [
+        {"id": "a", "text": "Increase the number of returned results (top-k) to improve recall"},
+        {"id": "b", "text": "Implement hybrid search combining keyword matching with semantic vector search"},
+        {"id": "c", "text": "Reduce chunk size to create more granular search targets"},
+        {"id": "d", "text": "Add more metadata tags to each document for filtering"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Hybrid search combines BM25 keyword matching with semantic vector search. While pure keyword search would miss 'authentication' when searching for 'login', semantic search understands they're conceptually related. The combination handles both exact matches and semantic similarity, addressing terminology mismatches.",
+      "incorrectExplanations": {
+        "a": "Increasing top-k returns more results but doesn't address why relevant results aren't being found in the first place.",
+        "c": "Smaller chunks don't solve terminology mismatch—the issue is matching semantically similar but lexically different terms.",
+        "d": "Metadata tags help with filtering categories but don't address semantic similarity between different terms for the same concept."
+      },
+      "parseStrategy": {
+        "keyPhrase": "terminology mismatch",
+        "eliminationHints": [
+          "Increasing top-k = doesn't improve relevance",
+          "Smaller chunks = different problem",
+          "Metadata = filtering, not similarity"
+        ],
+        "decisionFramework": "Terminology/semantic mismatch → hybrid search or semantic search. Combines lexical and conceptual matching."
+      },
+      "services": ["Amazon OpenSearch Service", "Amazon Bedrock"],
+      "examTip": "Hybrid search addresses the vocabulary mismatch problem—users and documents use different words for same concepts."
+    },
+    {
+      "id": "d1-q11",
+      "domain": 1,
+      "task": "1.6",
+      "skills": ["1.6.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A large enterprise is deploying multiple GenAI applications across different teams. Each team creates their own prompts, leading to inconsistent quality and duplicated effort. Management wants centralized prompt storage with version control, the ability to share prompts across teams, and attach safety guardrails consistently.",
+      "question": "Which AWS service enables centralized prompt management with version control and guardrail integration?",
+      "options": [
+        {"id": "a", "text": "Store prompts in Amazon S3 with versioning enabled and IAM policies for access control"},
+        {"id": "b", "text": "Amazon Bedrock Prompt Management with prompt versions, templates, and guardrail associations"},
+        {"id": "c", "text": "AWS Systems Manager Parameter Store with hierarchical parameters for prompt organization"},
+        {"id": "d", "text": "Amazon DynamoDB with TTL for prompt versioning and Lambda triggers for guardrail checks"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Amazon Bedrock Prompt Management provides native prompt storage with versioning, parameterized templates, and direct integration with Bedrock Guardrails. It's designed specifically for GenAI prompt lifecycle management, including sharing prompts across teams through IAM permissions.",
+      "incorrectExplanations": {
+        "a": "S3 versioning stores files but doesn't provide prompt-specific features like templates, guardrail integration, or FM-aware versioning.",
+        "c": "Parameter Store can store text but lacks prompt-specific features like templates, guardrail integration, and prompt testing capabilities.",
+        "d": "DynamoDB would require building custom prompt management features—no native guardrail integration or template support."
+      },
+      "parseStrategy": {
+        "keyPhrase": "centralized prompt management",
+        "eliminationHints": [
+          "Generic storage (S3, Parameter Store, DynamoDB) = missing prompt-specific features",
+          "Look for native FM integration",
+          "Guardrail integration is a key differentiator"
+        ],
+        "decisionFramework": "Bedrock Prompt Management = purpose-built for prompt governance. Includes versions, templates, guardrails."
+      },
+      "services": ["Amazon Bedrock Prompt Management", "Amazon Bedrock Guardrails"],
+      "examTip": "Prompt Management is the answer for prompt governance, versioning, and centralized management."
+    },
+    {
+      "id": "d1-q12",
+      "domain": 1,
+      "task": "1.6",
+      "skills": ["1.6.5"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A data analytics company is using a foundation model to analyze complex financial reports and identify risks. The model often provides incorrect risk assessments when dealing with multi-step reasoning problems that require analyzing multiple data points and their relationships.",
+      "question": "Which prompting technique would MOST likely improve the model's accuracy on complex reasoning tasks?",
+      "options": [
+        {"id": "a", "text": "Add few-shot examples with correct input/output pairs for similar reports"},
+        {"id": "b", "text": "Increase the temperature parameter to generate more diverse responses"},
+        {"id": "c", "text": "Use chain-of-thought prompting by asking the model to reason step-by-step before concluding"},
+        {"id": "d", "text": "Reduce the max tokens to force more concise responses"}
+      ],
+      "correctAnswers": ["c"],
+      "explanation": "Chain-of-thought prompting asks the model to explicitly reason through each step before providing a final answer. This significantly improves accuracy on complex reasoning tasks by forcing the model to show its work, making errors in logic more visible and allowing the model to self-correct.",
+      "incorrectExplanations": {
+        "a": "Few-shot examples help with format consistency but don't directly address multi-step reasoning quality.",
+        "b": "Higher temperature increases randomness, which would likely decrease accuracy on analytical tasks, not improve it.",
+        "d": "Reducing max tokens might truncate important reasoning and wouldn't improve the quality of analysis."
+      },
+      "parseStrategy": {
+        "keyPhrase": "complex reasoning",
+        "eliminationHints": [
+          "Higher temperature = less deterministic, not better reasoning",
+          "Fewer tokens = potential truncation",
+          "Few-shot = format, not reasoning"
+        ],
+        "decisionFramework": "Complex reasoning tasks → chain-of-thought. Ask the model to 'think step by step.'"
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Chain-of-thought improves reasoning accuracy. Add 'think through this step-by-step' to prompts for complex analysis."
+    },
+    {
+      "id": "d1-q13",
+      "domain": 1,
+      "task": "1.6",
+      "skills": ["1.6.6"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A retail company wants to build a product description generator that first extracts key features from product data, then generates marketing copy, and finally formats the output as structured HTML. The team wants to implement this multi-step workflow without writing custom orchestration code.",
+      "question": "Which AWS service enables visual, no-code orchestration of multi-step prompt workflows?",
+      "options": [
+        {"id": "a", "text": "AWS Step Functions with Lambda functions for each prompt step"},
+        {"id": "b", "text": "Amazon Bedrock Prompt Flows with visual workflow builder"},
+        {"id": "c", "text": "Amazon EventBridge with scheduled rules triggering prompts in sequence"},
+        {"id": "d", "text": "AWS Glue workflows with custom Python scripts for prompt execution"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Amazon Bedrock Prompt Flows provides a visual, no-code interface for building multi-step prompt workflows. You can chain prompts, add conditional branching, and connect to data sources—all without writing orchestration code. It's purpose-built for prompt chaining scenarios.",
+      "incorrectExplanations": {
+        "a": "Step Functions requires defining state machines and Lambda functions—this is code, not no-code orchestration.",
+        "c": "EventBridge is for event-driven architectures, not sequential prompt orchestration with data flow between steps.",
+        "d": "Glue workflows are for ETL data processing, not prompt orchestration, and require Python scripting."
+      },
+      "parseStrategy": {
+        "keyPhrase": "visual, no-code orchestration",
+        "eliminationHints": [
+          "Step Functions = JSON/YAML definitions + code",
+          "EventBridge = events, not orchestration",
+          "Glue = ETL, not prompts"
+        ],
+        "decisionFramework": "Prompt chaining with no-code → Bedrock Prompt Flows. Complex with code → Step Functions."
+      },
+      "services": ["Amazon Bedrock Prompt Flows"],
+      "examTip": "Prompt Flows = visual, no-code. Step Functions = complex workflows with code. Match complexity to need."
+    },
+    {
+      "id": "d1-q14",
+      "domain": 1,
+      "task": "1.2",
+      "skills": ["1.2.4"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A legal technology company has been using a foundation model for contract review. They want the model to consistently output analysis in a specific structured format used by their downstream systems. Prompt engineering has improved consistency but the model still occasionally deviates from the required format, causing parsing failures.",
+      "question": "Which customization approach would MOST effectively ensure consistent output format while minimizing training costs?",
+      "options": [
+        {"id": "a", "text": "Continued pre-training with a large corpus of legal documents to improve domain knowledge"},
+        {"id": "b", "text": "Fine-tuning with input/output examples demonstrating the exact required format"},
+        {"id": "c", "text": "Using a larger model with more parameters for better instruction following"},
+        {"id": "d", "text": "Implementing post-processing Lambda functions to reformat inconsistent outputs"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Fine-tuning with input/output examples teaches the model the exact output format required. This is the most effective approach for consistent formatting because the model learns from examples of correct format, not just instructions. It requires less data than continued pre-training and directly addresses format consistency.",
+      "incorrectExplanations": {
+        "a": "Continued pre-training adds domain knowledge but doesn't specifically address output format consistency—that's a behavior, not knowledge.",
+        "c": "Larger models don't guarantee better format adherence. The issue is behavior training, not capability.",
+        "d": "Post-processing adds latency and complexity. It treats symptoms rather than fixing the root cause of format inconsistency."
+      },
+      "parseStrategy": {
+        "keyPhrase": "consistent output format",
+        "eliminationHints": [
+          "Pre-training = domain knowledge, not format",
+          "Larger model = not a format solution",
+          "Post-processing = workaround, not fix"
+        ],
+        "decisionFramework": "Format/style consistency → fine-tuning with examples. Domain knowledge → continued pre-training."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Fine-tuning = teach behavior with examples. Pre-training = add knowledge. Match the customization to the problem."
+    },
+    {
+      "id": "d1-q15",
+      "domain": 1,
+      "task": "1.3",
+      "skills": ["1.3.4"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A customer service application receives user messages that often contain abbreviations, misspellings, and informal language. These raw inputs lead to lower quality FM responses. The team wants to improve response quality by enhancing user input before sending it to the foundation model.",
+      "question": "Which preprocessing approach would MOST effectively improve FM response quality?",
+      "options": [
+        {"id": "a", "text": "Use Amazon Comprehend to extract entities and sentiment, then enrich the prompt with this structured information"},
+        {"id": "b", "text": "Increase the temperature parameter to help the model handle varied input formats"},
+        {"id": "c", "text": "Use a larger foundation model that can better understand informal language"},
+        {"id": "d", "text": "Add more few-shot examples covering abbreviations and misspellings"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Amazon Comprehend can extract entities (names, dates, products mentioned), detect sentiment, and identify key phrases from informal text. Adding this structured information to the prompt provides the FM with clean, organized context, improving response quality regardless of input format.",
+      "incorrectExplanations": {
+        "b": "Higher temperature increases randomness in outputs—it doesn't help the model understand messy inputs better.",
+        "c": "While larger models may handle varied inputs better, this doesn't address the root cause and significantly increases costs.",
+        "d": "Few-shot examples would need to cover too many variations of informal language to be practical."
+      },
+      "parseStrategy": {
+        "keyPhrase": "improve FM response quality",
+        "eliminationHints": [
+          "Temperature = output randomness, not input understanding",
+          "Larger model = expensive workaround",
+          "Few-shot for format, not varied input handling"
+        ],
+        "decisionFramework": "Input enhancement = Comprehend for NLP. Extract structure from unstructured input."
+      },
+      "services": ["Amazon Comprehend"],
+      "examTip": "Comprehend extracts entities, sentiment, key phrases. Use it to add structure to messy inputs."
+    },
+    {
+      "id": "d1-q16",
+      "domain": 1,
+      "task": "1.4",
+      "skills": ["1.4.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A healthcare organization is implementing RAG for their medical knowledge base. Documents contain sensitive patient case studies that should only be accessible to doctors, while general medical guidelines should be available to all staff. The organization needs to control access to retrieved documents based on user roles.",
+      "question": "Which approach enables role-based access control for RAG retrieval?",
+      "options": [
+        {"id": "a", "text": "Use separate vector stores for each access level and route queries based on user role"},
+        {"id": "b", "text": "Add metadata tags to documents indicating access level, then filter retrieval results based on user role"},
+        {"id": "c", "text": "Implement post-retrieval Lambda filtering to remove unauthorized documents before returning results"},
+        {"id": "d", "text": "Store access control lists in DynamoDB and check permissions after vector search"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Metadata tagging with access level indicators enables pre-filtering during retrieval. This is more efficient than post-retrieval filtering because unauthorized documents are never retrieved. Bedrock Knowledge Bases and OpenSearch both support metadata filtering during search.",
+      "incorrectExplanations": {
+        "a": "Separate vector stores increase complexity and don't scale well as access levels become more granular.",
+        "c": "Post-retrieval filtering wastes resources retrieving documents that will be filtered out. Pre-filtering is more efficient.",
+        "d": "Checking DynamoDB after search adds latency and complexity. Metadata filtering during search is cleaner."
+      },
+      "parseStrategy": {
+        "keyPhrase": "role-based access control",
+        "eliminationHints": [
+          "Separate stores = complexity",
+          "Post-filtering = wasteful",
+          "Pre-filtering with metadata is optimal"
+        ],
+        "decisionFramework": "Access control in RAG → metadata tags + filter during retrieval. Pre-filter, don't post-filter."
+      },
+      "services": ["Amazon Bedrock Knowledge Bases", "Amazon S3"],
+      "examTip": "Metadata filtering enables access control without separate indexes. More scalable than post-retrieval filtering."
+    },
+    {
+      "id": "d1-q17",
+      "domain": 1,
+      "task": "1.5",
+      "skills": ["1.5.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company is building a multilingual customer support system that needs to handle queries in English, Spanish, French, and German. The RAG system must retrieve relevant documents regardless of the language used in the query, even when documents are stored in different languages than the query.",
+      "question": "Which embedding model consideration is MOST important for this multilingual use case?",
+      "options": [
+        {"id": "a", "text": "Use the embedding model with the highest dimension count for better precision"},
+        {"id": "b", "text": "Choose an embedding model with strong multilingual support like Cohere Embed Multilingual"},
+        {"id": "c", "text": "Use Amazon Titan Embeddings and translate all content to English before embedding"},
+        {"id": "d", "text": "Create separate indexes for each language and route queries based on detected language"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Cohere Embed Multilingual is designed to place semantically similar content close in vector space regardless of language. A query in Spanish can match documents in French if they cover the same topic. This eliminates the need for translation or separate language indexes.",
+      "incorrectExplanations": {
+        "a": "Dimension count doesn't address multilingual capability. A high-dimension English-only model won't help with cross-language retrieval.",
+        "c": "Translating all content to English loses nuance and adds latency and cost. Cross-language models are a better solution.",
+        "d": "Separate indexes don't enable cross-language retrieval—a Spanish query wouldn't find relevant English documents."
+      },
+      "parseStrategy": {
+        "keyPhrase": "multilingual",
+        "eliminationHints": [
+          "Dimension ≠ language support",
+          "Translation = added complexity",
+          "Separate indexes = no cross-language retrieval"
+        ],
+        "decisionFramework": "Multilingual RAG → multilingual embedding model. Cross-language similarity without translation."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Cohere Embed Multilingual for cross-language retrieval. Titan Embeddings for English-focused use cases."
+    },
+    {
+      "id": "d1-q18",
+      "domain": 1,
+      "task": "1.5",
+      "skills": ["1.5.5"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A research platform allows users to ask complex questions like 'Compare the environmental impact of electric vehicles versus hydrogen fuel cells, considering manufacturing, usage, and end-of-life disposal.' Single-query retrieval often misses relevant information because the question covers multiple distinct topics.",
+      "question": "Which query handling technique would MOST improve retrieval for complex multi-topic questions?",
+      "options": [
+        {"id": "a", "text": "Increase the number of retrieved chunks (top-k) to capture more potentially relevant information"},
+        {"id": "b", "text": "Use query decomposition to break the complex question into sub-queries for each topic, then aggregate results"},
+        {"id": "c", "text": "Apply query expansion by adding synonyms and related terms to the original query"},
+        {"id": "d", "text": "Use hybrid search to combine keyword and semantic matching for better coverage"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Query decomposition breaks complex multi-topic questions into focused sub-queries. For this example: one query about EV environmental impact, one about hydrogen fuel cells, with facets for manufacturing, usage, and disposal. Each sub-query retrieves relevant documents, and results are aggregated for comprehensive coverage.",
+      "incorrectExplanations": {
+        "a": "Higher top-k returns more results but doesn't ensure coverage of all topics—you might get many documents about EVs and none about hydrogen.",
+        "c": "Query expansion adds related terms but doesn't decompose the multi-faceted question into searchable components.",
+        "d": "Hybrid search improves matching but doesn't address the multi-topic nature of the query."
+      },
+      "parseStrategy": {
+        "keyPhrase": "complex multi-topic questions",
+        "eliminationHints": [
+          "More results ≠ better topic coverage",
+          "Query expansion = single expanded query",
+          "Hybrid = matching, not decomposition"
+        ],
+        "decisionFramework": "Multi-part questions → query decomposition. Break into sub-queries, aggregate results."
+      },
+      "services": ["AWS Step Functions", "Amazon Bedrock"],
+      "examTip": "Query decomposition handles multi-faceted questions. Use an FM to break complex queries into sub-queries."
+    },
+    {
+      "id": "d1-q19",
+      "domain": 1,
+      "task": "1.6",
+      "skills": ["1.6.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A travel booking assistant powered by a foundation model needs to maintain context across a multi-turn conversation. Users often refer back to previous statements like 'change the departure date to next week' without repeating the full context of their booking request.",
+      "question": "Which approach enables the assistant to maintain conversation context across multiple turns?",
+      "options": [
+        {"id": "a", "text": "Increase the foundation model's context window to include all previous messages"},
+        {"id": "b", "text": "Store conversation history in Amazon DynamoDB and include relevant context in each prompt"},
+        {"id": "c", "text": "Use Amazon Bedrock Agents with session memory to automatically maintain conversation state"},
+        {"id": "d", "text": "Implement a sliding window that keeps only the last 3 messages for efficiency"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Storing conversation history in DynamoDB provides persistent, retrievable context. For each new message, retrieve relevant conversation history and include it in the prompt. This scales better than relying solely on context window limits and allows intelligent selection of relevant context.",
+      "incorrectExplanations": {
+        "a": "Relying solely on context window limits doesn't scale for long conversations and wastes tokens on potentially irrelevant early messages.",
+        "c": "Bedrock Agents have session memory, but for custom applications, explicit history management in DynamoDB provides more control.",
+        "d": "A fixed sliding window might drop critical context like the original booking request, breaking conversation coherence."
+      },
+      "parseStrategy": {
+        "keyPhrase": "maintain conversation context",
+        "eliminationHints": [
+          "Context window alone doesn't scale",
+          "Fixed sliding window loses context",
+          "Need persistent, retrievable storage"
+        ],
+        "decisionFramework": "Conversation history → DynamoDB for storage. Include relevant context in prompts."
+      },
+      "services": ["Amazon DynamoDB"],
+      "examTip": "DynamoDB for conversation history. Retrieve and include relevant context, don't rely only on context window."
+    },
+    {
+      "id": "d1-q20",
+      "domain": 1,
+      "task": "1.6",
+      "skills": ["1.6.4"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A financial services company deployed a GenAI application for generating investment summaries. After several months, users report that summary quality has degraded. The team suspects model updates or data drift but has no systematic way to detect when output quality changes.",
+      "question": "Which approach provides continuous monitoring for GenAI output quality regression?",
+      "options": [
+        {"id": "a", "text": "Implement periodic manual reviews of random output samples by domain experts"},
+        {"id": "b", "text": "Monitor API latency and error rates in CloudWatch as proxies for quality"},
+        {"id": "c", "text": "Maintain a golden dataset of expected outputs and automatically compare new outputs against baseline metrics"},
+        {"id": "d", "text": "Collect user feedback ratings and alert when average scores drop below threshold"}
+      ],
+      "correctAnswers": ["c"],
+      "explanation": "A golden dataset provides consistent, automated quality measurement. Run the same test inputs regularly, compare outputs to expected baselines using similarity metrics or LLM-as-judge evaluations, and alert when quality degrades. This detects regression before users complain.",
+      "incorrectExplanations": {
+        "a": "Manual reviews don't scale and introduce subjective variation. They can't detect regression quickly enough.",
+        "b": "Latency and error rates don't measure output quality—a fast, error-free response can still be low quality.",
+        "d": "User feedback is lagging indicator and subject to bias. Golden datasets provide proactive, objective measurement."
+      },
+      "parseStrategy": {
+        "keyPhrase": "continuous monitoring for quality regression",
+        "eliminationHints": [
+          "Manual reviews = don't scale",
+          "Latency/errors ≠ quality",
+          "User feedback = lagging indicator"
+        ],
+        "decisionFramework": "Quality monitoring → golden dataset + automated comparison. Proactive, objective, continuous."
+      },
+      "services": ["Amazon CloudWatch", "AWS Lambda"],
+      "examTip": "Golden datasets enable automated quality regression detection. Run periodically, compare to baseline."
+    },
+    {
+      "id": "d1-q21",
+      "domain": 1,
+      "task": "1.1",
+      "skills": ["1.1.1", "1.1.3"],
+      "type": "multiple-response",
+      "difficulty": "hard",
+      "scenario": "An enterprise is establishing GenAI development standards across multiple teams. They need to ensure consistent architectural patterns, proper security controls, and alignment with AWS best practices. The standards must be enforceable and auditable.",
+      "question": "Which TWO approaches help establish and enforce GenAI architectural standards? (Select TWO)",
+      "options": [
+        {"id": "a", "text": "Use AWS Well-Architected Framework with the GenAI Lens for architectural reviews"},
+        {"id": "b", "text": "Require all teams to use the same foundation model for consistency"},
+        {"id": "c", "text": "Implement AWS Config rules to enforce required Bedrock configurations"},
+        {"id": "d", "text": "Create shared CloudFormation templates that embed organizational standards"},
+        {"id": "e", "text": "Mandate manual code reviews for all GenAI applications"}
+      ],
+      "correctAnswers": ["a", "d"],
+      "explanation": "The GenAI Lens provides AI-specific guidance for Well-Architected reviews, establishing architectural standards. Shared CloudFormation templates embed these standards into deployable infrastructure, making compliance automatic. Together they provide guidance and enforcement.",
+      "incorrectExplanations": {
+        "b": "Mandating the same model doesn't establish architectural standards—different use cases may legitimately need different models.",
+        "c": "AWS Config rules can enforce some settings but don't cover architectural patterns or design decisions.",
+        "e": "Manual code reviews are valuable but don't scale and don't provide proactive enforcement of standards."
+      },
+      "parseStrategy": {
+        "keyPhrase": "establish and enforce standards",
+        "eliminationHints": [
+          "Same model ≠ architectural standard",
+          "Config rules = configuration, not architecture",
+          "Manual reviews don't scale"
+        ],
+        "decisionFramework": "Standards = Well-Architected for guidance + IaC templates for enforcement."
+      },
+      "services": ["AWS Well-Architected Framework", "AWS CloudFormation"],
+      "examTip": "For multi-select, look for complementary answers. Guidance (Well-Architected) + Enforcement (templates)."
+    },
+    {
+      "id": "d1-q22",
+      "domain": 1,
+      "task": "1.2",
+      "skills": ["1.2.1", "1.2.3"],
+      "type": "multiple-response",
+      "difficulty": "hard",
+      "scenario": "A SaaS company is designing a resilient GenAI feature that must maintain 99.9% availability. The feature uses Amazon Bedrock for inference. The team needs to handle both transient failures and regional outages gracefully.",
+      "question": "Which TWO approaches should the team implement for 99.9% availability? (Select TWO)",
+      "options": [
+        {"id": "a", "text": "Implement exponential backoff with jitter for API retries"},
+        {"id": "b", "text": "Enable Cross-Region Inference for automatic regional failover"},
+        {"id": "c", "text": "Deploy redundant Lambda functions in the same region"},
+        {"id": "d", "text": "Use synchronous invocations exclusively to detect failures immediately"},
+        {"id": "e", "text": "Cache all model responses indefinitely to avoid API calls"}
+      ],
+      "correctAnswers": ["a", "b"],
+      "explanation": "Exponential backoff with jitter handles transient failures (rate limits, temporary errors) by spreading retry attempts. Cross-Region Inference handles regional outages by automatically routing to available regions. Together they address both failure modes mentioned in the scenario.",
+      "incorrectExplanations": {
+        "c": "Redundant Lambda in the same region doesn't help with regional outages or Bedrock API failures.",
+        "d": "Synchronous vs async invocation doesn't affect availability—both can implement retry logic.",
+        "e": "Caching all responses indefinitely would return stale data and doesn't address the availability of new requests."
+      },
+      "parseStrategy": {
+        "keyPhrase": "transient failures and regional outages",
+        "eliminationHints": [
+          "Same-region redundancy ≠ regional resilience",
+          "Sync vs async unrelated to availability",
+          "Caching = stale data issue"
+        ],
+        "decisionFramework": "Transient failures → retry with backoff. Regional outages → Cross-Region Inference."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "99.9% availability requires handling multiple failure modes. Match solution to failure type."
+    },
+    {
+      "id": "d1-q23",
+      "domain": 1,
+      "task": "1.3",
+      "skills": ["1.3.2", "1.3.3"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A document processing application receives scanned PDF documents containing tables, forms, and handwritten notes. The content needs to be extracted and formatted for foundation model analysis. Some documents are hundreds of pages long.",
+      "question": "Which AWS service combination provides the MOST complete document understanding for this use case?",
+      "options": [
+        {"id": "a", "text": "Amazon Textract for document extraction, then format as JSON for Bedrock API"},
+        {"id": "b", "text": "Amazon Comprehend for entity extraction from the PDF files"},
+        {"id": "c", "text": "Send PDFs directly to Amazon Bedrock multimodal models"},
+        {"id": "d", "text": "Use AWS Glue to parse PDF structure into relational tables"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Amazon Textract provides intelligent document processing including table extraction, form field recognition, and handwriting detection. The extracted content can be formatted as JSON for Bedrock API consumption. This is the appropriate service for structured document understanding.",
+      "incorrectExplanations": {
+        "b": "Comprehend analyzes text for entities and sentiment—it doesn't extract text from scanned PDFs or understand document structure.",
+        "c": "Bedrock multimodal models process images, not entire PDF documents with multiple pages and complex structures.",
+        "d": "Glue is for ETL data processing—it doesn't have OCR or document structure understanding capabilities."
+      },
+      "parseStrategy": {
+        "keyPhrase": "document understanding",
+        "eliminationHints": [
+          "Comprehend = text analysis, not extraction",
+          "Multimodal = images, not full PDFs",
+          "Glue = data ETL, not document processing"
+        ],
+        "decisionFramework": "Document extraction (OCR, tables, forms) → Textract. Text analysis → Comprehend."
+      },
+      "services": ["Amazon Textract", "Amazon Bedrock"],
+      "examTip": "Textract = extract from documents. Comprehend = analyze extracted text. Know the sequence."
+    },
+    {
+      "id": "d1-q24",
+      "domain": 1,
+      "task": "1.4",
+      "skills": ["1.4.5"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company's knowledge base contains frequently updated product documentation. When documents change in S3, the corresponding vectors in the knowledge base must be updated within 15 minutes. The team wants to minimize manual intervention in the sync process.",
+      "question": "Which approach provides automated near-real-time synchronization between S3 documents and the knowledge base?",
+      "options": [
+        {"id": "a", "text": "Schedule hourly Bedrock Knowledge Base sync jobs using Amazon EventBridge"},
+        {"id": "b", "text": "Configure S3 event notifications to trigger Lambda, which initiates Knowledge Base data source sync"},
+        {"id": "c", "text": "Use AWS DataSync to replicate S3 changes to the knowledge base"},
+        {"id": "d", "text": "Manually trigger sync through the Bedrock console when documents are updated"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "S3 event notifications can trigger a Lambda function when objects are created, modified, or deleted. The Lambda function calls the Bedrock Knowledge Base StartIngestionJob API to sync the affected data source. This provides automated, near-real-time synchronization.",
+      "incorrectExplanations": {
+        "a": "Hourly scheduled jobs don't meet the 15-minute requirement and may sync when nothing has changed (wasteful).",
+        "c": "DataSync is for file transfer between storage systems—it doesn't update knowledge base vectors.",
+        "d": "Manual triggering doesn't minimize manual intervention as required by the scenario."
+      },
+      "parseStrategy": {
+        "keyPhrase": "automated near-real-time",
+        "eliminationHints": [
+          "Hourly ≠ 15-minute requirement",
+          "DataSync = file transfer, not KB sync",
+          "Manual = doesn't meet automation requirement"
+        ],
+        "decisionFramework": "Event-driven sync → S3 events + Lambda + KB StartIngestionJob."
+      },
+      "services": ["Amazon S3", "AWS Lambda", "Amazon Bedrock Knowledge Bases"],
+      "examTip": "S3 event notifications + Lambda for event-driven automation. Works for KB sync, processing, etc."
+    },
+    {
+      "id": "d1-q25",
+      "domain": 1,
+      "task": "1.5",
+      "skills": ["1.5.3", "1.5.4"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "An e-commerce company's product search retrieves items based on semantic similarity. Users complain that search results often include very similar products (e.g., the same shirt in different colors) instead of a diverse range of relevant products. The team wants to improve result diversity while maintaining relevance.",
+      "question": "Which technique addresses the result diversity problem while preserving relevance?",
+      "options": [
+        {"id": "a", "text": "Reduce the similarity threshold to include more varied results"},
+        {"id": "b", "text": "Apply Maximal Marginal Relevance (MMR) to balance relevance and diversity"},
+        {"id": "c", "text": "Increase embedding dimensions for more precise similarity matching"},
+        {"id": "d", "text": "Use reranking to prioritize the most relevant results"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Maximal Marginal Relevance (MMR) selects results that are both relevant to the query AND different from already-selected results. It explicitly balances relevance and diversity, preventing the clustering of near-duplicate results.",
+      "incorrectExplanations": {
+        "a": "Lowering the threshold includes less relevant results—it doesn't address diversity among top matches.",
+        "c": "Higher dimensions improve precision but don't address the diversity problem—similar items will still cluster together.",
+        "d": "Reranking optimizes for relevance, not diversity. It would actually reinforce the clustering of similar items."
+      },
+      "parseStrategy": {
+        "keyPhrase": "diversity while maintaining relevance",
+        "eliminationHints": [
+          "Lower threshold = less relevant",
+          "Higher dimensions = more precision, not diversity",
+          "Reranking = relevance focus"
+        ],
+        "decisionFramework": "Result diversity → MMR. It explicitly optimizes for relevance + diversity."
+      },
+      "services": ["Amazon OpenSearch Service"],
+      "examTip": "MMR (Maximal Marginal Relevance) balances relevance and diversity. Reduces redundancy in results."
+    },
+    {
+      "id": "d1-q26",
+      "domain": 1,
+      "task": "1.6",
+      "skills": ["1.6.3"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A regulated financial institution requires audit trails for all prompt changes. Whenever a prompt is modified, the change must be logged with who made the change, when, and what changed. The audit logs must be tamper-proof and retained for 7 years.",
+      "question": "Which approach provides compliant audit logging for prompt changes?",
+      "options": [
+        {"id": "a", "text": "Enable AWS CloudTrail logging for Bedrock Prompt Management API calls, with S3 log retention"},
+        {"id": "b", "text": "Store prompts in Git repositories with commit history for change tracking"},
+        {"id": "c", "text": "Create custom Lambda functions that log changes to DynamoDB"},
+        {"id": "d", "text": "Use Amazon CloudWatch Logs to capture prompt change events"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "AWS CloudTrail logs all API calls including Bedrock Prompt Management operations. It captures who made the call, when, and the parameters. CloudTrail logs stored in S3 with appropriate lifecycle policies provide tamper-evident, long-term retention required for compliance.",
+      "incorrectExplanations": {
+        "b": "Git provides version control but not tamper-proof audit logging or the compliance features of CloudTrail.",
+        "c": "Custom DynamoDB logging lacks the built-in integrity features and compliance certifications of CloudTrail.",
+        "d": "CloudWatch Logs doesn't automatically capture API calls—CloudTrail is the service for API audit logging."
+      },
+      "parseStrategy": {
+        "keyPhrase": "audit trails",
+        "eliminationHints": [
+          "Git = version control, not audit logging",
+          "Custom logging lacks compliance features",
+          "CloudWatch ≠ API audit (that's CloudTrail)"
+        ],
+        "decisionFramework": "Audit logging for API calls → CloudTrail. It's designed for compliance requirements."
+      },
+      "services": ["AWS CloudTrail", "Amazon S3"],
+      "examTip": "CloudTrail = audit logging for API calls. CloudWatch Logs = application logs. Different purposes."
+    },
+    {
+      "id": "d1-q27",
+      "domain": 1,
+      "task": "1.1",
+      "skills": ["1.1.2"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A startup wants to quickly validate whether a foundation model can accurately classify customer support tickets into categories. They need to test this hypothesis with minimal investment before building production infrastructure.",
+      "question": "What is the FASTEST way to validate the classification hypothesis?",
+      "options": [
+        {"id": "a", "text": "Deploy a full production pipeline with Lambda, API Gateway, and DynamoDB"},
+        {"id": "b", "text": "Use the Amazon Bedrock playground to test prompts with sample support tickets"},
+        {"id": "c", "text": "Train a custom classification model using Amazon SageMaker"},
+        {"id": "d", "text": "Build a custom web application with streaming responses"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "The Amazon Bedrock playground provides immediate access to foundation models without any infrastructure setup. You can paste sample tickets, iterate on prompts, and validate classification accuracy within minutes—ideal for hypothesis testing before investing in production architecture.",
+      "incorrectExplanations": {
+        "a": "Full production pipeline is premature for hypothesis validation—it requires significant investment before knowing if the approach works.",
+        "c": "Custom model training is overkill for initial validation and takes much longer than testing with existing FMs.",
+        "d": "Custom web application adds unnecessary complexity for the goal of quickly testing a hypothesis."
+      },
+      "parseStrategy": {
+        "keyPhrase": "FASTEST way to validate",
+        "eliminationHints": [
+          "Production pipeline = over-investment",
+          "Custom training = too slow",
+          "Custom app = unnecessary complexity"
+        ],
+        "decisionFramework": "Hypothesis validation / PoC → Bedrock playground. Zero setup, instant feedback."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Bedrock playground for quick testing and iteration. No infrastructure needed."
+    },
+    {
+      "id": "d1-q28",
+      "domain": 1,
+      "task": "1.2",
+      "skills": ["1.2.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A content moderation team needs to evaluate which foundation model best detects harmful content in user-generated text. They have a labeled test dataset of 1,000 examples covering various categories of harmful content. The evaluation must measure precision, recall, and F1 scores.",
+      "question": "Which approach enables systematic evaluation of multiple models against the labeled dataset?",
+      "options": [
+        {"id": "a", "text": "Use Amazon Bedrock Model Evaluations with the custom dataset and defined metrics"},
+        {"id": "b", "text": "Manually test each model in the Bedrock playground with a subset of examples"},
+        {"id": "c", "text": "Use Amazon Comprehend toxicity detection and compare to model outputs"},
+        {"id": "d", "text": "Run A/B tests in production to measure real user engagement with each model"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Amazon Bedrock Model Evaluations allows you to run systematic evaluations across multiple models using your custom test dataset. You define evaluation criteria, run automated tests, and get quantitative metrics (precision, recall, F1) for comparison—exactly what this scenario requires.",
+      "incorrectExplanations": {
+        "b": "Manual playground testing doesn't scale to 1,000 examples and doesn't provide systematic metric calculation.",
+        "c": "Comprehend toxicity is a different service—the goal is to evaluate FM performance, not compare to Comprehend.",
+        "d": "Production A/B tests measure engagement, not classification accuracy. They also risk exposing users to harmful content."
+      },
+      "parseStrategy": {
+        "keyPhrase": "systematic evaluation with metrics",
+        "eliminationHints": [
+          "Manual testing doesn't scale",
+          "Comparing to Comprehend ≠ evaluating FMs",
+          "A/B tests = engagement, not accuracy"
+        ],
+        "decisionFramework": "Systematic model evaluation with custom data → Bedrock Model Evaluations."
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "Model Evaluations for quantitative comparison. Supports custom datasets and metrics."
+    },
+    {
+      "id": "d1-q29",
+      "domain": 1,
+      "task": "1.4",
+      "skills": ["1.4.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company's data science team uses PostgreSQL extensively for their analytics workloads. They want to add vector search capabilities for a new RAG application but want to minimize the learning curve and leverage their existing PostgreSQL expertise.",
+      "question": "Which vector store option best fits the team's requirements?",
+      "options": [
+        {"id": "a", "text": "Amazon Bedrock Knowledge Bases with managed vector store"},
+        {"id": "b", "text": "Amazon OpenSearch Service with k-NN plugin"},
+        {"id": "c", "text": "Amazon Aurora PostgreSQL with pgvector extension"},
+        {"id": "d", "text": "Amazon DynamoDB with custom embedding storage"}
+      ],
+      "correctAnswers": ["c"],
+      "explanation": "Aurora PostgreSQL with pgvector enables vector search using familiar SQL syntax. The team can leverage their existing PostgreSQL skills, use standard SQL for vector queries, and integrate with their existing analytics workflows. pgvector adds vector operations to their familiar toolset.",
+      "incorrectExplanations": {
+        "a": "Bedrock KB managed store is simpler but doesn't leverage the team's PostgreSQL expertise.",
+        "b": "OpenSearch requires learning a new query language and operational model—doesn't leverage PostgreSQL skills.",
+        "d": "DynamoDB doesn't natively support vector search and would require custom implementation."
+      },
+      "parseStrategy": {
+        "keyPhrase": "existing PostgreSQL expertise",
+        "eliminationHints": [
+          "Managed store doesn't leverage SQL skills",
+          "OpenSearch = new query language",
+          "DynamoDB = no native vector support"
+        ],
+        "decisionFramework": "Existing PostgreSQL → Aurora pgvector. Familiar SQL + vector search."
+      },
+      "services": ["Amazon Aurora"],
+      "examTip": "Aurora pgvector for PostgreSQL shops. Bedrock KB for greenfield. Match to existing expertise."
+    },
+    {
+      "id": "d1-q30",
+      "domain": 1,
+      "task": "1.5",
+      "skills": ["1.5.6"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A developer is building an AI assistant that needs to retrieve information from multiple data sources including a knowledge base, a product catalog API, and a customer database. The assistant should determine which source to query based on the user's question.",
+      "question": "Which capability enables the AI assistant to dynamically select and query appropriate data sources?",
+      "options": [
+        {"id": "a", "text": "Use Amazon Bedrock function calling with defined tools for each data source"},
+        {"id": "b", "text": "Pre-query all data sources and combine results before generating responses"},
+        {"id": "c", "text": "Train a custom classifier to route queries to the appropriate source"},
+        {"id": "d", "text": "Use Amazon Comprehend to detect entities and route based on entity types"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Bedrock function calling (via the Converse API with tools) allows the model to dynamically decide which tools/functions to invoke based on the user's question. You define tools for each data source, and the model calls the appropriate one(s)—this is the standard pattern for multi-source AI assistants.",
+      "incorrectExplanations": {
+        "b": "Pre-querying all sources is wasteful—most queries only need one or two sources. It adds latency and cost.",
+        "c": "A custom classifier adds complexity and requires training data. Function calling handles routing natively.",
+        "d": "Comprehend entity detection is too simplistic—it can't understand the intent behind complex queries."
+      },
+      "parseStrategy": {
+        "keyPhrase": "dynamically select and query",
+        "eliminationHints": [
+          "Pre-query all = wasteful",
+          "Custom classifier = unnecessary complexity",
+          "Entity detection = too simple"
+        ],
+        "decisionFramework": "Dynamic tool selection → function calling. Model decides which tools to use."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Function calling for dynamic tool/API selection. The model decides what to call based on context."
+    },
+    {
+      "id": "d1-q31",
+      "domain": 1,
+      "task": "1.3",
+      "skills": ["1.3.1", "1.3.4"],
+      "type": "multiple-response",
+      "difficulty": "hard",
+      "scenario": "A customer feedback analysis system processes thousands of reviews daily. Before sending reviews to a foundation model for sentiment analysis, the system needs to validate data quality (non-empty, proper encoding) and extract key entities (product names, features mentioned) to enrich the prompt.",
+      "question": "Which TWO services should be used for this preprocessing pipeline? (Select TWO)",
+      "options": [
+        {"id": "a", "text": "AWS Glue Data Quality for input validation rules"},
+        {"id": "b", "text": "Amazon Comprehend for entity extraction"},
+        {"id": "c", "text": "Amazon Rekognition for content analysis"},
+        {"id": "d", "text": "Amazon Transcribe for text processing"},
+        {"id": "e", "text": "Amazon Polly for text formatting"}
+      ],
+      "correctAnswers": ["a", "b"],
+      "explanation": "Glue Data Quality validates inputs with declarative rules (checking non-empty, proper encoding). Comprehend extracts entities like product names and features mentioned in reviews. Together they handle both validation and enrichment requirements.",
+      "incorrectExplanations": {
+        "c": "Rekognition is for image/video analysis—not relevant for text review processing.",
+        "d": "Transcribe converts speech to text—reviews are already text, so this is unnecessary.",
+        "e": "Polly converts text to speech—the opposite of what's needed and unrelated to preprocessing."
+      },
+      "parseStrategy": {
+        "keyPhrase": "validate and extract entities",
+        "eliminationHints": [
+          "Rekognition = images, not text",
+          "Transcribe = audio, not text validation",
+          "Polly = text-to-speech"
+        ],
+        "decisionFramework": "Data validation → Glue Data Quality. Entity extraction → Comprehend."
+      },
+      "services": ["AWS Glue Data Quality", "Amazon Comprehend"],
+      "examTip": "Match service to task: Glue DQ = validation rules, Comprehend = NLP extraction."
+    },
+    {
+      "id": "d1-q32",
+      "domain": 1,
+      "task": "1.6",
+      "skills": ["1.6.1", "1.6.5"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A customer service team wants their AI assistant to always respond in a specific format: greeting, acknowledgment of the issue, proposed solution, and closing. The format must be consistent regardless of the question asked.",
+      "question": "Which prompting approach MOST reliably ensures consistent response format?",
+      "options": [
+        {"id": "a", "text": "Include detailed format instructions in the system prompt"},
+        {"id": "b", "text": "Use few-shot examples showing the exact format for different question types"},
+        {"id": "c", "text": "Use a smaller model that produces shorter, more predictable outputs"},
+        {"id": "d", "text": "Set temperature to 0 for deterministic outputs"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Few-shot examples are the most effective technique for ensuring consistent format. By showing the model 2-3 examples of questions with correctly formatted responses, you establish a clear pattern the model will follow. This is more reliable than instructions alone.",
+      "incorrectExplanations": {
+        "a": "System prompt instructions help but are less reliable than examples. Models may interpret instructions differently.",
+        "c": "Model size doesn't determine format adherence—smaller models may actually be worse at following complex format requirements.",
+        "d": "Temperature 0 makes outputs deterministic but doesn't address format consistency—it affects randomness, not structure."
+      },
+      "parseStrategy": {
+        "keyPhrase": "consistent response format",
+        "eliminationHints": [
+          "Instructions alone = less reliable",
+          "Model size unrelated to format",
+          "Temperature = randomness, not structure"
+        ],
+        "decisionFramework": "Format consistency → few-shot examples. Show, don't just tell."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Few-shot for format consistency. Examples are more powerful than instructions for format."
+    },
+    {
+      "id": "d1-q33",
+      "domain": 1,
+      "task": "1.2",
+      "skills": ["1.2.3"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "An application uses Amazon Bedrock for real-time chat. During peak hours, the application occasionally receives throttling errors (HTTP 429) from the Bedrock API. The team needs to handle these errors gracefully without degrading user experience.",
+      "question": "Which approach provides the MOST robust handling of throttling errors?",
+      "options": [
+        {"id": "a", "text": "Implement exponential backoff with jitter, and display a 'thinking' indicator to users during retries"},
+        {"id": "b", "text": "Switch to a different foundation model when throttling occurs"},
+        {"id": "c", "text": "Pre-cache responses for common questions to avoid API calls"},
+        {"id": "d", "text": "Request a service limit increase to eliminate throttling"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Exponential backoff with jitter is the standard pattern for handling throttling. It progressively increases wait time between retries while adding randomness to prevent thundering herd. Displaying a 'thinking' indicator keeps users informed during the brief delay, maintaining good UX.",
+      "incorrectExplanations": {
+        "b": "Switching models doesn't solve throttling—all Bedrock models share account-level limits for the same model family.",
+        "c": "Caching helps reduce API calls but doesn't handle the throttling that still occurs for uncached queries.",
+        "d": "Limit increases help but don't eliminate throttling during spikes. Retry logic is still needed for robust handling."
+      },
+      "parseStrategy": {
+        "keyPhrase": "handle throttling errors gracefully",
+        "eliminationHints": [
+          "Model switching doesn't solve rate limits",
+          "Caching = partial solution",
+          "Limit increase doesn't eliminate throttling"
+        ],
+        "decisionFramework": "Throttling → exponential backoff + jitter. Standard AWS SDK retry pattern."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Exponential backoff with jitter is AWS's recommended retry strategy. Handles throttling gracefully."
+    },
+    {
+      "id": "d1-q34",
+      "domain": 1,
+      "task": "1.4",
+      "skills": ["1.4.3"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A legal research platform has millions of case documents that need to be searchable via vector similarity. The platform experiences variable query load with occasional spikes. The team needs a scalable vector store that can handle millions of documents with sub-second query latency.",
+      "question": "Which vector store architecture provides the required scale and latency characteristics?",
+      "options": [
+        {"id": "a", "text": "Amazon Bedrock Knowledge Bases with managed vector store"},
+        {"id": "b", "text": "Amazon OpenSearch Service with k-NN indexes, configured with appropriate sharding"},
+        {"id": "c", "text": "Amazon Aurora PostgreSQL with pgvector on a large instance"},
+        {"id": "d", "text": "Amazon DynamoDB with vector embeddings stored as attributes"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "OpenSearch Service with k-NN provides the scale needed for millions of documents. HNSW indexes enable sub-second queries, and sharding distributes the workload across nodes. OpenSearch auto-scales for variable load and provides fine-grained control over performance tuning.",
+      "incorrectExplanations": {
+        "a": "Bedrock KB managed store is great for simplicity but may not provide the performance tuning needed for millions of documents with strict latency requirements.",
+        "c": "Aurora pgvector can work but scaling to millions with sub-second latency may require significant tuning and potentially multiple instances.",
+        "d": "DynamoDB isn't designed for vector similarity search—it lacks native k-NN capabilities."
+      },
+      "parseStrategy": {
+        "keyPhrase": "millions of documents with sub-second latency",
+        "eliminationHints": [
+          "Managed store may not scale sufficiently",
+          "Single Aurora instance = scalability limits",
+          "DynamoDB = no vector search capability"
+        ],
+        "decisionFramework": "Large-scale vector search with performance control → OpenSearch with sharding."
+      },
+      "services": ["Amazon OpenSearch Service"],
+      "examTip": "OpenSearch for large-scale vector search. Sharding + HNSW indexes for performance."
+    },
+    {
+      "id": "d1-q35",
+      "domain": 1,
+      "task": "1.5",
+      "skills": ["1.5.2"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A company needs to generate embeddings for a large corpus of documents to populate their vector store. They need to process millions of documents efficiently without managing infrastructure.",
+      "question": "Which approach provides the MOST efficient way to generate embeddings at scale?",
+      "options": [
+        {"id": "a", "text": "Use Amazon Bedrock batch inference with Titan Embeddings"},
+        {"id": "b", "text": "Call the Bedrock embedding API synchronously for each document"},
+        {"id": "c", "text": "Deploy a custom embedding model on SageMaker endpoints"},
+        {"id": "d", "text": "Use Amazon Comprehend to extract embeddings from documents"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Bedrock batch inference allows you to submit large jobs that process multiple documents efficiently without managing infrastructure. This is more cost-effective and efficient than synchronous calls for millions of documents.",
+      "incorrectExplanations": {
+        "b": "Synchronous calls for millions of documents would be slow and potentially hit rate limits.",
+        "c": "SageMaker endpoints require infrastructure management—contrary to the 'without managing infrastructure' requirement.",
+        "d": "Comprehend doesn't generate embeddings for vector search—it provides NLP analysis like entity extraction."
+      },
+      "parseStrategy": {
+        "keyPhrase": "efficiently without managing infrastructure",
+        "eliminationHints": [
+          "Synchronous = slow at scale",
+          "SageMaker = infrastructure management",
+          "Comprehend ≠ embeddings"
+        ],
+        "decisionFramework": "Large-scale embeddings → batch inference. Efficient and managed."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Batch inference for large-scale embedding generation. More efficient than synchronous calls."
+    },
+    {
+      "id": "d1-q36",
+      "domain": 1,
+      "task": "1.6",
+      "skills": ["1.6.4"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A GenAI application generates product descriptions. The business requires that all descriptions include specific legal disclaimers and never mention competitor products. The team needs automated validation of these requirements before descriptions are shown to users.",
+      "question": "Which approach enables automated validation of business rules on FM outputs?",
+      "options": [
+        {"id": "a", "text": "Add instructions to the prompt requiring disclaimers and avoiding competitors"},
+        {"id": "b", "text": "Implement Lambda post-processing that validates outputs against business rules before returning"},
+        {"id": "c", "text": "Use a lower temperature to make outputs more predictable"},
+        {"id": "d", "text": "Fine-tune the model to always include disclaimers"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Lambda post-processing provides programmatic validation of outputs against business rules. You can check for required disclaimers, scan for competitor mentions, and either flag issues or trigger regeneration. This ensures compliance without relying solely on the model's interpretation of instructions.",
+      "incorrectExplanations": {
+        "a": "Instructions help but don't guarantee compliance. FMs can miss requirements, so validation is still needed.",
+        "c": "Lower temperature reduces randomness but doesn't ensure business rule compliance.",
+        "d": "Fine-tuning for disclaimers is expensive and doesn't help with avoiding competitor names (a content filtering issue)."
+      },
+      "parseStrategy": {
+        "keyPhrase": "automated validation of business rules",
+        "eliminationHints": [
+          "Instructions ≠ guarantee",
+          "Temperature = randomness control",
+          "Fine-tuning overkill for validation"
+        ],
+        "decisionFramework": "Output validation → post-processing Lambda. Programmatic checks ensure compliance."
+      },
+      "services": ["AWS Lambda"],
+      "examTip": "Lambda post-processing for business rule validation. Don't trust FM outputs blindly."
+    },
+    {
+      "id": "d1-q37",
+      "domain": 1,
+      "task": "1.1",
+      "skills": ["1.1.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company is building an internal document search application. The documents are stored in Amazon S3 and contain sensitive employee information. The application must ensure that documents are never sent outside the AWS network and that all data remains encrypted.",
+      "question": "Which architectural component ensures secure data handling for this use case?",
+      "options": [
+        {"id": "a", "text": "Use VPC endpoints for Bedrock to keep traffic within the AWS network"},
+        {"id": "b", "text": "Encrypt documents with customer-managed KMS keys before uploading to S3"},
+        {"id": "c", "text": "Use Amazon Macie to scan documents for sensitive information"},
+        {"id": "d", "text": "Enable CloudTrail logging to monitor all API calls"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "VPC endpoints for Amazon Bedrock ensure that API traffic never leaves the AWS network, traveling through AWS PrivateLink instead of the public internet. This addresses the 'never sent outside AWS network' requirement directly.",
+      "incorrectExplanations": {
+        "b": "KMS encryption protects data at rest and in transit but doesn't prevent traffic from going over the internet.",
+        "c": "Macie discovers sensitive data but doesn't control network traffic paths.",
+        "d": "CloudTrail provides auditing but doesn't affect how data is transmitted."
+      },
+      "parseStrategy": {
+        "keyPhrase": "never sent outside the AWS network",
+        "eliminationHints": [
+          "KMS = encryption, not network path",
+          "Macie = discovery, not network control",
+          "CloudTrail = audit, not network"
+        ],
+        "decisionFramework": "Private network traffic → VPC endpoints (PrivateLink)."
+      },
+      "services": ["Amazon VPC"],
+      "examTip": "VPC endpoints keep traffic within AWS network. Use for compliance with 'no internet' requirements."
+    },
+    {
+      "id": "d1-q38",
+      "domain": 1,
+      "task": "1.3",
+      "skills": ["1.3.3"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A developer is building an application that calls Amazon Bedrock. The application needs to send a conversation with multiple messages including system instructions, user messages, and assistant responses.",
+      "question": "Which API format should the developer use for multi-turn conversations with Bedrock?",
+      "options": [
+        {"id": "a", "text": "The Converse API with messages array containing role-based content"},
+        {"id": "b", "text": "The InvokeModel API with concatenated text strings"},
+        {"id": "c", "text": "Multiple sequential InvokeModel calls with context in each"},
+        {"id": "d", "text": "The CreateModelCustomizationJob API with conversation data"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "The Converse API provides a standardized format for multi-turn conversations. It uses a messages array where each message has a role (system, user, assistant) and content. This is the recommended API for conversational applications.",
+      "incorrectExplanations": {
+        "b": "InvokeModel with concatenated strings is the older approach—Converse provides a cleaner, standardized format.",
+        "c": "Multiple sequential calls are inefficient and don't leverage Bedrock's conversation handling.",
+        "d": "CreateModelCustomizationJob is for fine-tuning, not inference conversations."
+      },
+      "parseStrategy": {
+        "keyPhrase": "multi-turn conversations",
+        "eliminationHints": [
+          "Concatenated strings = legacy approach",
+          "Sequential calls = inefficient",
+          "CustomizationJob = training, not inference"
+        ],
+        "decisionFramework": "Multi-turn conversation → Converse API with messages array."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Converse API for conversations. Messages array with roles (system, user, assistant)."
+    },
+    {
+      "id": "d1-q39",
+      "domain": 1,
+      "task": "1.5",
+      "skills": ["1.5.4"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A RAG system retrieves the top 20 documents and sends them to the foundation model. Users report that the FM responses often miss information that was in the retrieved documents. Analysis shows relevant content is often ranked lower in the retrieval results.",
+      "question": "Which technique would MOST directly improve the quality of retrieved content sent to the FM?",
+      "options": [
+        {"id": "a", "text": "Increase the number of retrieved documents from 20 to 50"},
+        {"id": "b", "text": "Apply a reranker model to reorder retrieved documents by relevance before sending to the FM"},
+        {"id": "c", "text": "Use a larger embedding model with higher dimensions"},
+        {"id": "d", "text": "Reduce chunk size to create more granular retrieval targets"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "A reranker model (like Cohere Rerank) uses a cross-encoder to score query-document pairs, providing more accurate relevance ranking than initial retrieval. This ensures the most relevant documents are prioritized in the context sent to the FM, directly addressing the 'relevant content ranked lower' problem.",
+      "incorrectExplanations": {
+        "a": "More documents don't help if the most relevant ones are still ranked lower—you'd just add more noise.",
+        "c": "Higher dimension embeddings don't fix ranking issues with already-retrieved documents.",
+        "d": "Smaller chunks don't address the ranking problem—relevant chunks would still be ranked lower."
+      },
+      "parseStrategy": {
+        "keyPhrase": "relevant content ranked lower",
+        "eliminationHints": [
+          "More documents = more noise if ranking is bad",
+          "Embedding size ≠ ranking quality",
+          "Chunk size ≠ ranking"
+        ],
+        "decisionFramework": "Poor ranking → reranker. Cross-encoder provides better relevance scoring."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Rerankers improve precision by reordering retrieval results. Use when ranking quality matters."
+    },
+    {
+      "id": "d1-q40",
+      "domain": 1,
+      "task": "1.6",
+      "skills": ["1.6.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "An AI travel assistant needs to understand when users are asking about flights versus hotels versus activities. The assistant should route queries to different specialized prompts based on the detected intent.",
+      "question": "Which approach enables intent-based routing of user queries?",
+      "options": [
+        {"id": "a", "text": "Use Amazon Comprehend custom classification trained on travel query types"},
+        {"id": "b", "text": "Parse user queries using regular expressions to detect keywords"},
+        {"id": "c", "text": "Send all queries to a general-purpose prompt and let the FM figure out the intent"},
+        {"id": "d", "text": "Ask users to select their query category from a dropdown before typing"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Amazon Comprehend custom classification can be trained on labeled travel queries to detect intent (flights, hotels, activities). Once trained, it provides fast, accurate intent detection that can route queries to specialized prompts. This is more robust than keyword matching.",
+      "incorrectExplanations": {
+        "b": "Regex keyword matching is brittle—users phrase queries in many ways that won't match patterns.",
+        "c": "General-purpose prompts work but specialized prompts provide better responses. Intent detection enables specialization.",
+        "d": "Forcing users to categorize adds friction and may lead to miscategorization."
+      },
+      "parseStrategy": {
+        "keyPhrase": "intent-based routing",
+        "eliminationHints": [
+          "Regex = brittle, breaks on variations",
+          "General prompt = misses specialization",
+          "User selection = poor UX"
+        ],
+        "decisionFramework": "Intent detection → Comprehend custom classification or FM-based classification."
+      },
+      "services": ["Amazon Comprehend"],
+      "examTip": "Comprehend custom classification for intent detection. More robust than keyword matching."
+    },
+    {
+      "id": "d1-q41",
+      "domain": 1,
+      "task": "1.2",
+      "skills": ["1.2.4"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A healthcare company fine-tuned a foundation model on proprietary medical data. They want to deploy the fine-tuned model to production but need the ability to quickly roll back to the base model if the fine-tuned version produces unexpected results.",
+      "question": "Which deployment strategy enables quick rollback between model versions?",
+      "options": [
+        {"id": "a", "text": "Store model version IDs in AWS AppConfig and switch between them at runtime"},
+        {"id": "b", "text": "Deploy both models and use API Gateway weighted routing"},
+        {"id": "c", "text": "Use Lambda aliases pointing to different model versions"},
+        {"id": "d", "text": "Maintain separate applications for each model version"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "AppConfig allows runtime configuration changes without redeployment. Store the active model version ID as a configuration parameter, and your Lambda reads it to determine which model to invoke. Rollback is instant—just update the configuration value.",
+      "incorrectExplanations": {
+        "b": "API Gateway weighted routing works but requires infrastructure changes for full rollback, not instant configuration change.",
+        "c": "Lambda aliases don't directly point to Bedrock model versions—they manage Lambda function versions.",
+        "d": "Separate applications multiply operational burden and don't provide quick rollback."
+      },
+      "parseStrategy": {
+        "keyPhrase": "quickly roll back",
+        "eliminationHints": [
+          "Infrastructure changes ≠ quick",
+          "Lambda aliases wrong abstraction",
+          "Separate apps = operational burden"
+        ],
+        "decisionFramework": "Quick rollback → runtime config (AppConfig). Change config, not infrastructure."
+      },
+      "services": ["AWS AppConfig"],
+      "examTip": "AppConfig for runtime model switching. Instant rollback without deployment."
+    },
+    {
+      "id": "d1-q42",
+      "domain": 1,
+      "task": "1.4",
+      "skills": ["1.4.4"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company uses SharePoint and Confluence for internal documentation. They want to build a unified search experience using RAG that covers both platforms. The solution should automatically keep the vector store updated when documents change.",
+      "question": "Which approach provides unified RAG across SharePoint and Confluence with automatic sync?",
+      "options": [
+        {"id": "a", "text": "Configure Amazon Bedrock Knowledge Base with data source connectors for SharePoint and Confluence"},
+        {"id": "b", "text": "Export documents manually from both systems to S3 and sync weekly"},
+        {"id": "c", "text": "Build custom Lambda crawlers for each platform that push to OpenSearch"},
+        {"id": "d", "text": "Use Amazon Kendra to index both sources and add vector search capability"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Bedrock Knowledge Bases supports native data source connectors for SharePoint and Confluence. Configure both as data sources, and the Knowledge Base automatically handles crawling, chunking, embedding, and sync when documents change. This is the managed solution for multi-source RAG.",
+      "incorrectExplanations": {
+        "b": "Manual weekly exports don't provide automatic sync and miss real-time updates.",
+        "c": "Custom crawlers require significant development and maintenance—connectors are already built.",
+        "d": "Kendra is for enterprise search, not foundation model RAG. It doesn't provide vector embeddings for FM context."
+      },
+      "parseStrategy": {
+        "keyPhrase": "unified RAG with automatic sync",
+        "eliminationHints": [
+          "Manual export ≠ automatic",
+          "Custom crawlers = unnecessary work",
+          "Kendra = search, not RAG"
+        ],
+        "decisionFramework": "Multi-source RAG → Bedrock KB with connectors. Built-in SharePoint/Confluence support."
+      },
+      "services": ["Amazon Bedrock Knowledge Bases"],
+      "examTip": "Bedrock KB has native connectors for SharePoint, Confluence, etc. Don't build custom crawlers."
+    },
+    {
+      "id": "d1-q43",
+      "domain": 1,
+      "task": "1.6",
+      "skills": ["1.6.5"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A developer wants their foundation model to output JSON that can be parsed by downstream systems. The model sometimes adds explanatory text before or after the JSON, causing parsing failures.",
+      "question": "Which prompting technique MOST reliably produces parseable JSON output?",
+      "options": [
+        {"id": "a", "text": "Add 'Output only valid JSON with no additional text' to the prompt instructions"},
+        {"id": "b", "text": "Use few-shot examples showing the exact JSON structure expected"},
+        {"id": "c", "text": "Set temperature to 0 for deterministic output"},
+        {"id": "d", "text": "Use a smaller model that produces shorter outputs"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Few-shot examples showing the expected JSON structure are most effective for reliable structured output. The model learns from examples that responses should contain only JSON, not explanatory text. Combined with clear instructions, this provides the most reliable results.",
+      "incorrectExplanations": {
+        "a": "Instructions alone may be ignored—models sometimes add explanations despite being told not to.",
+        "c": "Temperature 0 makes output deterministic but doesn't prevent the model from adding text around JSON.",
+        "d": "Model size doesn't determine adherence to format requirements."
+      },
+      "parseStrategy": {
+        "keyPhrase": "reliably produces parseable JSON",
+        "eliminationHints": [
+          "Instructions can be ignored",
+          "Temperature ≠ format adherence",
+          "Model size irrelevant"
+        ],
+        "decisionFramework": "Structured output → few-shot examples showing exact format."
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Few-shot examples for structured output. Show the exact format you want."
+    },
+    {
+      "id": "d1-q44",
+      "domain": 1,
+      "task": "1.3",
+      "skills": ["1.3.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "An insurance company receives claim documents as scanned images. The documents contain tables with claim details, checkboxes indicating coverage types, and signatures. The extracted information needs to be structured for foundation model analysis.",
+      "question": "Which service provides the comprehensive document understanding needed for this use case?",
+      "options": [
+        {"id": "a", "text": "Amazon Textract with Forms and Tables features"},
+        {"id": "b", "text": "Amazon Rekognition for image analysis"},
+        {"id": "c", "text": "Amazon Comprehend for entity extraction"},
+        {"id": "d", "text": "Send images directly to Bedrock multimodal models"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Amazon Textract with Forms and Tables features provides intelligent document processing specifically designed for structured documents. It extracts table data maintaining row/column relationships, identifies form fields with their values, and recognizes checkboxes—exactly what's needed for insurance claim documents.",
+      "incorrectExplanations": {
+        "b": "Rekognition analyzes images for objects, faces, and scenes—not document structure and text extraction.",
+        "c": "Comprehend analyzes text but doesn't extract text from images or understand document layout.",
+        "d": "Multimodal models can describe images but don't provide the structured extraction (tables, forms) that Textract offers."
+      },
+      "parseStrategy": {
+        "keyPhrase": "tables, checkboxes, structured extraction",
+        "eliminationHints": [
+          "Rekognition = general image analysis",
+          "Comprehend = text analysis, not extraction",
+          "Multimodal = description, not structured extraction"
+        ],
+        "decisionFramework": "Document extraction with tables/forms → Textract. Specialized for documents."
+      },
+      "services": ["Amazon Textract"],
+      "examTip": "Textract for document intelligence: tables, forms, checkboxes. Rekognition for general images."
+    },
+    {
+      "id": "d1-q45",
+      "domain": 1,
+      "task": "1.5",
+      "skills": ["1.5.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company is ingesting product manuals into their RAG system. The manuals are consistently structured with a table of contents, multiple chapters, and an appendix. Users often ask questions that require context from multiple sections of the same manual.",
+      "question": "Which chunking approach best supports cross-section context retrieval for structured manuals?",
+      "options": [
+        {"id": "a", "text": "Fixed-size chunking with 1000 token chunks"},
+        {"id": "b", "text": "Chapter-level chunking where each chapter becomes a chunk"},
+        {"id": "c", "text": "Hierarchical chunking with document summaries and section-level detail chunks"},
+        {"id": "d", "text": "Sentence-level chunking for maximum granularity"}
+      ],
+      "correctAnswers": ["c"],
+      "explanation": "Hierarchical chunking creates multiple levels: document-level summaries, chapter summaries, and detailed section chunks. When a question requires cross-section context, the retrieval can include the document summary providing overall context plus specific section details. This preserves relationships between parts of the manual.",
+      "incorrectExplanations": {
+        "a": "Fixed-size chunking ignores document structure and may split content mid-section.",
+        "b": "Chapter-level chunks are too large for precise retrieval and don't provide cross-chapter context.",
+        "d": "Sentence-level is too granular—loses the context needed for understanding relationships between sections."
+      },
+      "parseStrategy": {
+        "keyPhrase": "cross-section context",
+        "eliminationHints": [
+          "Fixed-size ignores structure",
+          "Full chapters too large",
+          "Sentences too small"
+        ],
+        "decisionFramework": "Structured documents with cross-reference needs → hierarchical chunking."
+      },
+      "services": ["Amazon Bedrock Knowledge Bases"],
+      "examTip": "Hierarchical chunking for structured documents. Enables multi-level retrieval."
+    }
+  ]
+}

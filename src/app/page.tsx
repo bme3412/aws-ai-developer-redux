@@ -1,65 +1,173 @@
-import Image from "next/image";
+import Link from 'next/link';
+import { ArrowRight, Target, BookOpen, FlaskConical, ClipboardCheck } from 'lucide-react';
+import { DomainBadge } from '@/components/layout/DomainBadge';
+import { getDomains } from '@/lib/domains';
 
-export default function Home() {
+export default function HomePage() {
+  const domains = getDomains();
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden border-b border-gray-200">
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-50 via-white to-orange-50" />
+        <div className="relative max-w-6xl mx-auto px-6 py-16">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="px-3 py-1 bg-amber-100 border border-amber-200 rounded-full text-amber-700 text-sm font-medium">
+              AIP-C01
+            </span>
+            <span className="text-gray-400">•</span>
+            <span className="text-gray-600 text-sm">Professional Level</span>
+          </div>
+
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+            AWS Certified Generative AI Developer
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-xl text-gray-600 mb-8 max-w-2xl">
+            Master Amazon Bedrock, RAG architectures, agentic AI, and enterprise GenAI patterns.
+            Interactive labs and exam-focused content to close your 35-point gap.
           </p>
+
+          <div className="flex flex-wrap gap-4 mb-12">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg transition-colors shadow-sm"
+            >
+              Start Studying
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+            <Link
+              href="/review"
+              className="flex items-center gap-2 px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition-colors border border-gray-300"
+            >
+              Practice Questions
+            </Link>
+          </div>
+
+          {/* Exam Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+              <div className="text-2xl font-bold text-gray-900">65</div>
+              <div className="text-sm text-gray-500">Scored Questions</div>
+            </div>
+            <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+              <div className="text-2xl font-bold text-gray-900">170</div>
+              <div className="text-sm text-gray-500">Minutes</div>
+            </div>
+            <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+              <div className="text-2xl font-bold text-amber-600">750</div>
+              <div className="text-sm text-gray-500">Passing Score</div>
+            </div>
+            <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+              <div className="text-2xl font-bold text-red-600">715</div>
+              <div className="text-sm text-gray-500">Your Last Score</div>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      </section>
+
+      {/* Domains Section */}
+      <section className="max-w-6xl mx-auto px-6 py-12">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Exam Domains</h2>
+            <p className="text-gray-600 mt-1">Focus on D1 + D2 for maximum impact (57% of exam)</p>
+          </div>
+          <Link
+            href="/learn"
+            className="text-amber-600 hover:text-amber-700 text-sm font-medium flex items-center gap-1"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            View All Topics <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
-      </main>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {domains.map(domain => (
+            <Link key={domain.id} href={`/learn/${domain.id}`}>
+              <DomainBadge
+                domainId={domain.id}
+                name={domain.name}
+                weight={domain.weight}
+                priority={domain.priority}
+                progress={0}
+              />
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="max-w-6xl mx-auto px-6 py-12 border-t border-gray-200">
+        <h2 className="text-2xl font-bold text-gray-900 mb-8">Study Resources</h2>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          <div className="p-6 bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+            <BookOpen className="w-10 h-10 text-blue-500 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Concept Articles</h3>
+            <p className="text-gray-600 text-sm mb-4">
+              18 in-depth articles covering every task and skill in the exam guide.
+              Exam tips and AWS service deep-dives included.
+            </p>
+            <Link href="/learn" className="text-blue-600 text-sm font-medium hover:text-blue-700">
+              Start Learning →
+            </Link>
+          </div>
+
+          <div className="p-6 bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+            <FlaskConical className="w-10 h-10 text-amber-500 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Interactive Labs</h3>
+            <p className="text-gray-600 text-sm mb-4">
+              Hands-on labs with real Bedrock APIs. Compare models, build RAG,
+              test guardrails, and create agents.
+            </p>
+            <Link href="/labs" className="text-amber-600 text-sm font-medium hover:text-amber-700">
+              Open Labs →
+            </Link>
+          </div>
+
+          <div className="p-6 bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+            <ClipboardCheck className="w-10 h-10 text-green-500 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Practice Questions</h3>
+            <p className="text-gray-600 text-sm mb-4">
+              Exam-style questions for each domain. Multiple choice, multiple response,
+              ordering, and matching formats.
+            </p>
+            <Link href="/review" className="text-green-600 text-sm font-medium hover:text-green-700">
+              Practice Now →
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Strategy Section */}
+      <section className="max-w-6xl mx-auto px-6 py-12 border-t border-gray-200">
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200 p-6">
+          <div className="flex items-start gap-4">
+            <Target className="w-8 h-8 text-amber-600 flex-shrink-0 mt-1" />
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Retake Strategy</h3>
+              <p className="text-gray-700 mb-4">
+                At 715/750, you&apos;re approximately <strong>3-5 questions</strong> away from passing.
+                Focus your study on:
+              </p>
+              <ul className="space-y-2 text-gray-700">
+                <li className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-red-500" />
+                  <strong>D1 (31%)</strong> — Vector stores, retrieval mechanisms, prompt governance
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-red-500" />
+                  <strong>D2 (26%)</strong> — Agentic AI, MCP, streaming APIs, deployment patterns
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  <strong>D3 (20%)</strong> — Guardrails, PII detection, compliance frameworks
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

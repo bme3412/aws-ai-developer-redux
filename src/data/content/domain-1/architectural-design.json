@@ -1,0 +1,199 @@
+{
+  "topicSlug": "architectural-design",
+  "domainId": 1,
+  "taskId": "1.1",
+  "overview": {
+    "whyItMatters": "GenAI architecture decisions made early in a project determine the cost, latency, scalability, and maintainability of your entire application. Poor architectural choices become expensive technical debt—difficult to fix once the system is in production. The exam tests whether you can match business requirements to appropriate FM integration patterns and deployment strategies. This foundational knowledge applies across every other domain in the certification.",
+    "estimatedMinutes": 30
+  },
+  "concepts": [
+    {
+      "id": "fm-integration-patterns",
+      "title": "Foundation Model Integration Patterns",
+      "content": "There are three primary patterns for integrating foundation models into applications, each suited to different requirements. Understanding when to use each pattern is fundamental to effective GenAI architecture.\n\nDirect API integration is the simplest pattern. Your application code—typically in a Lambda function—calls Bedrock's InvokeModel API directly. This works well for prototypes, internal tools, and applications where you control the entire stack. The trade-off is that you're responsible for rate limiting, error handling, and monitoring at the application level.\n\nGateway-mediated integration adds API Gateway between clients and your FM logic. API Gateway provides throttling to prevent abuse, caching to reduce redundant FM calls, request/response transformation, and usage plans for API key management. This is the production-ready pattern for most applications, especially those exposing FM capabilities to external clients or managing multiple consumers.\n\nEvent-driven integration uses SQS, SNS, or EventBridge to decouple request submission from processing. Requests queue up; workers process them asynchronously; results may be delivered via callbacks, polling, or notifications. This pattern suits batch processing workloads, scenarios where immediate response isn't required, or systems that need to smooth out traffic spikes. It's also valuable when you need to retry failed requests automatically.\n\nStreaming adds another dimension. For conversational applications, users expect to see responses as they're generated, not wait for the complete response. WebSocket API Gateway enables real-time streaming of FM outputs to clients, providing the responsive feel users expect from chat interfaces.\n\nChoose your pattern based on requirements: latency sensitivity, traffic patterns, client types, and operational complexity you're willing to accept. Most production applications use gateway-mediated integration; batch workloads use event-driven; real-time chat uses streaming.",
+      "keyPoints": [
+        "Direct API: Lambda → Bedrock (simplest, good for prototypes)",
+        "Gateway pattern: API Gateway → Lambda → Bedrock (production-ready)",
+        "Event-driven: SQS → Lambda → Bedrock (batch, decoupled, resilient)",
+        "Streaming: WebSocket API Gateway for real-time token delivery"
+      ],
+      "examTip": "Questions asking about 'decoupled' or 'asynchronous' processing point toward SQS/EventBridge patterns. 'Real-time' or 'immediate response' suggests direct or gateway patterns with streaming."
+    },
+    {
+      "id": "deployment-strategies",
+      "title": "Deployment Strategies for GenAI",
+      "content": "How you deploy and consume foundation models significantly impacts cost, latency, and operational complexity. AWS offers multiple deployment options, each optimized for different use cases.\n\nBedrock on-demand inference is pay-per-token with no commitment. You're charged only for the tokens you process, with no upfront costs. This is ideal for variable workloads, development environments, and applications where usage is unpredictable. The trade-off is that latency may vary during high-demand periods, and you're subject to service throttling limits.\n\nProvisioned Throughput reserves dedicated capacity for your workload. You pay for a fixed number of model units, guaranteeing consistent performance regardless of overall service load. This is valuable when you have predictable, high-volume traffic and need guaranteed latency for SLA compliance. Provisioned Throughput often reduces per-token costs at high volumes, making it both more reliable and more economical for steady-state workloads.\n\nSageMaker endpoints provide maximum control for custom model deployment. If you've trained your own models or need specific configurations not available in Bedrock, SageMaker lets you deploy to managed infrastructure with full control over instance types, auto-scaling, and deployment patterns. This comes with more operational responsibility—you manage endpoint configuration, scaling policies, and model updates.\n\nCross-Region Inference in Bedrock automatically routes requests to available regions when your primary region has capacity constraints or outages. This provides resilience without you managing multi-region deployments. For applications requiring high availability, Cross-Region Inference is a key architectural decision.\n\nThe deployment choice depends on your requirements: on-demand for variable/low-volume workloads, Provisioned Throughput for predictable high-volume production, SageMaker for custom models requiring full control.",
+      "keyPoints": [
+        "On-demand: No commitment, pay-per-token, variable latency",
+        "Provisioned Throughput: Reserved capacity, consistent latency, cost savings at scale",
+        "SageMaker endpoints: Full control, custom models, more operational overhead",
+        "Cross-Region Inference: Automatic failover for resilience"
+      ],
+      "examTip": "If a question mentions 'consistent latency,' 'predictable workload,' or 'SLA requirements,' Provisioned Throughput is likely the answer. 'Variable traffic' or 'cost optimization for unpredictable usage' points to on-demand."
+    },
+    {
+      "id": "well-architected-genai",
+      "title": "Well-Architected Framework for GenAI",
+      "content": "The AWS Well-Architected Framework provides established best practices for building cloud systems. The GenAI Lens extends this framework with guidance specific to AI workloads, helping you evaluate and improve GenAI architectures.\n\nOperational Excellence for GenAI includes prompt versioning and management, model evaluation pipelines, automated testing of FM outputs, and observability into model performance. You need mechanisms to detect when model quality degrades and processes to update prompts or switch models in response.\n\nSecurity considerations span IAM policies for FM access, guardrails for content safety, PII handling in prompts and responses, and audit logging for compliance. GenAI introduces new attack surfaces—prompt injection, data extraction, and harmful content generation—that require specific controls.\n\nReliability means designing for FM service failures and capacity constraints. Cross-Region Inference provides regional failover. Circuit breakers prevent cascade failures when models are unavailable. Fallback models or graceful degradation ensure your application remains useful even with reduced AI capability.\n\nPerformance optimization includes caching common responses, streaming for reduced perceived latency, token optimization to reduce both cost and latency, and batching requests where real-time response isn't required. Understanding the latency characteristics of different models guides selection decisions.\n\nCost optimization starts with model right-sizing—using smaller, cheaper models where they suffice. Prompt compression reduces token counts. Response caching eliminates redundant FM calls. Usage monitoring identifies optimization opportunities.\n\nUse the GenAI Lens as a checklist when designing or reviewing GenAI architectures. It ensures you've considered the full range of concerns specific to AI workloads.",
+      "keyPoints": [
+        "Operational Excellence: Prompt versioning, model evaluation, output testing",
+        "Security: Guardrails, PII handling, audit logging, prompt injection defense",
+        "Reliability: Cross-Region inference, fallback models, circuit breakers",
+        "Performance: Caching, streaming, token optimization, batching",
+        "Cost: Model right-sizing, prompt compression, usage monitoring"
+      ]
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "1.1.1",
+      "explanation": "Effective architectural design starts with understanding your use case requirements, then mapping those requirements to appropriate technical patterns. This is not about picking the most sophisticated solution—it's about finding the right fit.\n\nConversational AI applications need low latency for responsive user experience. This points to streaming (WebSocket API Gateway for real-time token delivery) and Provisioned Throughput for consistent performance. The architecture must minimize time-to-first-token while maintaining response quality.\n\nBatch document processing tolerates latency in exchange for throughput and cost efficiency. Event-driven patterns with SQS allow processing to scale independently of submission rate. On-demand inference optimizes cost for variable volumes. The architecture prioritizes reliability and cost-efficiency over latency.\n\nMulti-tenant SaaS applications require isolation between customers. Per-tenant guardrails ensure one customer's prompts don't leak to another. Resource quotas prevent any single tenant from exhausting capacity. Usage tracking enables per-tenant billing. The architecture must handle these cross-cutting concerns.\n\nAnalyze your requirements before selecting services. What are the latency expectations? How variable is the traffic? What's the budget? Who are the users? What compliance requirements apply? These questions drive architectural decisions.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Primary FM access for most use cases. Managed, serverless access to multiple foundation models without infrastructure management.",
+          "examKeywords": ["managed", "serverless FM", "multiple models", "no infrastructure"]
+        },
+        {
+          "serviceName": "AWS Well-Architected Framework",
+          "whenToUse": "Evaluate and improve architectures against established best practices. Use GenAI Lens for AI-specific guidance.",
+          "examKeywords": ["best practices", "architecture review", "pillars", "GenAI Lens"]
+        },
+        {
+          "serviceName": "Amazon API Gateway",
+          "whenToUse": "Production-ready API management with throttling, caching, and usage plans. WebSocket API for streaming.",
+          "examKeywords": ["API management", "throttling", "WebSocket", "streaming"]
+        }
+      ]
+    },
+    {
+      "skillId": "1.1.2",
+      "explanation": "Proof-of-concept implementations validate assumptions before committing to full production architectures. The goal is learning quickly and cheaply, not building production-ready systems.\n\nBedrock's playground enables rapid prompt experimentation. Test different models, adjust parameters, iterate on prompts—all without writing code. This is the fastest way to validate that an FM approach can solve your problem. Document insights for production planning.\n\nMove to API integration once prompt patterns are established. A simple Lambda function calling Bedrock APIs demonstrates the integration pattern without production concerns. Focus on validating the core AI capability, not authentication, monitoring, or error handling.\n\nKeep PoCs simple and focused. Resist the urge to add production features during validation. Every additional feature slows iteration and obscures the core question: does this AI approach work for our use case?\n\nDocument what you learn. PoCs are learning exercises. Record prompt strategies that worked, models that performed well, latency characteristics, edge cases that caused problems. This documentation becomes the foundation for production architecture decisions.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "PoC development using playground for prompt testing. API integration for validation. Fast iteration without infrastructure setup.",
+          "examKeywords": ["prototype", "iterate", "test prompts", "playground", "validate"]
+        }
+      ]
+    },
+    {
+      "skillId": "1.1.3",
+      "explanation": "Enterprise GenAI requires standardized components that ensure consistency across teams and applications. Without standardization, each team reinvents solutions, quality varies, and maintenance becomes unmanageable.\n\nBedrock Prompt Management provides centralized prompt storage. Define standard prompts that teams reference rather than duplicate. Updates propagate automatically. Version control tracks changes. IAM policies control who can modify production prompts.\n\nOrganization-level guardrail policies establish safety baseline. Define content filters, PII handling rules, and topic restrictions that apply across all applications. Teams can extend these policies but cannot bypass core safety requirements.\n\nReusable Lambda layers package common FM interaction patterns. Token counting utilities, error handling logic, logging formats—bundle these into shared layers that teams include in their functions. This promotes consistency and simplifies maintenance.\n\nThe GenAI Lens provides checklists for architecture reviews. Use it during design reviews to ensure new architectures meet organizational standards. This institutionalizes best practices rather than relying on individual expertise.\n\nStandardization requires upfront investment but pays off rapidly as GenAI usage grows. Without it, you're managing dozens of slightly different implementations, each with its own bugs and security gaps.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock Prompt Management",
+          "whenToUse": "Centralized prompt storage and versioning. Shared prompts across teams and applications.",
+          "examKeywords": ["prompt management", "centralized", "version", "governance"]
+        },
+        {
+          "serviceName": "Amazon Bedrock Guardrails",
+          "whenToUse": "Organization-level safety policies. Content filtering and PII detection standards.",
+          "examKeywords": ["guardrails", "safety", "policy", "organization"]
+        },
+        {
+          "serviceName": "AWS Well-Architected Framework",
+          "whenToUse": "Formal architecture reviews using GenAI Lens. Ensure compliance with organizational standards.",
+          "examKeywords": ["standardize", "consistent", "governance", "review", "checklist"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "FM Access: Bedrock vs SageMaker",
+      "services": ["Amazon Bedrock", "Amazon SageMaker"],
+      "criteria": [
+        {
+          "criterion": "Model access",
+          "values": {
+            "Amazon Bedrock": "Pre-trained FMs from multiple providers (Anthropic, Meta, Amazon, etc.)",
+            "Amazon SageMaker": "Custom models + some JumpStart foundation models"
+          }
+        },
+        {
+          "criterion": "Infrastructure",
+          "values": {
+            "Amazon Bedrock": "Fully managed, serverless—no infrastructure to maintain",
+            "Amazon SageMaker": "You manage endpoints, scaling policies, and configurations"
+          }
+        },
+        {
+          "criterion": "Customization",
+          "values": {
+            "Amazon Bedrock": "Fine-tuning and continued pre-training for supported models",
+            "Amazon SageMaker": "Full training control with any framework, complete flexibility"
+          }
+        },
+        {
+          "criterion": "Best for",
+          "values": {
+            "Amazon Bedrock": "Standard FM use cases, rapid development, minimal ops",
+            "Amazon SageMaker": "Custom models, specialized training, maximum control"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Integration Patterns",
+      "services": ["Direct API", "API Gateway", "Event-Driven"],
+      "criteria": [
+        {
+          "criterion": "Complexity",
+          "values": {
+            "Direct API": "Simplest—Lambda calls Bedrock directly",
+            "API Gateway": "Medium—adds managed API layer",
+            "Event-Driven": "Higher—queue-based async processing"
+          }
+        },
+        {
+          "criterion": "Latency",
+          "values": {
+            "Direct API": "Lowest—minimal overhead",
+            "API Gateway": "Slightly higher—API Gateway processing",
+            "Event-Driven": "Highest—queue delays, async nature"
+          }
+        },
+        {
+          "criterion": "Best for",
+          "values": {
+            "Direct API": "Prototypes, internal tools, controlled environments",
+            "API Gateway": "Production APIs, external clients, rate limiting needed",
+            "Event-Driven": "Batch processing, traffic smoothing, reliability critical"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "MOST operationally efficient",
+      "approach": "Look for managed services that minimize operational burden. Bedrock over SageMaker endpoints. Serverless (Lambda, Bedrock on-demand) over containers or dedicated instances. Managed vector stores over self-hosted databases.",
+      "keywords": ["operationally efficient", "reduce overhead", "managed", "less maintenance", "minimal operations"]
+    },
+    {
+      "questionPattern": "architect for scalability",
+      "approach": "Default to serverless components (Lambda, Bedrock on-demand, API Gateway) that auto-scale automatically. Only choose provisioned capacity when the question specifically mentions consistent latency or cost optimization for predictable, high-volume workloads.",
+      "keywords": ["scalability", "elastic", "variable load", "burst traffic", "auto-scale"]
+    },
+    {
+      "questionPattern": "production-ready or enterprise",
+      "approach": "Look for patterns including: API Gateway for rate limiting and management, guardrails for safety, CloudWatch for monitoring, IAM for access control. These enterprise concerns distinguish production from prototype architectures.",
+      "keywords": ["production", "enterprise", "secure", "compliant", "reliable"]
+    }
+  ],
+  "keyTakeaways": [
+    "Start with business requirements, then select integration patterns—not the reverse",
+    "Bedrock = managed FM access with minimal ops; SageMaker = custom models with full control",
+    "On-demand for variable workloads; Provisioned Throughput for consistent, high-volume traffic",
+    "Gateway patterns add throttling, caching, and management for production readiness",
+    "The GenAI Lens extends Well-Architected Framework with AI-specific guidance"
+  ],
+  "commonMistakes": [
+    "Choosing SageMaker for standard FM use cases when Bedrock is simpler and sufficient",
+    "Over-engineering PoCs with production concerns—slowing iteration without adding value",
+    "Ignoring Cross-Region Inference for applications requiring high availability",
+    "Not considering streaming for latency-sensitive conversational applications",
+    "Building without standardization—each team reinvents the wheel"
+  ]
+}

@@ -1,0 +1,216 @@
+{
+  "topicSlug": "vector-stores",
+  "domainId": 1,
+  "taskId": "1.4",
+  "overview": {
+    "whyItMatters": "Vector stores are the backbone of RAG (Retrieval-Augmented Generation) systems. Without an effective vector store, your RAG application cannot find relevant information to augment the foundation model's responses. The exam heavily tests your ability to choose between Bedrock Knowledge Bases, OpenSearch, and Aurora pgvector based on specific requirements. Understanding when each option is optimal—and when it's overkill—separates passing from failing scores.",
+    "estimatedMinutes": 35
+  },
+  "concepts": [
+    {
+      "id": "vector-fundamentals",
+      "title": "How Vector Search Works",
+      "content": "Traditional keyword search finds documents containing specific words. Vector search is fundamentally different—it finds documents with similar meaning, even if they use completely different words. This semantic understanding is what makes modern AI search so powerful.\n\nThe process works through embeddings: mathematical representations of text as high-dimensional vectors. When you embed the phrase 'automobile repair,' it produces a vector close to 'car mechanic' in vector space, even though they share no words. This is because embedding models learn semantic relationships during training on massive text corpora.\n\nAmazon Titan Embeddings, the default embedding model in Bedrock, produces 1536-dimensional vectors. Each dimension captures some aspect of meaning—though these dimensions aren't human-interpretable, similar concepts produce similar vectors. Think of it as positioning text in a 1536-dimensional space where semantic neighbors are spatial neighbors.\n\nk-Nearest Neighbor (k-NN) search finds vectors closest to a query vector. If you search for 'how do I fix a flat tire,' the system embeds your query, then finds the k documents whose embeddings are most similar—typically using cosine similarity or Euclidean distance. The result is semantically relevant documents, not just keyword matches.\n\nFor efficiency at scale, vector stores use approximate nearest neighbor (ANN) algorithms like HNSW (Hierarchical Navigable Small World graphs). HNSW creates a layered graph structure that enables fast approximate search—finding results that are very likely to be among the true nearest neighbors, but with much lower computational cost than exhaustive exact search. This trade-off between accuracy and speed is fundamental to production vector search.",
+      "keyPoints": [
+        "Embeddings convert text to high-dimensional vectors (e.g., 1536 dimensions)",
+        "Semantic similarity corresponds to spatial proximity in vector space",
+        "k-NN search finds the k most similar vectors to a query",
+        "HNSW indexes enable fast approximate search at scale"
+      ],
+      "examTip": "Titan Embeddings produces 1536-dimensional vectors. Questions about dimensionality trade-offs: higher dimensions capture more nuance but require more storage and computation."
+    },
+    {
+      "id": "vector-store-options",
+      "title": "Vector Store Options in AWS",
+      "content": "AWS offers three primary patterns for vector storage, each optimized for different use cases and team capabilities.\n\nAmazon Bedrock Knowledge Bases provides fully managed vector storage with zero infrastructure to maintain. Point it at an S3 bucket containing your documents, select an embedding model, and Bedrock handles everything: parsing documents, chunking them into appropriate sizes, generating embeddings, storing vectors, and keeping everything synchronized when source documents change. This is the fastest path to a working RAG system and should be your default choice unless you have specific requirements it can't meet.\n\nAmazon OpenSearch Service with the k-NN plugin provides more control and advanced features. OpenSearch supports hybrid search combining traditional BM25 keyword matching with vector similarity—often producing better results than either approach alone. It offers advanced filtering capabilities, custom scoring functions, and fine-grained control over sharding and replication. OpenSearch is the choice when you need features beyond what Bedrock KB provides, or when you need to scale to billions of vectors with specific performance requirements.\n\nAmazon Aurora PostgreSQL with pgvector makes sense for teams already invested in PostgreSQL. The pgvector extension adds vector data types and similarity search operators to standard PostgreSQL. You can query vectors using familiar SQL syntax alongside your relational data. This is particularly valuable when your application already uses Aurora and you want to avoid introducing a new database technology.\n\nA common mistake is choosing OpenSearch or Aurora when Bedrock KB would suffice. The managed approach reduces operational burden significantly—no cluster sizing, no index tuning, no rebalancing during scale-up. Only add that complexity when you genuinely need the additional capabilities.",
+      "keyPoints": [
+        "Bedrock KB managed store: Zero infrastructure, automatic sync from S3",
+        "OpenSearch: Hybrid search, advanced filtering, fine-grained sharding control",
+        "Aurora pgvector: SQL integration for existing PostgreSQL workloads",
+        "DynamoDB: Use for metadata storage, not for vector search itself"
+      ],
+      "examTip": "Questions mentioning 'simplest' or 'fully managed' point to Bedrock KB. 'Hybrid search' or 'advanced filtering' suggests OpenSearch. 'Existing PostgreSQL' indicates Aurora pgvector."
+    },
+    {
+      "id": "chunking-strategies",
+      "title": "Document Chunking Strategies",
+      "content": "Large documents cannot be embedded as a single unit—embedding models have context limits, and even if they didn't, a single embedding for a 100-page document would be too general to match specific queries. Chunking splits documents into smaller pieces, each embedded separately.\n\nFixed-size chunking is the simplest approach: split every N tokens regardless of content. This is predictable and easy to implement, but it may break sentences or paragraphs mid-thought, producing chunks that lack coherent meaning. Common fixed sizes range from 512 to 1024 tokens.\n\nSemantic chunking respects document structure. Instead of counting tokens, it splits at paragraph or section boundaries where meaning naturally breaks. This produces more coherent chunks but varies in size—some chunks may be very short (a single-sentence paragraph) or very long (a dense technical section).\n\nHierarchical chunking creates parent-child relationships. A parent chunk might summarize an entire section, while child chunks contain the detailed content. During retrieval, you can first match against parent chunks to identify relevant sections, then dive into children for specific details. This preserves context that single-level chunking loses.\n\nOverlapping chunks include some content from adjacent chunks at boundaries. If your chunks are 512 tokens with 50-token overlap, each chunk shares 50 tokens with its neighbors. This helps when the answer to a query spans a chunk boundary—both adjacent chunks will contain the relevant context.\n\nBedrock Knowledge Bases handles chunking automatically with configurable chunk size and overlap. When using custom solutions with OpenSearch or Aurora, you must implement your own chunking pipeline—typically using Lambda functions triggered by S3 uploads.\n\nChunk size directly impacts retrieval quality. Smaller chunks are more precise but may lack context. Larger chunks provide more context but may dilute relevance if only a small portion matches the query. Test different sizes with your actual data and queries to find the optimal balance.",
+      "keyPoints": [
+        "Fixed-size: Simple and predictable, may break context",
+        "Semantic: Respects document structure, varies in size",
+        "Hierarchical: Parent summaries + child details for context-aware retrieval",
+        "Overlap: Include boundary content in adjacent chunks"
+      ],
+      "examTip": "Bedrock KB handles chunking automatically. You only need to consider chunking strategy when building custom pipelines with OpenSearch or Aurora."
+    },
+    {
+      "id": "metadata-filtering",
+      "title": "Metadata and Filtering",
+      "content": "Raw vector search returns results based solely on semantic similarity. In practice, you often need to constrain results based on additional criteria: documents from a specific department, files modified after a certain date, content the current user has permission to access. Metadata filtering enables these constraints.\n\nMetadata is structured information attached to each vector—key-value pairs like {department: 'engineering', date: '2024-01-15', access_level: 'confidential'}. You define what metadata to capture based on your filtering needs.\n\nPre-filtering applies metadata constraints before vector search. If a user asks about engineering policies, pre-filter to only engineering documents, then run vector search within that subset. This is efficient because it reduces the search space upfront, but requires indexed metadata fields.\n\nPost-filtering runs vector search first, then filters results. This is simpler to implement but may return fewer results than requested if many top matches fail the filter. It's appropriate when filters eliminate a small percentage of results.\n\nAccess control is a critical metadata use case. Tag documents with access levels or user groups, then filter based on the requesting user's permissions. This prevents users from retrieving documents they shouldn't see—even if those documents are semantically relevant to their query.\n\nIn S3, object metadata and tags provide these attributes. When Bedrock KB ingests documents, it can extract S3 metadata for filtering. For custom implementations, you embed metadata alongside vectors in OpenSearch or Aurora and use query filters.\n\nPlan your metadata schema before ingestion. Adding metadata fields later often requires re-processing all documents. Consider what filters users will need, what access control you require, and what attributes might be valuable for analytics.",
+      "keyPoints": [
+        "Pre-filtering: Constrain search space before vector search (efficient)",
+        "Post-filtering: Apply filters after vector search (simpler)",
+        "Access control: Filter by user permissions to enforce security",
+        "Schema planning: Design metadata fields before bulk ingestion"
+      ]
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "1.4.1",
+      "explanation": "Selecting the right vector database is a high-impact architectural decision. The wrong choice leads to either unnecessary complexity or missing capabilities that become painful later.\n\nBedrock Knowledge Bases should be your default starting point. It provides a complete RAG pipeline with minimal configuration: connect to S3 data sources, choose an embedding model, and start querying. Bedrock KB handles document parsing (PDFs, Word, HTML, and more), chunking, embedding generation, vector storage, and automatic synchronization when source documents change. For most RAG use cases, this managed approach is sufficient and dramatically reduces operational burden.\n\nChoose Amazon OpenSearch Service when you need capabilities beyond Bedrock KB's scope. OpenSearch's hybrid search combines BM25 keyword matching with vector similarity, often outperforming pure vector search. Its neural plugin supports sophisticated query transformations. You get fine-grained control over index settings, sharding, and replication—essential for large-scale deployments with specific performance SLAs. OpenSearch also supports complex filtering, aggregations, and scoring customizations.\n\nAmazon Aurora with pgvector makes sense specifically for teams with existing PostgreSQL expertise and infrastructure. If your application already uses Aurora for transactional data, adding vector search to the same database simplifies architecture. You can query vectors using SQL alongside your relational data, join vector results with other tables, and use familiar PostgreSQL tools for management. However, pgvector lacks some advanced features available in dedicated vector databases.\n\nA common anti-pattern is choosing OpenSearch 'just in case' when Bedrock KB would suffice. The additional operational complexity—cluster sizing, index tuning, shard management—is only justified when you actually need OpenSearch's advanced features.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock Knowledge Bases",
+          "whenToUse": "Fastest RAG setup with minimal operational burden. Managed document parsing, chunking, embedding, and synchronization. Supports hybrid retrieval mode.",
+          "examKeywords": ["simplest", "managed", "automatic", "S3 documents", "least operational"]
+        },
+        {
+          "serviceName": "Amazon OpenSearch Service",
+          "whenToUse": "Hybrid search combining keyword and semantic. Advanced filtering and scoring. Large-scale deployments requiring sharding control.",
+          "examKeywords": ["hybrid search", "advanced filtering", "scale", "sharding", "BM25"]
+        },
+        {
+          "serviceName": "Amazon Aurora PostgreSQL",
+          "whenToUse": "Existing PostgreSQL infrastructure. SQL-based vector queries. Combined relational and vector workloads.",
+          "examKeywords": ["PostgreSQL", "pgvector", "existing database", "SQL", "relational"]
+        }
+      ]
+    },
+    {
+      "skillId": "1.4.2",
+      "explanation": "Metadata frameworks enable precise retrieval by allowing filters beyond semantic similarity. Without metadata, you can only search by meaning—with metadata, you can constrain results by any attribute you choose to track.\n\nS3 object metadata is the foundation for Bedrock Knowledge Bases. When you upload documents to S3, attach metadata as object properties: content type, author, department, creation date, access level. Bedrock KB can extract this metadata during ingestion and make it available for filtering during retrieval.\n\nDesign your metadata schema thoughtfully before bulk ingestion. Consider common query patterns: Will users need to filter by date range? By department? By document type? Will you need access control filtering? Each required filter should map to a metadata field. Adding fields later typically requires re-processing all documents.\n\nFor custom implementations, embed metadata alongside vectors. In OpenSearch, include metadata in the document body and define appropriate index mappings for efficient filtering. In Aurora pgvector, store metadata in relational columns alongside the vector column.\n\nTag-based classification enables dynamic routing. If your knowledge base spans multiple domains—HR policies, technical documentation, legal contracts—tag documents by domain and use that tag to route queries to the appropriate subset. This improves both relevance and performance.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon S3",
+          "whenToUse": "Document storage with object metadata and tags. Primary data source for Bedrock Knowledge Bases.",
+          "examKeywords": ["metadata", "tagging", "object attributes", "document storage"]
+        },
+        {
+          "serviceName": "Amazon Bedrock Knowledge Bases",
+          "whenToUse": "Extract and utilize S3 metadata for filtering during retrieval.",
+          "examKeywords": ["filtering", "metadata retrieval", "attributes"]
+        }
+      ]
+    },
+    {
+      "skillId": "1.4.3",
+      "explanation": "High-performance vector search at scale requires careful attention to indexing strategies. The right approach depends on your data volume, query patterns, and latency requirements.\n\nOpenSearch sharding distributes vectors across multiple nodes. Each shard handles a portion of the data and query load. More shards enable more parallelism but add coordination overhead. Size shards based on your data volume—oversized shards hurt performance, while too many small shards increase cluster complexity.\n\nMulti-index strategies separate different document types or domains into dedicated indexes. An HR index and a technical documentation index can have different settings optimized for their content characteristics. Queries route to the appropriate index based on the request, reducing search space and improving relevance.\n\nHierarchical indexing creates parent-child relationships in your index structure. Parent documents might be section summaries; children contain detailed content. Query the parents first to identify relevant sections, then dive into children for specific answers. This provides context that flat indexing loses.\n\nIndex refresh rate affects write-to-read latency. More frequent refreshes make new documents searchable faster but consume more resources. Balance freshness requirements against cluster load.\n\nFor Bedrock Knowledge Bases, these optimizations are handled automatically. OpenSearch and Aurora require you to configure these settings based on your specific requirements.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon OpenSearch Service",
+          "whenToUse": "Large-scale deployments requiring control over sharding and indexing strategies. Performance-critical applications.",
+          "examKeywords": ["sharding", "multi-index", "performance", "scale", "optimization"]
+        }
+      ]
+    },
+    {
+      "skillId": "1.4.4",
+      "explanation": "Knowledge base integration connects your document sources to the vector store, keeping embeddings synchronized with source content as it changes.\n\nBedrock Knowledge Bases supports multiple data sources: S3 buckets containing documents, Confluence spaces, SharePoint sites, and web crawlers. For each data source, you configure the connection, specify what content to include, and set sync schedules.\n\nSync schedules determine how quickly changes in source documents appear in the vector store. On-demand sync processes updates when explicitly triggered. Scheduled sync runs at fixed intervals—hourly, daily, or weekly. For rapidly changing content, more frequent syncs are necessary; for stable archives, weekly suffices.\n\nDocument structure affects chunking and retrieval. Well-structured documents with clear headings and sections produce better chunks than unstructured text blocks. Consider preprocessing documents to improve structure before ingestion—this can significantly impact retrieval quality.\n\nFor custom implementations, design your ingestion pipeline carefully. Lambda functions triggered by S3 events can process new documents, generate embeddings via Bedrock, and insert vectors into OpenSearch or Aurora. Step Functions can orchestrate complex multi-stage pipelines with error handling and retry logic.\n\nMapping between source documents and vectors must be maintained for updates and deletions. Store document identifiers alongside vectors so you can update or remove vectors when source documents change.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock Knowledge Bases",
+          "whenToUse": "Integrate multiple document sources with managed sync. Connect S3, Confluence, SharePoint, or web content.",
+          "examKeywords": ["knowledge base", "document sync", "integration", "data sources"]
+        },
+        {
+          "serviceName": "Amazon S3",
+          "whenToUse": "Primary document storage and source for knowledge base sync. Event notifications for custom pipelines.",
+          "examKeywords": ["document storage", "source", "events"]
+        }
+      ]
+    },
+    {
+      "skillId": "1.4.5",
+      "explanation": "Data maintenance keeps vector stores current as source documents are added, modified, and deleted. Without proper maintenance, your RAG system serves stale information that may be incorrect or outdated.\n\nIncremental updates process only changed documents rather than re-indexing everything. This is essential for large knowledge bases where full re-indexing would be prohibitively expensive. Track document versions or modification timestamps to identify what has changed.\n\nChange detection identifies which documents need updating. S3 event notifications trigger when objects are created, modified, or deleted. Lambda functions respond to these events, processing affected documents and updating the vector store accordingly.\n\nFor Bedrock Knowledge Bases, sync operations handle incremental updates automatically. The service tracks what has been processed and only handles changes since the last sync. Manual sync or scheduled sync options let you control when updates occur.\n\nFor custom implementations, design deletion handling carefully. When a source document is deleted, you must also delete its vectors—otherwise the RAG system may return information from deleted documents. Maintain mapping between source documents and vector IDs to enable clean deletion.\n\nMonitor sync health with CloudWatch metrics and alerts. Failed syncs, unusually long processing times, or increasing backlogs indicate problems requiring attention. Build observability into your maintenance workflows from the start.",
+      "awsServices": [
+        {
+          "serviceName": "AWS Lambda",
+          "whenToUse": "Trigger processing on S3 events. Custom sync logic for OpenSearch or Aurora pipelines.",
+          "examKeywords": ["incremental", "trigger", "update", "event-driven"]
+        },
+        {
+          "serviceName": "AWS Step Functions",
+          "whenToUse": "Orchestrate complex sync workflows with multiple stages. Handle failures with retry and fallback logic.",
+          "examKeywords": ["workflow", "orchestrate", "sync", "error handling"]
+        },
+        {
+          "serviceName": "Amazon CloudWatch",
+          "whenToUse": "Monitor sync health, processing times, and error rates. Alert on failures.",
+          "examKeywords": ["monitor", "alerts", "metrics"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "Vector Store Selection Guide",
+      "services": ["Bedrock KB Managed", "OpenSearch Service", "Aurora pgvector"],
+      "criteria": [
+        {
+          "criterion": "Setup complexity",
+          "values": {
+            "Bedrock KB Managed": "Lowest—connect to S3, configure, done",
+            "OpenSearch Service": "Medium—cluster provisioning, index configuration",
+            "Aurora pgvector": "Medium—extension setup, schema design"
+          }
+        },
+        {
+          "criterion": "Hybrid search support",
+          "values": {
+            "Bedrock KB Managed": "Yes (HYBRID retrieval mode)",
+            "OpenSearch Service": "Yes (Neural plugin with BM25 fusion)",
+            "Aurora pgvector": "Manual implementation required"
+          }
+        },
+        {
+          "criterion": "Operational burden",
+          "values": {
+            "Bedrock KB Managed": "Minimal—fully managed by AWS",
+            "OpenSearch Service": "Medium—cluster management, scaling, tuning",
+            "Aurora pgvector": "Medium—standard database administration"
+          }
+        },
+        {
+          "criterion": "Best fit scenarios",
+          "values": {
+            "Bedrock KB Managed": "Most RAG applications, minimal operational overhead",
+            "OpenSearch Service": "Advanced search requirements, large scale, complex filtering",
+            "Aurora pgvector": "Teams with PostgreSQL expertise, combined relational/vector workloads"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "SIMPLEST or minimal operational overhead",
+      "approach": "Default to Bedrock Knowledge Bases. It handles chunking, embedding, indexing, and sync automatically with no infrastructure to manage. Only choose OpenSearch or Aurora when the question specifies requirements that Bedrock KB cannot meet.",
+      "keywords": ["simplest", "minimal", "managed", "least effort", "reduce complexity", "operational overhead"]
+    },
+    {
+      "questionPattern": "hybrid search or keyword + semantic",
+      "approach": "OpenSearch with Neural plugin or Bedrock KB with HYBRID retrieval mode. Both combine BM25 keyword matching with vector similarity. OpenSearch offers more customization; Bedrock KB is simpler. If the question emphasizes simplicity, choose Bedrock KB HYBRID mode.",
+      "keywords": ["hybrid", "keyword", "semantic", "combined search", "BM25"]
+    },
+    {
+      "questionPattern": "existing PostgreSQL infrastructure",
+      "approach": "Aurora pgvector integrates vector search into existing PostgreSQL workloads. This is the answer only when the question explicitly mentions existing PostgreSQL—don't assume it otherwise.",
+      "keywords": ["PostgreSQL", "existing database", "pgvector", "relational", "current infrastructure"]
+    }
+  ],
+  "keyTakeaways": [
+    "Bedrock KB is the simplest path to RAG—handles parsing, chunking, embedding, and sync automatically",
+    "OpenSearch provides hybrid search, advanced filtering, and scale—use when you need these features",
+    "Aurora pgvector makes sense for existing PostgreSQL workloads, not as a general-purpose choice",
+    "Chunking strategy directly impacts retrieval quality—test different sizes with your data",
+    "Metadata enables filtering and access control—plan your schema before bulk ingestion"
+  ],
+  "commonMistakes": [
+    "Choosing OpenSearch when Bedrock KB would suffice (unnecessary operational complexity)",
+    "Forgetting that Bedrock KB handles chunking automatically (no custom pipeline needed)",
+    "Not implementing hybrid search when both keyword and semantic matching are needed",
+    "Using DynamoDB for vector search (it's for metadata, not vectors—no similarity search)",
+    "Skipping metadata schema planning and having to re-process documents later"
+  ]
+}

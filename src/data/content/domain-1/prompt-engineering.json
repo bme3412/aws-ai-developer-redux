@@ -1,0 +1,236 @@
+{
+  "topicSlug": "prompt-engineering",
+  "domainId": 1,
+  "taskId": "1.6",
+  "overview": {
+    "whyItMatters": "Prompt engineering is often the highest-leverage optimization available for improving AI application quality. Before considering fine-tuning, architectural changes, or switching to more expensive models, optimize your prompts. A well-crafted prompt can transform mediocre outputs into excellent ones at zero additional cost. The exam tests zero-shot, few-shot, chain-of-thought, structured outputs, and prompt governance—these techniques appear across multiple domains and represent core competencies for any GenAI developer.",
+    "estimatedMinutes": 35
+  },
+  "concepts": [
+    {
+      "id": "prompting-techniques",
+      "title": "Core Prompting Techniques",
+      "content": "The way you structure and phrase prompts dramatically affects model output quality. Understanding the major prompting techniques and when to apply each is fundamental to effective GenAI development.\n\nZero-shot prompting provides instructions without examples. You describe what you want, and the model uses its training knowledge to comply. This works well for straightforward tasks where the model already understands the domain. 'Summarize this article in three bullet points' is a zero-shot prompt—the model knows what summarization means and can perform it without examples.\n\nFew-shot prompting includes examples of desired inputs and outputs before the actual request. If you need a specific format, tone, or approach, showing 2-5 examples teaches the model by demonstration. Few-shot is powerful for establishing patterns that are hard to describe in words. Instead of explaining exactly how you want customer support responses formatted, show the model three examples of excellent responses.\n\nChain-of-thought (CoT) prompting asks the model to reason step-by-step before providing an answer. This dramatically improves performance on complex reasoning tasks—math problems, logic puzzles, multi-step analysis. The simple addition of 'Let's think through this step by step' or 'Show your reasoning' often transforms wrong answers into correct ones. CoT works because it forces the model to decompose problems rather than jumping to conclusions.\n\nStructured output prompting requests specific formats like JSON, XML, or markdown tables. This enables programmatic parsing of model outputs. Instead of 'Extract the key information,' specify 'Extract the following fields in JSON format: {name, date, amount}.' Structured outputs are essential for integrating FM responses into larger systems.\n\nCombine techniques as needed. A prompt might use few-shot examples to establish format, chain-of-thought for reasoning, and structured output for parseability. The techniques are complementary, not exclusive.",
+      "keyPoints": [
+        "Zero-shot: Direct instruction without examples, relies on model's training",
+        "Few-shot: 2-5 examples establish pattern through demonstration",
+        "Chain-of-thought: 'Think step by step' improves complex reasoning",
+        "Structured output: Request JSON/XML/specific formats for parsing"
+      ],
+      "examTip": "Questions mentioning 'reasoning' or 'complex logic' point to chain-of-thought. 'Consistent format' or 'parseable output' suggests few-shot examples or structured output requests."
+    },
+    {
+      "id": "prompt-management",
+      "title": "Prompt Management and Governance",
+      "content": "Production AI systems require more than ad-hoc prompts stored in code. As prompt complexity grows and multiple team members iterate on prompts, you need systematic management—versioning, testing, approval workflows, and governance.\n\nBedrock Prompt Management provides centralized storage for prompts with version control. Each prompt version is immutable and traceable. You can see who changed what, when, and roll back to previous versions if quality degrades. This is far superior to prompts buried in application code where changes are hard to track and coordinate.\n\nParameterized templates separate prompt structure from dynamic content. Instead of constructing prompts by string concatenation, define templates with placeholders: 'Analyze the following {{document_type}} and extract {{required_fields}}.' At runtime, fill in the placeholders. This maintains prompt quality while allowing flexibility—changing the document type doesn't risk breaking the prompt structure.\n\nApproval workflows ensure prompts meet quality standards before production use. In regulated industries or high-stakes applications, changes to prompts should go through review. Prompt Management supports IAM-based access controls, and you can build approval workflows using Step Functions or other orchestration tools.\n\nPrompt testing is essential before deployment. Create evaluation datasets covering expected inputs and edge cases. Run prompts against test sets and measure output quality. Regression testing catches degradation when prompts are modified. Automated testing pipelines using Lambda and Step Functions can run evaluations on every prompt change.\n\nAudit logging via CloudTrail tracks prompt access and modifications. For compliance requirements, you can demonstrate who accessed prompts, what changes were made, and when. This is essential for regulated industries and helps debug issues in production.",
+      "keyPoints": [
+        "Version control: Track prompt changes over time with immutable versions",
+        "Parameterized templates: {{variable}} placeholders for dynamic content",
+        "Testing: Evaluate prompts against test datasets before production",
+        "Approval workflows: Review process for prompt changes in production"
+      ],
+      "examTip": "Bedrock Prompt Management is the answer when questions mention 'version control,' 'templates,' 'prompt governance,' or 'centralized prompt storage.'"
+    },
+    {
+      "id": "prompt-flows",
+      "title": "Prompt Flows and Chaining",
+      "content": "Complex AI tasks often require multiple foundation model calls, each building on previous results. Prompt chaining decomposes problems into stages, with the output of one prompt feeding into the next.\n\nConsider a document analysis task: first summarize the document, then extract key entities from the summary, then generate recommendations based on those entities. Each stage uses a different prompt optimized for its specific subtask. This decomposition often produces better results than a single monolithic prompt attempting everything at once.\n\nBedrock Prompt Flows provides visual, no-code orchestration for prompt chains. You design flows graphically, connecting prompts with data transformations and conditional logic. This is ideal for business users or rapid prototyping—you can build and test multi-stage pipelines without writing code.\n\nAWS Step Functions offers more flexibility for complex logic. When you need sophisticated branching, parallel execution, error handling with retries, or integration with other AWS services, Step Functions provides the control that visual tools cannot. Define workflows as state machines with precise control over execution flow.\n\nConditional branching routes to different prompts based on FM output. If a classification prompt determines the input is a complaint, route to a complaint-handling prompt; if it's a question, route to a Q&A prompt. This pattern enables sophisticated, adaptive AI systems.\n\nReusable prompt components avoid duplication across flows. Extract common prompt patterns—like your standard system message or response format instructions—into reusable components. When you improve a component, all flows using it benefit.",
+      "keyPoints": [
+        "Prompt Flows: Visual, no-code orchestration in Bedrock console",
+        "Step Functions: Complex branching, retries, and error handling",
+        "Prompt chaining: Output of one prompt feeds into the next",
+        "Conditional logic: Route to different prompts based on FM output"
+      ]
+    },
+    {
+      "id": "output-quality",
+      "title": "Output Quality Assurance",
+      "content": "Foundation model outputs are probabilistic—the same prompt can produce different outputs, and some outputs may be incorrect, harmful, or improperly formatted. Production systems must validate and filter outputs before delivering them to users or downstream systems.\n\nStructured output validation catches format errors. If you requested JSON, parse it and verify the structure matches your schema. If required fields are missing or values are invalid, either retry the prompt with clarification or return an error. Don't pass malformed data downstream where it will cause harder-to-debug failures.\n\nBedrock Guardrails provides built-in content filtering and safety checks. Configure guardrails to detect and block harmful content, personally identifiable information (PII), or other policy violations. Guardrails can be applied to both inputs (preventing prompt injection) and outputs (filtering inappropriate responses). This managed service is far more reliable than custom regex patterns.\n\nLambda post-processing implements custom validation logic. Business rules like 'never recommend competitor products' or 'prices must be within valid ranges' require custom code. Lambda functions can validate, transform, or enrich FM outputs before they reach users.\n\nQuality monitoring detects degradation over time. Log FM outputs along with quality metrics. Build CloudWatch dashboards tracking response quality, and set alarms when metrics deviate from baselines. This is essential because model behavior can change subtly—either from provider updates or drift in input patterns—and catching degradation early prevents user impact.",
+      "keyPoints": [
+        "Structured validation: Parse and verify output format matches schema",
+        "Guardrails: Managed content filtering, PII detection, safety checks",
+        "Post-processing: Lambda for custom business rule validation",
+        "Quality monitoring: CloudWatch metrics and alarms for output quality"
+      ]
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "1.6.1",
+      "explanation": "Bedrock Prompt Management centralizes prompt storage, replacing scattered prompts in application code with a managed, versioned repository.\n\nCreate prompts in the Bedrock console with clear names and descriptions. Define system messages that establish the AI's persona and constraints. Attach guardrails directly to prompts for consistent safety filtering. Use templates with {{placeholders}} for dynamic content that varies per request.\n\nVersioning is automatic—each save creates a new immutable version. You can A/B test different prompt versions, gradually rolling out improvements while monitoring quality metrics. If a new version underperforms, rollback is instant.\n\nIAM policies control who can create, modify, or invoke prompts. In team environments, separate roles for prompt development and production deployment ensure changes go through proper review. This governance is essential for enterprise deployments where prompt quality directly impacts business outcomes.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock Prompt Management",
+          "whenToUse": "Centralized prompt storage and versioning. Template management with placeholders. Team collaboration with access controls.",
+          "examKeywords": ["prompt management", "version", "template", "store prompts", "governance"]
+        },
+        {
+          "serviceName": "Amazon Bedrock Guardrails",
+          "whenToUse": "Attach safety controls directly to prompts. Content filtering for both inputs and outputs.",
+          "examKeywords": ["guardrails", "safety", "filtering", "content policy"]
+        }
+      ]
+    },
+    {
+      "skillId": "1.6.2",
+      "explanation": "Interactive AI applications—chatbots, assistants, conversational interfaces—require context management across multiple turns. The user's current message only makes sense in the context of previous exchanges.\n\nConversation history must be stored and retrieved efficiently. DynamoDB is the standard choice: store conversation turns with a session ID key, allowing fast retrieval of the full conversation when constructing prompts. TTL settings automatically expire old conversations, managing storage costs.\n\nContext window limits force design decisions. When conversation history exceeds the model's context window, you must either summarize older turns, drop the oldest turns, or use retrieval to selectively include relevant history. Each approach has trade-offs between context preservation and relevance.\n\nAmazon Comprehend can extract intent from user messages before FM processing. If you can classify user intent ('complaint,' 'question,' 'feedback'), you can route to specialized prompts or pre-filter responses. This hybrid approach—traditional NLP for classification, FM for generation—is often more efficient than using FMs for everything.\n\nClarification workflows handle ambiguous user input. When the FM detects unclear intent, generate clarifying questions rather than guessing. Step Functions can orchestrate multi-turn clarification flows, tracking state and guiding users toward clear requests.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon DynamoDB",
+          "whenToUse": "Store conversation history with session keys. Fast retrieval for prompt construction. TTL for automatic cleanup.",
+          "examKeywords": ["conversation history", "session", "context", "multi-turn"]
+        },
+        {
+          "serviceName": "Amazon Comprehend",
+          "whenToUse": "Intent classification before FM processing. Entity extraction from user input.",
+          "examKeywords": ["intent", "entity extraction", "NLP", "classify"]
+        },
+        {
+          "serviceName": "AWS Step Functions",
+          "whenToUse": "Orchestrate clarification workflows. Multi-turn conversation logic with state management.",
+          "examKeywords": ["workflow", "clarification", "orchestrate", "state machine"]
+        }
+      ]
+    },
+    {
+      "skillId": "1.6.3",
+      "explanation": "Prompt governance ensures quality, compliance, and consistency across an organization's AI applications. As AI usage grows, ungoverned prompts become a liability—inconsistent quality, compliance gaps, and duplicated effort.\n\nParameterized templates are the foundation of governance. Define approved template structures that teams customize through parameters, not by modifying prompt logic. This ensures consistent quality while enabling flexibility. Templates stored in Prompt Management with strict access controls prevent unauthorized modifications.\n\nS3 can store approved prompt templates as version-controlled files. Combined with S3 versioning and object lock, this provides an immutable audit trail of all prompt versions. Organizations with strict compliance requirements may prefer this explicit version control.\n\nCloudTrail logs all prompt access and modifications. For audits, you can answer: Who modified this prompt? When? What was the previous version? This audit trail is essential for regulated industries where AI decisions must be explainable and traceable.\n\nApproval workflows using Step Functions formalize the review process. When a team member submits a prompt change, the workflow routes to reviewers, collects approvals, and only then promotes to production. This prevents untested prompts from reaching users.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon S3",
+          "whenToUse": "Store approved prompt templates with versioning. Object lock for immutable audit trail.",
+          "examKeywords": ["store", "template", "version", "immutable"]
+        },
+        {
+          "serviceName": "AWS CloudTrail",
+          "whenToUse": "Audit logging for prompt access and modifications. Compliance tracking.",
+          "examKeywords": ["audit", "logging", "compliance", "track changes"]
+        },
+        {
+          "serviceName": "AWS Step Functions",
+          "whenToUse": "Approval workflows for prompt changes. Formalized review process.",
+          "examKeywords": ["approval", "workflow", "review process"]
+        }
+      ]
+    },
+    {
+      "skillId": "1.6.4",
+      "explanation": "Quality assurance validates that FM outputs meet your standards before delivery. Without QA, you're trusting probabilistic model outputs to always be correct, properly formatted, and appropriate—a risky assumption.\n\nLambda post-processing runs custom validation logic on FM outputs. Check that prices are positive, dates are valid, referenced products exist in your catalog. Transform outputs into required formats. Enrich responses with additional data. This processing layer catches issues the FM cannot.\n\nCloudWatch monitoring tracks output quality over time. Log key metrics: format validity rate, business rule pass rate, user satisfaction signals. Set alarms when metrics deviate from baselines. This early warning system catches degradation before users complain.\n\nStep Functions orchestrates multi-stage validation. Complex validation might require multiple checks: format validation, business rule validation, safety filtering, manager approval for high-stakes outputs. Step Functions manages this pipeline with proper error handling and retry logic.\n\nFeedback loops improve prompts based on output quality. When validation catches systematic issues, that signal should feed back to prompt engineers for improvement. Build mechanisms to collect, aggregate, and route quality signals to the teams who can act on them.",
+      "awsServices": [
+        {
+          "serviceName": "AWS Lambda",
+          "whenToUse": "Custom output validation and transformation. Business rule checking before delivery.",
+          "examKeywords": ["validate", "custom logic", "post-process", "transform"]
+        },
+        {
+          "serviceName": "Amazon CloudWatch",
+          "whenToUse": "Monitor output quality metrics over time. Alert on degradation.",
+          "examKeywords": ["monitor", "metrics", "alerting", "quality tracking"]
+        },
+        {
+          "serviceName": "AWS Step Functions",
+          "whenToUse": "Orchestrate multi-stage validation workflows. Error handling and retries.",
+          "examKeywords": ["workflow", "validation", "orchestrate", "multi-stage"]
+        }
+      ]
+    },
+    {
+      "skillId": "1.6.5",
+      "explanation": "Advanced prompting techniques improve output quality for challenging tasks. These techniques build on the fundamentals, addressing specific limitations of standard prompting.\n\nChain-of-thought prompting dramatically improves reasoning accuracy. For math, logic, or multi-step analysis, adding 'Show your reasoning step by step' before asking for the answer can double accuracy rates. The model's reasoning chain also aids debugging—you can see where logic went wrong.\n\nStructured inputs provide consistent context. Rather than varying how you present information, define a consistent format: 'Product: {name}, Price: {price}, Category: {category}.' This predictability helps the model extract information reliably.\n\nSelf-critique prompting asks the model to review its own output. After generating an initial response, prompt: 'Review your response for accuracy and completeness. Are there any errors or omissions?' The critique often catches issues the initial generation missed.\n\nFeedback loops refine prompts based on output quality. Track which prompts produce good outputs and which produce errors. Analyze error patterns to improve prompt wording. This iterative refinement—prompt engineering as a continuous practice, not a one-time task—is how production prompts achieve high quality.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "All FM inference supporting prompting techniques. Experiment with different prompting approaches.",
+          "examKeywords": ["chain-of-thought", "structured", "advanced prompting", "reasoning"]
+        }
+      ]
+    },
+    {
+      "skillId": "1.6.6",
+      "explanation": "Complex prompt systems require orchestration—coordinating multiple prompts, managing data flow between them, handling errors, and maintaining system coherence.\n\nBedrock Prompt Flows provides visual orchestration for prompt chains. Connect prompts graphically, define data transformations between stages, add conditional branches based on FM outputs. This is ideal for rapid development and for teams who prefer visual tools over code.\n\nConditional branching routes to different prompt paths based on intermediate results. A classification stage might determine whether the input is a question, complaint, or feedback, then route to specialized prompts for each category. This pattern enables sophisticated, adaptive AI applications.\n\nReusable components prevent prompt duplication. Extract common patterns—standard system messages, output format instructions, safety reminders—into shared components. When you improve a component, all prompts using it benefit. This promotes consistency and reduces maintenance burden.\n\nError handling is essential for production reliability. What happens when an FM returns an unexpected format? When a prompt chain fails midway? Build retry logic, fallback paths, and graceful degradation into your orchestration. Step Functions excels at this complex error handling.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock Prompt Flows",
+          "whenToUse": "Visual prompt orchestration. No-code prompt chaining with conditional logic.",
+          "examKeywords": ["Prompt Flows", "visual", "no-code", "orchestration", "chain"]
+        },
+        {
+          "serviceName": "AWS Step Functions",
+          "whenToUse": "Complex orchestration requiring sophisticated error handling, parallel execution, or deep AWS integration.",
+          "examKeywords": ["orchestrate", "complex workflow", "error handling", "state machine"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "Prompt Orchestration Options",
+      "services": ["Bedrock Prompt Flows", "AWS Step Functions", "Custom Lambda"],
+      "criteria": [
+        {
+          "criterion": "Interface",
+          "values": {
+            "Bedrock Prompt Flows": "Visual, no-code builder in Bedrock console",
+            "AWS Step Functions": "JSON/YAML workflow definition, visual designer",
+            "Custom Lambda": "Full code control in any supported language"
+          }
+        },
+        {
+          "criterion": "Complexity handling",
+          "values": {
+            "Bedrock Prompt Flows": "Simple to moderate prompt chains",
+            "AWS Step Functions": "Complex branching, parallel execution, error handling",
+            "Custom Lambda": "Unlimited flexibility, you handle all logic"
+          }
+        },
+        {
+          "criterion": "Best for",
+          "values": {
+            "Bedrock Prompt Flows": "Rapid prototyping, visual users, simple chains",
+            "AWS Step Functions": "Production workflows, complex logic, reliability",
+            "Custom Lambda": "Custom integrations, maximum control"
+          }
+        },
+        {
+          "criterion": "Error handling",
+          "values": {
+            "Bedrock Prompt Flows": "Basic retry and error routing",
+            "AWS Step Functions": "Sophisticated retry, catch, timeout, and fallback",
+            "Custom Lambda": "You implement all error handling"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "improve reasoning or accuracy",
+      "approach": "Chain-of-thought prompting for reasoning tasks—add 'think step by step.' Few-shot examples for consistent format. Both improve output quality without model changes or fine-tuning. If the question mentions 'without changing the model,' prompting techniques are the answer.",
+      "keywords": ["reasoning", "accuracy", "complex logic", "step-by-step", "improve output"]
+    },
+    {
+      "questionPattern": "version control or governance",
+      "approach": "Bedrock Prompt Management for centralized storage and versioning. S3 + CloudTrail for audit trails. Avoid answers involving code changes for prompt updates—managed services provide better governance.",
+      "keywords": ["version control", "governance", "audit", "compliance", "track changes"]
+    },
+    {
+      "questionPattern": "orchestrate prompts or chaining",
+      "approach": "Bedrock Prompt Flows for simple visual chaining. Step Functions for complex workflows with error handling. Match the tool complexity to the orchestration complexity required.",
+      "keywords": ["orchestrate", "chain", "sequence", "multiple prompts", "workflow"]
+    }
+  ],
+  "keyTakeaways": [
+    "Zero-shot for simple tasks; few-shot for consistent format; chain-of-thought for reasoning",
+    "Chain-of-thought ('think step by step') dramatically improves complex reasoning accuracy",
+    "Bedrock Prompt Management provides centralized prompt governance with versioning",
+    "Prompt Flows for visual orchestration; Step Functions for complex production workflows",
+    "Always validate outputs—don't trust FM responses without checking format and content"
+  ],
+  "commonMistakes": [
+    "Fine-tuning when prompt engineering would solve the problem at zero cost",
+    "Not using few-shot examples when format consistency is required",
+    "Skipping output validation in production pipelines",
+    "Storing prompts in application code instead of managed prompt services",
+    "Building monolithic prompts when chaining simpler prompts would work better"
+  ]
+}

@@ -1,0 +1,424 @@
+{
+  "services": [
+    {
+      "name": "Amazon Bedrock",
+      "category": "AI/ML",
+      "description": "Fully managed service for building generative AI applications with foundation models from Amazon, Anthropic, Meta, and others.",
+      "examRelevance": "Core service for the exam. Know InvokeModel, InvokeModelWithResponseStream, model IDs, request/response formats for each model family.",
+      "relatedTasks": ["1.1", "1.2", "1.3", "1.5", "1.6", "2.1", "2.2", "2.4", "2.5"]
+    },
+    {
+      "name": "Amazon Bedrock Knowledge Bases",
+      "category": "AI/ML",
+      "description": "Managed RAG solution. Handles chunking, embedding, indexing, and retrieval from S3 data sources.",
+      "examRelevance": "Key for RAG questions. Know RetrieveAndGenerate vs Retrieve APIs, vector store options (managed, OpenSearch Serverless, Aurora pgvector), chunking strategies.",
+      "relatedTasks": ["1.4", "1.5", "3.1"]
+    },
+    {
+      "name": "Amazon Bedrock Guardrails",
+      "category": "AI/ML",
+      "description": "Content filtering, PII detection, topic restrictions, and word filters for responsible AI.",
+      "examRelevance": "Critical for safety questions. Know how to apply guardrails to input vs output, policy types, ApplyGuardrail API.",
+      "relatedTasks": ["1.6", "3.1", "3.4"]
+    },
+    {
+      "name": "Amazon Bedrock Agents",
+      "category": "AI/ML",
+      "description": "Autonomous agents that can reason, plan, and take actions using tools (action groups).",
+      "examRelevance": "Key for agentic AI questions. Know action groups, Lambda integration, session management, trace analysis.",
+      "relatedTasks": ["2.1", "2.5"]
+    },
+    {
+      "name": "Amazon Bedrock Prompt Management",
+      "category": "AI/ML",
+      "description": "Version-controlled prompt templates with variables and governance.",
+      "examRelevance": "Know prompt template structure, variables, versioning, and integration with Bedrock APIs.",
+      "relatedTasks": ["1.6", "3.4"]
+    },
+    {
+      "name": "Amazon Bedrock Prompt Flows",
+      "category": "AI/ML",
+      "description": "Visual workflow builder for chaining prompts, conditions, and integrations.",
+      "examRelevance": "No-code/low-code GenAI workflows. Know node types, conditional branching, input/output mapping.",
+      "relatedTasks": ["1.6", "2.5"]
+    },
+    {
+      "name": "Amazon Bedrock Model Evaluations",
+      "category": "AI/ML",
+      "description": "Automated evaluation of FM outputs for quality, relevance, and safety.",
+      "examRelevance": "Testing and validation questions. Know evaluation job types, metrics, human evaluation setup.",
+      "relatedTasks": ["1.2", "5.1"]
+    },
+    {
+      "name": "Amazon Bedrock Data Automation",
+      "category": "AI/ML",
+      "description": "Document processing and data extraction using foundation models.",
+      "examRelevance": "Know use cases for document understanding, form extraction, data normalization.",
+      "relatedTasks": ["2.5"]
+    },
+    {
+      "name": "Amazon SageMaker",
+      "category": "AI/ML",
+      "description": "End-to-end ML platform for building, training, and deploying models.",
+      "examRelevance": "Know endpoints for custom models, Model Registry for versioning, Processing jobs for data prep, Data Wrangler for transformation.",
+      "relatedTasks": ["1.2", "1.3", "2.2", "3.3", "4.1"]
+    },
+    {
+      "name": "Amazon Q Business",
+      "category": "AI/ML",
+      "description": "Enterprise AI assistant that connects to company data sources.",
+      "examRelevance": "Know data source connectors, access control, deployment options for enterprise chat.",
+      "relatedTasks": ["2.5"]
+    },
+    {
+      "name": "Amazon Q Developer",
+      "category": "AI/ML",
+      "description": "AI-powered developer assistant for code generation, refactoring, and debugging.",
+      "examRelevance": "Know IDE integration, code transformation capabilities, security scanning features.",
+      "relatedTasks": ["2.5"]
+    },
+    {
+      "name": "Amazon Comprehend",
+      "category": "AI/ML",
+      "description": "NLP service for sentiment analysis, entity extraction, PII detection.",
+      "examRelevance": "Pre-processing and safety. Know PII detection API, entity types, integration patterns with GenAI.",
+      "relatedTasks": ["1.3", "1.6", "3.1", "3.2"]
+    },
+    {
+      "name": "Amazon Transcribe",
+      "category": "AI/ML",
+      "description": "Speech-to-text service for audio transcription.",
+      "examRelevance": "Multimodal pipelines. Know real-time vs batch transcription, custom vocabulary.",
+      "relatedTasks": ["1.3"]
+    },
+    {
+      "name": "Amazon Rekognition",
+      "category": "AI/ML",
+      "description": "Image and video analysis service.",
+      "examRelevance": "Multimodal processing. Know content moderation, label detection, face analysis.",
+      "relatedTasks": ["1.3"]
+    },
+    {
+      "name": "Amazon Titan",
+      "category": "AI/ML",
+      "description": "Amazon's foundation models for text and embeddings.",
+      "examRelevance": "Know Titan Text vs Titan Embeddings, use cases, pricing model.",
+      "relatedTasks": ["1.2", "1.5"]
+    },
+    {
+      "name": "AWS Lambda",
+      "category": "Compute",
+      "description": "Serverless compute for event-driven functions.",
+      "examRelevance": "Primary compute for GenAI. Know integration with Bedrock, timeout limits, memory settings for model invocations.",
+      "relatedTasks": ["1.2", "1.3", "1.5", "2.1", "2.3", "2.5", "3.1", "3.4"]
+    },
+    {
+      "name": "Amazon EC2",
+      "category": "Compute",
+      "description": "Virtual servers for compute-intensive workloads.",
+      "examRelevance": "Know when EC2 is preferred over Lambda (long-running, GPU, large memory).",
+      "relatedTasks": ["2.2"]
+    },
+    {
+      "name": "AWS Step Functions",
+      "category": "App Integration",
+      "description": "Workflow orchestration for multi-step processes.",
+      "examRelevance": "Critical for agentic patterns. Know ReAct implementation, human-in-the-loop, error handling, circuit breakers.",
+      "relatedTasks": ["1.2", "1.5", "1.6", "2.1", "2.4", "2.5", "3.1"]
+    },
+    {
+      "name": "Amazon EventBridge",
+      "category": "App Integration",
+      "description": "Serverless event bus for event-driven architectures.",
+      "examRelevance": "Know event patterns, rule-based routing, integration with GenAI workflows.",
+      "relatedTasks": ["2.3", "2.5"]
+    },
+    {
+      "name": "Amazon SQS",
+      "category": "App Integration",
+      "description": "Managed message queue for decoupling services.",
+      "examRelevance": "Async processing patterns. Know FIFO vs Standard, dead-letter queues, visibility timeout.",
+      "relatedTasks": ["2.4"]
+    },
+    {
+      "name": "Amazon SNS",
+      "category": "App Integration",
+      "description": "Pub/sub messaging for notifications.",
+      "examRelevance": "Know fan-out patterns, filtering, integration with Lambda.",
+      "relatedTasks": ["2.3"]
+    },
+    {
+      "name": "AWS AppConfig",
+      "category": "App Integration",
+      "description": "Dynamic configuration management with feature flags.",
+      "examRelevance": "Dynamic model selection without code changes. Know deployment strategies, validation.",
+      "relatedTasks": ["1.2"]
+    },
+    {
+      "name": "Amazon API Gateway",
+      "category": "Networking",
+      "description": "Managed API service for REST, HTTP, and WebSocket APIs.",
+      "examRelevance": "Frontend for GenAI. Know WebSocket for streaming, request validation, throttling, authorization.",
+      "relatedTasks": ["1.2", "2.1", "2.3", "2.4", "2.5", "3.1"]
+    },
+    {
+      "name": "Amazon CloudFront",
+      "category": "Networking",
+      "description": "CDN for content delivery and edge caching.",
+      "examRelevance": "Edge caching for GenAI responses. Know cache behaviors, Lambda@Edge integration.",
+      "relatedTasks": ["4.1", "4.2"]
+    },
+    {
+      "name": "Amazon VPC",
+      "category": "Networking",
+      "description": "Virtual private cloud for network isolation.",
+      "examRelevance": "Security. Know VPC endpoints for Bedrock, private connectivity, security groups.",
+      "relatedTasks": ["2.3", "3.2"]
+    },
+    {
+      "name": "Amazon S3",
+      "category": "Storage",
+      "description": "Object storage for any data type.",
+      "examRelevance": "Knowledge base sources, prompt templates, model artifacts. Know object metadata, lifecycle policies, versioning.",
+      "relatedTasks": ["1.4", "1.6", "3.2"]
+    },
+    {
+      "name": "Amazon DynamoDB",
+      "category": "Storage",
+      "description": "NoSQL database for fast, scalable key-value storage.",
+      "examRelevance": "Conversation history, session state, metadata. Know TTL, streams, global tables.",
+      "relatedTasks": ["1.4", "1.6", "5.1"]
+    },
+    {
+      "name": "Amazon ElastiCache",
+      "category": "Storage",
+      "description": "Managed Redis/Memcached for caching.",
+      "examRelevance": "Semantic caching for GenAI. Know Redis vector search, cache-aside patterns.",
+      "relatedTasks": ["4.1"]
+    },
+    {
+      "name": "Amazon MemoryDB",
+      "category": "Storage",
+      "description": "Redis-compatible durable database.",
+      "examRelevance": "Durable caching and vector storage. Know differences from ElastiCache.",
+      "relatedTasks": ["4.1"]
+    },
+    {
+      "name": "Amazon Aurora",
+      "category": "Database",
+      "description": "MySQL/PostgreSQL-compatible relational database.",
+      "examRelevance": "pgvector extension for vector search. Know when Aurora vs OpenSearch for embeddings.",
+      "relatedTasks": ["1.4", "1.5"]
+    },
+    {
+      "name": "Amazon RDS",
+      "category": "Database",
+      "description": "Managed relational database service.",
+      "examRelevance": "Metadata storage, structured data. Know when RDS vs Aurora vs DynamoDB.",
+      "relatedTasks": ["1.4"]
+    },
+    {
+      "name": "Amazon Neptune",
+      "category": "Database",
+      "description": "Graph database for highly connected data.",
+      "examRelevance": "Knowledge graphs, relationship modeling. Know graph queries with GenAI.",
+      "relatedTasks": ["1.4"]
+    },
+    {
+      "name": "Amazon DocumentDB",
+      "category": "Database",
+      "description": "MongoDB-compatible document database.",
+      "examRelevance": "Document storage, JSON data. Know vector search capabilities.",
+      "relatedTasks": ["1.4"]
+    },
+    {
+      "name": "Amazon OpenSearch Service",
+      "category": "Analytics",
+      "description": "Search and analytics engine with vector search capabilities.",
+      "examRelevance": "Critical for RAG. Know Neural plugin, k-NN, hybrid search, sharding strategies.",
+      "relatedTasks": ["1.4", "1.5", "4.2", "4.3", "5.2"]
+    },
+    {
+      "name": "Amazon Athena",
+      "category": "Analytics",
+      "description": "Serverless SQL queries on S3 data.",
+      "examRelevance": "Ad-hoc analysis of GenAI logs, cost analysis.",
+      "relatedTasks": ["4.3"]
+    },
+    {
+      "name": "AWS Glue",
+      "category": "Analytics",
+      "description": "Serverless ETL and data catalog.",
+      "examRelevance": "Data pipelines for FM training data. Know Data Quality, Data Catalog, crawlers.",
+      "relatedTasks": ["1.3", "3.3"]
+    },
+    {
+      "name": "Amazon Kinesis",
+      "category": "Analytics",
+      "description": "Real-time data streaming.",
+      "examRelevance": "Streaming data for real-time GenAI. Know Data Streams vs Firehose.",
+      "relatedTasks": ["2.4"]
+    },
+    {
+      "name": "Amazon QuickSight",
+      "category": "Analytics",
+      "description": "Business intelligence and visualization.",
+      "examRelevance": "GenAI dashboards, Q integration for natural language queries.",
+      "relatedTasks": ["4.3"]
+    },
+    {
+      "name": "Amazon ECS",
+      "category": "Containers",
+      "description": "Container orchestration service.",
+      "examRelevance": "Container deployments for custom models, MCP servers. Know task definitions, Fargate vs EC2.",
+      "relatedTasks": ["2.1", "2.2"]
+    },
+    {
+      "name": "Amazon EKS",
+      "category": "Containers",
+      "description": "Managed Kubernetes service.",
+      "examRelevance": "Kubernetes for ML workloads. Know node groups, GPU instances.",
+      "relatedTasks": ["2.2"]
+    },
+    {
+      "name": "AWS Fargate",
+      "category": "Containers",
+      "description": "Serverless compute for containers.",
+      "examRelevance": "Serverless containers for GenAI. Know when Fargate vs EC2 launch type.",
+      "relatedTasks": ["2.2"]
+    },
+    {
+      "name": "Amazon ECR",
+      "category": "Containers",
+      "description": "Container registry for Docker images.",
+      "examRelevance": "Storing custom model containers, inference images.",
+      "relatedTasks": ["2.2"]
+    },
+    {
+      "name": "AWS IAM",
+      "category": "Security",
+      "description": "Identity and access management.",
+      "examRelevance": "Critical for security. Know Bedrock IAM actions, least privilege, resource-based policies.",
+      "relatedTasks": ["2.1", "2.3", "3.2"]
+    },
+    {
+      "name": "AWS KMS",
+      "category": "Security",
+      "description": "Key management for encryption.",
+      "examRelevance": "Data encryption for GenAI. Know CMKs, envelope encryption, key policies.",
+      "relatedTasks": ["3.2"]
+    },
+    {
+      "name": "AWS Secrets Manager",
+      "category": "Security",
+      "description": "Secrets storage and rotation.",
+      "examRelevance": "API keys, credentials for external integrations.",
+      "relatedTasks": ["2.3"]
+    },
+    {
+      "name": "AWS WAF",
+      "category": "Security",
+      "description": "Web application firewall.",
+      "examRelevance": "API protection, rate limiting, SQL injection prevention.",
+      "relatedTasks": ["3.1"]
+    },
+    {
+      "name": "Amazon Cognito",
+      "category": "Security",
+      "description": "User identity and access management.",
+      "examRelevance": "User authentication for GenAI apps. Know user pools, identity pools, JWT tokens.",
+      "relatedTasks": ["2.3"]
+    },
+    {
+      "name": "AWS Lake Formation",
+      "category": "Security",
+      "description": "Data lake security and governance.",
+      "examRelevance": "Fine-grained access control for training data.",
+      "relatedTasks": ["3.2"]
+    },
+    {
+      "name": "Amazon Macie",
+      "category": "Security",
+      "description": "PII and sensitive data discovery in S3.",
+      "examRelevance": "Data security for GenAI. Know scanning, alerts, integration patterns.",
+      "relatedTasks": ["3.2"]
+    },
+    {
+      "name": "Amazon CloudWatch",
+      "category": "DevOps",
+      "description": "Monitoring, logging, and alerting.",
+      "examRelevance": "Critical for observability. Know custom metrics, Logs Insights, alarms, dashboards.",
+      "relatedTasks": ["1.6", "3.2", "3.3", "3.4", "4.1", "4.2", "4.3", "5.1", "5.2"]
+    },
+    {
+      "name": "AWS X-Ray",
+      "category": "DevOps",
+      "description": "Distributed tracing for applications.",
+      "examRelevance": "GenAI request tracing. Know service maps, trace analysis, segments.",
+      "relatedTasks": ["2.4", "2.5", "4.2", "4.3", "5.2"]
+    },
+    {
+      "name": "AWS CloudTrail",
+      "category": "DevOps",
+      "description": "API activity logging and auditing.",
+      "examRelevance": "Compliance and governance. Know Bedrock API logging, insights.",
+      "relatedTasks": ["1.6", "3.3"]
+    },
+    {
+      "name": "AWS CodePipeline",
+      "category": "DevOps",
+      "description": "CI/CD pipeline orchestration.",
+      "examRelevance": "GenAI deployment pipelines. Know stages, actions, approvals.",
+      "relatedTasks": ["2.3"]
+    },
+    {
+      "name": "AWS CodeBuild",
+      "category": "DevOps",
+      "description": "Build and test service.",
+      "examRelevance": "Building GenAI artifacts, running tests.",
+      "relatedTasks": ["2.3"]
+    },
+    {
+      "name": "AWS CloudFormation",
+      "category": "DevOps",
+      "description": "Infrastructure as code.",
+      "examRelevance": "Deploying GenAI infrastructure. Know Bedrock resources, stack management.",
+      "relatedTasks": ["2.3"]
+    },
+    {
+      "name": "AWS CDK",
+      "category": "DevOps",
+      "description": "Cloud Development Kit for IaC.",
+      "examRelevance": "Programming infrastructure. Know L2 constructs, CDK for Bedrock.",
+      "relatedTasks": ["2.3"]
+    },
+    {
+      "name": "AWS SAM",
+      "category": "DevOps",
+      "description": "Serverless Application Model.",
+      "examRelevance": "Serverless GenAI deployments. Know template structure, local testing.",
+      "relatedTasks": ["2.3"]
+    },
+    {
+      "name": "AWS Amplify",
+      "category": "DevOps",
+      "description": "Full-stack web and mobile development platform.",
+      "examRelevance": "Frontend for GenAI apps. Know hosting, authentication, UI components.",
+      "relatedTasks": ["2.5"]
+    },
+    {
+      "name": "AWS Outposts",
+      "category": "Hybrid",
+      "description": "AWS infrastructure on-premises.",
+      "examRelevance": "Hybrid GenAI deployments. Know supported services, latency considerations.",
+      "relatedTasks": ["2.3"]
+    },
+    {
+      "name": "AWS Wavelength",
+      "category": "Hybrid",
+      "description": "AWS at 5G network edge.",
+      "examRelevance": "Ultra-low latency GenAI. Know deployment model, carrier integration.",
+      "relatedTasks": ["2.3"]
+    }
+  ]
+}
