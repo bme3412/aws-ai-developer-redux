@@ -1,6 +1,7 @@
 'use client';
 
 import { SkillExplanation } from '@/types/article';
+import { MarkdownParagraph } from '@/lib/markdown';
 
 interface SkillCardProps {
   skill: SkillExplanation;
@@ -17,7 +18,9 @@ export default function SkillCard({ skill, skillDescription }: SkillCardProps) {
         <p className="text-gray-800 font-medium">{skillDescription}</p>
       </div>
 
-      <p className="text-gray-700 leading-relaxed mb-4">{skill.explanation}</p>
+      <MarkdownParagraph className="text-gray-700 leading-relaxed mb-4">
+        {skill.explanation}
+      </MarkdownParagraph>
 
       {skill.awsServices.length > 0 && (
         <div className="space-y-3">

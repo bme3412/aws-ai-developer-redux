@@ -1,5 +1,6 @@
 import { Target, Tag } from 'lucide-react';
 import { ExamStrategy as ExamStrategyType } from '@/types/article';
+import { MarkdownText } from '@/lib/markdown';
 
 interface ExamStrategyProps {
   strategy: ExamStrategyType;
@@ -15,7 +16,7 @@ export default function ExamStrategy({ strategy }: ExamStrategyProps) {
             When you see: &quot;{strategy.questionPattern}&quot;
           </div>
           <p className="text-sm text-gray-700 leading-relaxed">
-            {strategy.approach}
+            <MarkdownText>{strategy.approach}</MarkdownText>
           </p>
           {strategy.keywords.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap pt-1">

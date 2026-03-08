@@ -1,4 +1,5 @@
 import { CheckCircle, AlertTriangle } from 'lucide-react';
+import { MarkdownText } from '@/lib/markdown';
 
 interface KeyTakeawaysProps {
   takeaways: string[];
@@ -18,7 +19,7 @@ export default function KeyTakeaways({ takeaways, commonMistakes }: KeyTakeaways
           {takeaways.map((point, i) => (
             <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
               <span className="text-green-500 mt-1">✓</span>
-              <span>{point}</span>
+              <MarkdownText>{point}</MarkdownText>
             </li>
           ))}
         </ul>
@@ -34,7 +35,7 @@ export default function KeyTakeaways({ takeaways, commonMistakes }: KeyTakeaways
           {commonMistakes.map((mistake, i) => (
             <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
               <span className="text-red-500 mt-1">✗</span>
-              <span>{mistake}</span>
+              <MarkdownText>{mistake}</MarkdownText>
             </li>
           ))}
         </ul>
