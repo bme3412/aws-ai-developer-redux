@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { getDomains, calculateDomainProgress } from '@/lib/domains';
 import { getProgress, getOverallProgress } from '@/lib/progress';
 import { DomainBadge } from '@/components/layout/DomainBadge';
-import { BookOpen, FlaskConical, ClipboardCheck, TrendingUp, Target, Clock } from 'lucide-react';
+import { BookOpen, FlaskConical, ClipboardCheck, TrendingUp, Clock } from 'lucide-react';
 import { Progress } from '@/types/domain';
 
 export default function DashboardPage() {
@@ -28,11 +28,11 @@ export default function DashboardPage() {
     <div className="max-w-6xl mx-auto px-6 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Study Dashboard</h1>
-        <p className="text-gray-600 mt-1">Track your progress toward the 750 passing score</p>
+        <p className="text-gray-600 mt-1">Track your study progress</p>
       </div>
 
       {/* Progress Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="p-4 bg-white rounded-lg border border-gray-200">
           <div className="flex items-center gap-3 mb-2">
             <BookOpen className="w-5 h-5 text-blue-500" />
@@ -68,7 +68,7 @@ export default function DashboardPage() {
         <div className="p-4 bg-white rounded-lg border border-gray-200">
           <div className="flex items-center gap-3 mb-2">
             <ClipboardCheck className="w-5 h-5 text-green-500" />
-            <span className="text-sm text-gray-600">Avg Score</span>
+            <span className="text-sm text-gray-600">Quiz Accuracy</span>
           </div>
           <div className="text-2xl font-bold text-gray-900">
             {overall.averageScore}%
@@ -78,19 +78,6 @@ export default function DashboardPage() {
               className="h-full bg-green-500 rounded-full transition-all"
               style={{ width: `${overall.averageScore}%` }}
             />
-          </div>
-        </div>
-
-        <div className="p-4 bg-white rounded-lg border border-gray-200">
-          <div className="flex items-center gap-3 mb-2">
-            <Target className="w-5 h-5 text-red-500" />
-            <span className="text-sm text-gray-600">Gap to Pass</span>
-          </div>
-          <div className="text-2xl font-bold text-gray-900">
-            35 pts
-          </div>
-          <div className="text-xs text-gray-500 mt-2">
-            ~3-5 more correct answers needed
           </div>
         </div>
       </div>

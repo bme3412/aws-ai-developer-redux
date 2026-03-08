@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Target, BookOpen, FlaskConical, ClipboardCheck } from 'lucide-react';
+import { ArrowRight, BookOpen, FlaskConical, ClipboardCheck } from 'lucide-react';
 import { DomainBadge } from '@/components/layout/DomainBadge';
 import { getDomains } from '@/lib/domains';
 
@@ -25,7 +25,7 @@ export default function HomePage() {
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl">
             Master Amazon Bedrock, RAG architectures, agentic AI, and enterprise GenAI patterns.
-            Interactive labs and exam-focused content to close your 35-point gap.
+            Interactive labs and exam-focused content.
           </p>
 
           <div className="flex flex-wrap gap-4 mb-12">
@@ -45,22 +45,14 @@ export default function HomePage() {
           </div>
 
           {/* Exam Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
               <div className="text-2xl font-bold text-gray-900">65</div>
-              <div className="text-sm text-gray-500">Scored Questions</div>
+              <div className="text-sm text-gray-500">Questions</div>
             </div>
             <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
               <div className="text-2xl font-bold text-gray-900">170</div>
               <div className="text-sm text-gray-500">Minutes</div>
-            </div>
-            <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-              <div className="text-2xl font-bold text-amber-600">750</div>
-              <div className="text-sm text-gray-500">Passing Score</div>
-            </div>
-            <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-              <div className="text-2xl font-bold text-red-600">715</div>
-              <div className="text-sm text-gray-500">Your Last Score</div>
             </div>
           </div>
         </div>
@@ -139,35 +131,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Strategy Section */}
-      <section className="max-w-6xl mx-auto px-6 py-12 border-t border-gray-200">
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200 p-6">
-          <div className="flex items-start gap-4">
-            <Target className="w-8 h-8 text-amber-600 flex-shrink-0 mt-1" />
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Retake Strategy</h3>
-              <p className="text-gray-700 mb-4">
-                At 715/750, you&apos;re approximately <strong>3-5 questions</strong> away from passing.
-                Focus your study on:
-              </p>
-              <ul className="space-y-2 text-gray-700">
-                <li className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500" />
-                  <strong>D1 (31%)</strong> — Vector stores, retrieval mechanisms, prompt governance
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500" />
-                  <strong>D2 (26%)</strong> — Agentic AI, MCP, streaming APIs, deployment patterns
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-amber-500" />
-                  <strong>D3 (20%)</strong> — Guardrails, PII detection, compliance frameworks
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
