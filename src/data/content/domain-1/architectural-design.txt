@@ -1,0 +1,195 @@
+ARCHITECTURAL DESIGN FOR GENAI
+Domain 1 | Task 1.1 | Estimated: 30 minutes
+
+================================================================================
+WHY IT MATTERS
+================================================================================
+Think of architecture decisions like choosing the foundation for a house—get it wrong, and you'll pay for it later. The choices you make early about how to integrate AI into your application will determine whether it's fast, affordable, and scales smoothly, or becomes a constant headache. This topic is foundational because everything else builds on these patterns.
+
+================================================================================
+CONCEPT: Foundation Model Integration Patterns
+================================================================================
+There are three main ways to connect your app to foundation models. Think of them like different ways to order food: cooking at home, going to a restaurant, or using a delivery service.
+
+**Direct API** is like cooking at home—simple and fast, but you handle everything yourself. Your Lambda function calls Bedrock directly. Great for prototypes and internal tools where you control everything. The downside? You're responsible for handling errors, preventing overload, and monitoring usage.
+
+**Gateway pattern** is like going to a restaurant—there's a host (API Gateway) managing the flow. API Gateway sits between your users and your AI logic, handling the messy stuff: stopping people from spamming requests, caching repeated questions, and managing API keys. This is what most production apps use.
+
+**Event-driven** is like a delivery service—you place an order (drop a message in SQS) and it gets processed when there's capacity. Perfect for batch jobs where you don't need instant responses. Got 10,000 documents to summarize? Queue them up and let workers chew through them.
+
+**Streaming** deserves special mention. When users chat with AI, they hate waiting for a wall of text to appear. Streaming shows words as they're generated—like watching someone type. Use WebSocket API Gateway to make your chatbot feel responsive and alive.
+
+KEY POINTS:
+- Direct API: Lambda → Bedrock (fast to build, you manage everything)
+- Gateway pattern: API Gateway → Lambda → Bedrock (production-ready)
+- Event-driven: SQS → Lambda → Bedrock (batch processing, handles spikes)
+- Streaming: WebSocket API Gateway (chatbots, real-time feel)
+
+EXAM TIP: See 'decoupled' or 'asynchronous'? Think SQS/EventBridge. See 'real-time chat'? Think streaming with WebSocket.
+
+================================================================================
+CONCEPT: Deployment Strategies for GenAI
+================================================================================
+How you pay for and access AI models is a bigger deal than you might think. Get this wrong and you'll either overpay or have angry users waiting forever for responses.
+
+**On-demand** is like paying for electricity—you only pay for what you use. No commitment, no minimum. Perfect when your traffic is unpredictable or you're just getting started. The catch? During busy times, your requests might queue up behind everyone else's, and latency can spike.
+
+**Provisioned Throughput** is like reserving a dedicated lane on the highway. You pay for guaranteed capacity (measured in **model units**), and your requests always get fast, consistent responses. Key benefits:
+- Consistent latency: No queuing behind other customers
+- Cost savings at scale: Cheaper than on-demand for predictable high volume
+- Required for custom models: Fine-tuned or continued pre-training models need provisioned throughput
+
+**Batch Inference** is for non-real-time workloads. Submit thousands of prompts, Bedrock processes them asynchronously, you get results later. Significantly cheaper per token than real-time inference. Perfect for: document processing, data extraction, bulk content generation.
+
+**SageMaker endpoints** give you the keys to the entire kitchen. You pick the hardware (GPU types, instance sizes), control the scaling, manage updates—everything. This is for teams who've trained their own models or need configurations Bedrock doesn't offer. More power, more responsibility.
+
+**Cross-Region Inference** is your safety net. If us-east-1 has an outage or hits capacity limits, Bedrock automatically routes your requests to another region. Use **inference profile ARNs** instead of model IDs—same code, automatic failover. Data stays within geographic boundaries (US regions route to US regions).
+
+KEY POINTS:
+- On-demand: Pay per token, no commitment, variable latency
+- Provisioned Throughput: Model units, consistent latency, required for custom models
+- Batch Inference: Async processing, cheapest per token, non-real-time
+- Cross-Region Inference: Inference profile ARNs for automatic failover
+
+EXAM TIP: 'Consistent latency' or 'SLA' = Provisioned Throughput. 'Bulk processing' or 'non-real-time' = Batch Inference. 'Fine-tuned model' = needs Provisioned Throughput.
+
+================================================================================
+CONCEPT: Well-Architected Framework for GenAI
+================================================================================
+AWS spent years figuring out what makes cloud architectures succeed or fail. The Well-Architected Framework captures those lessons across five pillars. The **GenAI Lens** adds AI-specific guidance—think of it as a checklist that ensures you don't forget critical pieces when building production AI systems.
+
+**Operational Excellence** answers the question: How do you know your AI is working well?
+
+AI systems can degrade silently. A model that was 95% accurate last month might be 80% accurate today due to data drift or prompt changes—and you won't know unless you're measuring. **Prompt versioning** in Bedrock Prompt Management lets you track every change and roll back immediately when quality drops. **Automated evaluation** runs your test datasets against new prompts or model versions before they hit production—catch problems before users do. **Model cards** document what your model does, its limitations, and appropriate use cases. **CloudWatch dashboards** should track not just infrastructure metrics (latency, errors) but AI-specific metrics: token consumption per request, guardrail trigger rates, and quality scores from automated evaluation.
+
+**Security** matters because AI opens attack surfaces that traditional apps don't have.
+
+**Prompt injection** is the SQL injection of AI—attackers craft inputs that hijack model behavior. Bedrock Guardrails provides content filtering that catches common attack patterns, but you should also validate and sanitize inputs before they reach the model. **Data exfiltration** happens when models are tricked into revealing training data or sensitive context. Output guardrails scan responses for PII, secrets, or unauthorized data before delivery. **Access control** uses IAM policies to restrict which principals can invoke which models—not everyone needs access to expensive models. **VPC endpoints** keep traffic between your application and Bedrock on the AWS network, never touching the public internet. **CloudTrail** logs every Bedrock API call for audit and forensics.
+
+**Reliability** addresses what happens when things go wrong—because they will.
+
+**Cross-Region Inference** is your first line of defense against regional outages. Use inference profile ARNs instead of model IDs, and Bedrock handles the routing transparently. **Circuit breakers** (implement with Step Functions or custom logic) detect when a downstream service is failing and stop sending requests, preventing cascade failures. **Graceful degradation** means having a plan B: serve cached responses, fall back to smaller models, or use rule-based logic when AI is unavailable. **Exponential backoff with jitter** spreads retry attempts over time so failed requests don't all retry simultaneously.
+
+**Performance Efficiency** is crucial because nobody wants to wait for AI.
+
+**Streaming responses** show users words as they're generated rather than making them stare at a loading spinner. **Semantic caching** with ElastiCache or OpenSearch stores responses for similar queries. **Prompt caching** (a Bedrock feature) reduces costs when you repeatedly send the same system prompt or context. **Right-sizing models** means using Haiku ($0.25/1M tokens) for simple classification instead of Opus ($15/1M tokens).
+
+**Cost Optimization** prevents AI from blowing your budget.
+
+**Model cascading** sends every request to a cheap, fast model first. If the small model handles it confidently, you're done. Only escalate complex requests to expensive models. This can cut costs by 60-80%. **Batch inference** processes non-real-time workloads at lower per-token costs. **Token monitoring** tracks usage by feature, user, and tenant. **Dimension reduction** with Titan Embeddings V2 lets you use 512 dimensions instead of 1024, saving ~50% on vector storage.
+
+KEY POINTS:
+- Operational Excellence: Prompt versioning, automated evaluation, model cards, AI-specific metrics
+- Security: Prompt injection defense, output guardrails, VPC endpoints, CloudTrail audit trails
+- Reliability: Cross-Region Inference, circuit breakers, graceful degradation, smart retries
+- Performance: Streaming, semantic caching, prompt caching, right-sized models
+- Cost: Model cascading (60-80% savings), batch inference, token monitoring, dimension reduction
+
+EXAM TIP: The GenAI Lens extends the standard Well-Architected pillars with AI-specific concerns. Questions about 'responsible AI architecture' or 'AI governance' often map to these pillars.
+
+================================================================================
+SKILL 1.1.1: Selecting Appropriate FM Integration Approaches
+================================================================================
+Good architecture starts with questions, not answers. Before picking services, understand what you're building.
+
+Building a chatbot? Users expect instant responses. You need streaming (show words as they generate) and probably Provisioned Throughput (consistent speed). Every millisecond of delay feels like an eternity when you're waiting for a response.
+
+Processing a backlog of documents? Nobody's watching the clock. Use event-driven patterns with SQS—documents queue up, workers process them at their own pace. On-demand pricing keeps costs proportional to actual work.
+
+Building a multi-tenant SaaS? You need isolation. One customer's data can't leak to another. Per-tenant guardrails, usage quotas, and metering for billing add complexity but are non-negotiable.
+
+Ask yourself: How fast must responses be? How variable is traffic? What's the budget? Who are the users? What regulations apply? The answers drive your architecture.
+
+AWS SERVICES:
+- Amazon Bedrock: Your go-to for FM access. Managed, serverless, multiple models, zero infrastructure headaches.
+  Keywords: managed, serverless FM, multiple models, no infrastructure
+- Amazon API Gateway: Production APIs. Handles throttling, caching, API keys. WebSocket for streaming.
+  Keywords: API management, throttling, WebSocket, streaming
+
+================================================================================
+SKILL 1.1.2: Designing PoC Solutions
+================================================================================
+Proof-of-concepts are for learning, not showing off. Keep them simple.
+
+Start in Bedrock's playground. Test prompts, try different models, see what works—all without writing code. This is the fastest way to validate your idea. Does the AI actually help? Can it handle edge cases? You'll learn in hours what would take days of coding.
+
+Once you've got working prompts, write a simple Lambda function that calls Bedrock. That's it. Don't add authentication, monitoring, or error handling yet. You're testing whether AI solves your problem, not building a production system.
+
+Document what you learn. Which prompts worked? Which models performed best? What edge cases caused problems? This becomes your blueprint for production.
+
+The biggest PoC mistake? Over-engineering. Every feature you add slows learning. Stay focused on one question: Does this AI approach work?
+
+AWS SERVICES:
+- Amazon Bedrock: Playground for rapid prompt testing. API for quick integration. Fast iteration, zero infrastructure.
+  Keywords: prototype, iterate, test prompts, playground, validate
+
+================================================================================
+SKILL 1.1.3: Designing Standardized AI Practices
+================================================================================
+When AI usage grows, chaos follows—unless you standardize. Without standards, every team builds their own thing, quality varies wildly, and maintaining it all becomes a nightmare.
+
+Bedrock Prompt Management is your single source of truth for prompts. Teams reference shared prompts instead of copying them. Update once, everyone benefits. Version control tracks who changed what. IAM controls who can modify production prompts.
+
+Organization-wide guardrails set the safety floor. Define content filters, PII rules, and topic restrictions that apply everywhere. Teams can add stricter rules but can't bypass the baseline.
+
+Shared Lambda layers package common patterns. Token counting, error handling, logging—bundle these once, reuse everywhere. Bugs get fixed in one place. Improvements spread automatically.
+
+The GenAI Lens provides architecture review checklists. Use it during design reviews to catch gaps before they become production problems.
+
+Standardization costs time upfront but saves exponentially as you scale.
+
+AWS SERVICES:
+- Amazon Bedrock Prompt Management: Centralized prompts. Version control. Shared across teams.
+  Keywords: prompt management, centralized, version, governance
+- Amazon Bedrock Guardrails: Organization-wide safety policies. Content filtering standards.
+  Keywords: guardrails, safety, policy, organization
+
+================================================================================
+SERVICE COMPARISON: FM Access - Bedrock vs SageMaker
+================================================================================
+| Criterion       | Amazon Bedrock                                    | Amazon SageMaker                              |
+|-----------------|---------------------------------------------------|-----------------------------------------------|
+| Model access    | Pre-trained models from Anthropic, Meta, Amazon   | Your custom models + some JumpStart models    |
+| Infrastructure  | Fully managed—you just call APIs                  | You manage endpoints, scaling, configurations |
+| Best for        | Most use cases. Fast development. Minimal ops.    | Custom models. Full control. Complex needs.   |
+
+================================================================================
+SERVICE COMPARISON: Integration Patterns
+================================================================================
+| Criterion   | Direct API                           | API Gateway                                  | Event-Driven                        |
+|-------------|--------------------------------------|----------------------------------------------|-------------------------------------|
+| Complexity  | Simplest—Lambda calls Bedrock        | Adds managed API layer with throttling/cache | Queue-based, handles async          |
+| Best for    | Prototypes, internal tools           | Production APIs, external users              | Batch processing, traffic spikes    |
+
+================================================================================
+EXAM STRATEGIES
+================================================================================
+Pattern: "MOST operationally efficient"
+Approach: Choose managed services. Bedrock beats SageMaker. Serverless beats containers. Less infrastructure = less ops work.
+Keywords: operationally efficient, reduce overhead, managed, less maintenance
+
+Pattern: "architect for scalability"
+Approach: Go serverless: Lambda, Bedrock on-demand, API Gateway. They auto-scale. Only pick provisioned capacity when the question mentions consistent latency needs.
+Keywords: scalability, elastic, variable load, burst traffic
+
+Pattern: "production-ready"
+Approach: Look for: API Gateway (rate limiting), guardrails (safety), CloudWatch (monitoring), IAM (access control). These separate real systems from prototypes.
+Keywords: production, enterprise, secure, compliant
+
+================================================================================
+KEY TAKEAWAYS
+================================================================================
+1. Start with requirements, then pick patterns—not the other way around
+2. Bedrock = managed and easy; SageMaker = full control but more work
+3. On-demand for unpredictable traffic; Provisioned for consistent, high-volume
+4. API Gateway adds the production polish: throttling, caching, management
+5. Use the GenAI Lens as your architecture checklist
+
+================================================================================
+COMMON MISTAKES
+================================================================================
+- Using SageMaker when Bedrock would be simpler and sufficient
+- Over-engineering PoCs with production features (slows learning)
+- Forgetting Cross-Region Inference for high-availability apps
+- Not streaming for chatbots (users hate waiting)
+- Every team building their own prompts instead of sharing
