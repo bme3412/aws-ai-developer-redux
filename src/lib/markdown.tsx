@@ -118,8 +118,80 @@ export function MarkdownText({ children, className = '' }: { children: string; c
 }
 
 /**
+ * Parse a text block that may contain lists (both newline-separated and inline)
+ * Returns an array of React elements (paragraphs and lists)
+ */
+function parseTextWithLists(text: string, keyPrefix: string | number): React.ReactNode[] {
+  const elements: React.ReactNode[] = [];
+
+  // First, normalize inline lists to newline format
+  // Pattern: "text: - item1 - item2" becomes "text:\n- item1\n- item2"
+  let normalized = text.replace(/:\s*-\s+/g, ':\n- ');
+  normalized = normalized.replace(/([^-\n])\s+-\s+/g, '$1\n- ');
+
+  // Split into lines
+  const lines = normalized.split('\n');
+  let currentParagraph: string[] = [];
+  let currentList: string[] = [];
+  let elementIndex = 0;
+
+  const flushParagraph = () => {
+    if (currentParagraph.length > 0) {
+      const text = currentParagraph.join(' ').trim();
+      if (text) {
+        elements.push(
+          <p key={`${keyPrefix}-p-${elementIndex++}`} className="mb-3">
+            {parseInlineMarkdown(text, `${keyPrefix}-${elementIndex}`)}
+          </p>
+        );
+      }
+      currentParagraph = [];
+    }
+  };
+
+  const flushList = () => {
+    if (currentList.length > 0) {
+      elements.push(
+        <ul key={`${keyPrefix}-ul-${elementIndex++}`} className="list-disc list-inside mb-3 space-y-1 ml-2">
+          {currentList.map((item, i) => (
+            <li key={i} className="text-gray-700">
+              {parseInlineMarkdown(item, `${keyPrefix}-li-${i}`)}
+            </li>
+          ))}
+        </ul>
+      );
+      currentList = [];
+    }
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Check if line is a list item
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      flushParagraph();
+      currentList.push(trimmed.substring(2));
+    } else if (trimmed === '') {
+      // Empty line - flush both
+      flushParagraph();
+      flushList();
+    } else {
+      // Regular text
+      flushList();
+      currentParagraph.push(trimmed);
+    }
+  }
+
+  // Flush remaining content
+  flushParagraph();
+  flushList();
+
+  return elements;
+}
+
+/**
  * Component for paragraph content with full markdown support
- * Handles code blocks and mermaid diagrams as block-level elements
+ * Handles code blocks, mermaid diagrams, and lists as block-level elements
  */
 export function MarkdownParagraph({ children, className = '' }: { children: string; className?: string }) {
   // First, split by code blocks to handle them separately
@@ -167,14 +239,12 @@ export function MarkdownParagraph({ children, className = '' }: { children: stri
           );
         }
 
-        // For regular text, split by double newlines into paragraphs
-        const paragraphs = segment.split(/\n\n+/).filter(p => p.trim().length > 0);
-
-        return paragraphs.map((para, pIndex) => (
-          <p key={`${index}-${pIndex}`} className="mb-3 last:mb-0">
-            {parseInlineMarkdown(para, `${index}-${pIndex}`)}
-          </p>
-        ));
+        // Parse text content with list support
+        return (
+          <React.Fragment key={index}>
+            {parseTextWithLists(segment, index)}
+          </React.Fragment>
+        );
       })}
     </div>
   );
