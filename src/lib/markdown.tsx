@@ -27,8 +27,8 @@ export function parseMarkdown(text: string): React.ReactNode {
       const lang = segment.substring(10, colonIndex);
       const code = segment.substring(colonIndex + 1);
       return (
-        <pre key={index} className="p-3 bg-gray-900 text-gray-100 text-sm rounded-lg overflow-x-auto my-3">
-          <code>{code}</code>
+        <pre key={index} className="p-3 bg-gray-900 text-gray-100 text-sm rounded-lg overflow-x-auto my-3 whitespace-pre font-mono">
+          <code className="whitespace-pre">{code}</code>
         </pre>
       );
     }
@@ -98,22 +98,43 @@ export function MarkdownText({ children, className = '' }: { children: string; c
 
 /**
  * Component for paragraph content with full markdown support
+ * Handles code blocks as block-level elements (not wrapped in <p> tags)
  */
 export function MarkdownParagraph({ children, className = '' }: { children: string; className?: string }) {
-  // Split by double newlines to create paragraphs
-  const paragraphs = children.split(/\n\n+/);
+  // First, split by code blocks to handle them separately
+  const codeBlockRegex = /```(\w*)\n?([\s\S]*?)```/g;
 
-  if (paragraphs.length === 1) {
-    return <p className={className}>{parseMarkdown(children)}</p>;
-  }
+  // Replace code blocks with markers
+  const textWithMarkers = children.replace(codeBlockRegex, (_, lang, code) => {
+    return `\x00CODEBLOCK:${lang}:${code.trim()}\x00`;
+  });
+
+  // Split on code block markers
+  const segments = textWithMarkers.split('\x00').filter(s => s.length > 0);
 
   return (
     <div className={className}>
-      {paragraphs.map((para, index) => (
-        <p key={index} className="mb-3 last:mb-0">
-          {parseMarkdown(para)}
-        </p>
-      ))}
+      {segments.map((segment, index) => {
+        if (segment.startsWith('CODEBLOCK:')) {
+          // Render code block directly (not in a <p> tag)
+          const colonIndex = segment.indexOf(':', 10);
+          const code = segment.substring(colonIndex + 1);
+          return (
+            <pre key={index} className="p-3 bg-gray-900 text-gray-100 text-sm rounded-lg overflow-x-auto my-3 whitespace-pre font-mono">
+              <code className="whitespace-pre">{code}</code>
+            </pre>
+          );
+        }
+
+        // For regular text, split by double newlines into paragraphs
+        const paragraphs = segment.split(/\n\n+/).filter(p => p.trim().length > 0);
+
+        return paragraphs.map((para, pIndex) => (
+          <p key={`${index}-${pIndex}`} className="mb-3 last:mb-0">
+            {parseInlineMarkdown(para, `${index}-${pIndex}`)}
+          </p>
+        ));
+      })}
     </div>
   );
 }
