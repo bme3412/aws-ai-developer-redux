@@ -1,0 +1,277 @@
+{
+  "domain": 4,
+  "questions": [
+    {
+      "id": "d4-q01",
+      "domain": 4,
+      "task": "4.1",
+      "skills": ["4.1.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company's GenAI chatbot processes customer inquiries with varying complexity. Analysis shows that 70% of queries are simple FAQs that could be answered by a smaller, less expensive model, while 30% require more sophisticated reasoning. The team wants to reduce costs without degrading quality for complex queries.",
+      "question": "Which cost optimization strategy BEST addresses this variable query complexity?",
+      "options": [
+        {"id": "a", "text": "Use the most capable model for all queries to ensure consistent quality"},
+        {"id": "b", "text": "Implement model cascading: route simple queries to Claude Haiku and complex queries to Claude Sonnet"},
+        {"id": "c", "text": "Fine-tune a single model to handle both simple and complex queries efficiently"},
+        {"id": "d", "text": "Batch all queries and process them during off-peak hours for lower pricing"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Model cascading routes queries to appropriate models based on complexity. Simple queries go to cheaper models (Haiku), complex queries go to capable models (Sonnet). This optimizes cost while maintaining quality where it matters.",
+      "incorrectExplanations": {
+        "a": "Using the most capable model for all queries wastes money on simple queries that don't need sophisticated reasoning.",
+        "c": "Fine-tuning adds cost and doesn't address the fundamental price difference between model tiers.",
+        "d": "Batching doesn't address model selection. You'd still pay the same per-token rates regardless of when processing occurs."
+      },
+      "parseStrategy": {
+        "keyPhrase": "variable query complexity",
+        "eliminationHints": [
+          "Most capable for all = expensive",
+          "Fine-tuning = doesn't address tier pricing",
+          "Batching = same rates"
+        ],
+        "decisionFramework": "Variable complexity = model cascading (route to appropriate tier)"
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Model cascading is the answer for cost optimization with variable query complexity. Route simple queries to cheaper models."
+    },
+    {
+      "id": "d4-q02",
+      "domain": 4,
+      "task": "4.1",
+      "skills": ["4.1.4"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A customer support application receives many similar queries about product features. Analysis shows that 40% of queries are paraphrased versions of the same questions. The team wants to reduce costs by avoiding redundant model invocations.",
+      "question": "Which caching strategy handles paraphrased queries effectively?",
+      "options": [
+        {"id": "a", "text": "Use CloudFront caching with exact URL matching"},
+        {"id": "b", "text": "Implement semantic caching using embedding similarity to match semantically similar queries"},
+        {"id": "c", "text": "Cache responses in DynamoDB with query text as the primary key"},
+        {"id": "d", "text": "Use Bedrock prompt caching to store the system prompt prefix"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Semantic caching uses embedding similarity to identify queries with the same meaning, even if worded differently. 'What's the return policy?' and 'How do I return items?' would match in a semantic cache but not in exact-match caches.",
+      "incorrectExplanations": {
+        "a": "CloudFront exact matching only works for identical requests. Paraphrased queries have different URLs/request bodies.",
+        "c": "DynamoDB with query text key requires exact matches. Paraphrases won't hit the cache.",
+        "d": "Prompt caching saves processing of system prompts but doesn't help with repeated user queries. Different use case."
+      },
+      "parseStrategy": {
+        "keyPhrase": "paraphrased queries",
+        "eliminationHints": [
+          "Exact URL matching = misses paraphrases",
+          "Query text key = exact match only",
+          "Prompt caching = system prompts, not queries"
+        ],
+        "decisionFramework": "Paraphrased query caching = semantic caching with embeddings"
+      },
+      "services": ["Amazon ElastiCache", "Amazon Bedrock"],
+      "examTip": "Semantic caching matches queries by meaning, not exact text. Use it when queries may be paraphrased."
+    },
+    {
+      "id": "d4-q03",
+      "domain": 4,
+      "task": "4.2",
+      "skills": ["4.2.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A content generation application produces long-form articles (2000+ words). Users complain that they have to wait 30+ seconds to see any content. The team wants to improve perceived responsiveness without changing the content quality.",
+      "question": "Which technique provides the BEST improvement in perceived latency for long-form generation?",
+      "options": [
+        {"id": "a", "text": "Increase Lambda memory to speed up processing"},
+        {"id": "b", "text": "Use streaming with InvokeModelWithResponseStream to show content as it generates"},
+        {"id": "c", "text": "Pre-generate common articles during off-peak hours"},
+        {"id": "d", "text": "Use a larger model that generates faster"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Streaming displays content as it generates, showing users progress immediately. For long-form content, users see the first words within seconds while the rest generates. This dramatically improves perceived latency even though total generation time is similar.",
+      "incorrectExplanations": {
+        "a": "Lambda memory affects compute but has minimal impact on FM inference time. The bottleneck is sequential token generation.",
+        "c": "Pre-generation works for predictable content but not for user-requested articles on variable topics.",
+        "d": "Larger models generally generate slower, not faster. Model size correlates with capability, not speed."
+      },
+      "parseStrategy": {
+        "keyPhrase": "perceived responsiveness",
+        "eliminationHints": [
+          "Lambda memory = minimal inference impact",
+          "Pre-generation = only for predictable content",
+          "Larger model = typically slower"
+        ],
+        "decisionFramework": "Perceived latency for long generation = streaming"
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Streaming improves perceived latency. Users see progress immediately instead of waiting for complete generation."
+    },
+    {
+      "id": "d4-q04",
+      "domain": 4,
+      "task": "4.2",
+      "skills": ["4.2.2"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A RAG application's retrieval step is taking 3 seconds on average, which is 80% of total request latency. The vector database uses Amazon OpenSearch Service with 10 million documents. The team needs to reduce retrieval latency.",
+      "question": "Which combination of optimizations MOST effectively reduces retrieval latency?",
+      "options": [
+        {"id": "a", "text": "Increase OpenSearch instance size and enable caching for repeated queries"},
+        {"id": "b", "text": "Optimize shard count, reduce the number of returned results, and tune the ANN algorithm parameters"},
+        {"id": "c", "text": "Migrate to DynamoDB for faster key-value lookups"},
+        {"id": "d", "text": "Add more replicas to distribute the query load"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Vector search latency depends on index configuration (shard count), result set size (fewer results = faster), and ANN algorithm tuning (ef_search parameter trades accuracy for speed). These directly address search performance.",
+      "incorrectExplanations": {
+        "a": "Larger instances help but don't address the fundamental search configuration. Caching only helps for repeated identical queries.",
+        "c": "DynamoDB doesn't support vector similarity search. It's for key-value, not semantic retrieval.",
+        "d": "More replicas improve availability and can help with read throughput but don't reduce individual query latency."
+      },
+      "parseStrategy": {
+        "keyPhrase": "reduce retrieval latency",
+        "eliminationHints": [
+          "Instance size = not primary factor",
+          "DynamoDB = no vector search",
+          "Replicas = throughput, not latency"
+        ],
+        "decisionFramework": "Vector retrieval latency = index tuning + result count + ANN parameters"
+      },
+      "services": ["Amazon OpenSearch Service"],
+      "examTip": "Retrieval latency optimization involves index configuration (shards), result count, and ANN algorithm parameters."
+    },
+    {
+      "id": "d4-q05",
+      "domain": 4,
+      "task": "4.3",
+      "skills": ["4.3.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A GenAI application spans multiple AWS services: API Gateway, Lambda, Bedrock, and a Knowledge Base. Users report intermittent slow responses, but CloudWatch metrics don't clearly show which component is causing delays.",
+      "question": "Which AWS service enables identification of latency bottlenecks across the request path?",
+      "options": [
+        {"id": "a", "text": "Amazon CloudWatch Logs with log group queries"},
+        {"id": "b", "text": "AWS X-Ray for distributed tracing across services"},
+        {"id": "c", "text": "Amazon CloudWatch Metrics with detailed monitoring"},
+        {"id": "d", "text": "AWS CloudTrail for API call analysis"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "X-Ray provides distributed tracing, showing the time spent in each service component of a request. You can visualize the entire request path and identify which service is causing latency—whether it's API Gateway, Lambda cold start, Bedrock inference, or Knowledge Base retrieval.",
+      "incorrectExplanations": {
+        "a": "CloudWatch Logs capture text output but don't provide cross-service timing visualization. You'd need to manually correlate timestamps.",
+        "c": "CloudWatch Metrics show aggregate statistics per service but don't trace individual requests across services.",
+        "d": "CloudTrail logs API calls for audit purposes, not performance analysis. It shows what was called, not how long it took."
+      },
+      "parseStrategy": {
+        "keyPhrase": "latency bottlenecks across the request path",
+        "eliminationHints": [
+          "CloudWatch Logs = text, not timing visualization",
+          "CloudWatch Metrics = aggregate, not per-request",
+          "CloudTrail = audit, not performance"
+        ],
+        "decisionFramework": "Distributed latency analysis = X-Ray tracing"
+      },
+      "services": ["AWS X-Ray"],
+      "examTip": "X-Ray traces requests across services. Use it to identify bottlenecks in distributed GenAI applications."
+    },
+    {
+      "id": "d4-q06",
+      "domain": 4,
+      "task": "4.3",
+      "skills": ["4.3.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A GenAI application team needs to track token usage, response quality scores, and guardrail trigger rates for cost management and quality monitoring. These are custom metrics not natively provided by AWS services.",
+      "question": "How should the team implement custom GenAI-specific monitoring?",
+      "options": [
+        {"id": "a", "text": "Parse Bedrock invocation logs and generate reports manually"},
+        {"id": "b", "text": "Publish custom CloudWatch metrics from the application code with dimensions for segmentation"},
+        {"id": "c", "text": "Store metrics in DynamoDB and query with custom dashboards"},
+        {"id": "d", "text": "Use Amazon QuickSight to analyze Bedrock usage data"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Custom CloudWatch metrics allow you to track GenAI-specific measurements. Dimensions enable segmentation by application, feature, or user segment. CloudWatch provides dashboards, alarms, and anomaly detection on these custom metrics.",
+      "incorrectExplanations": {
+        "a": "Manual log parsing doesn't scale and doesn't provide real-time visibility or alerting.",
+        "c": "Custom DynamoDB metrics storage reinvents CloudWatch. It adds complexity without providing CloudWatch's built-in capabilities.",
+        "d": "QuickSight is for business intelligence dashboards, not operational monitoring with real-time alerting."
+      },
+      "parseStrategy": {
+        "keyPhrase": "custom GenAI-specific monitoring",
+        "eliminationHints": [
+          "Manual log parsing = doesn't scale",
+          "DynamoDB = reinvents CloudWatch",
+          "QuickSight = BI, not operational monitoring"
+        ],
+        "decisionFramework": "Custom operational metrics = CloudWatch custom metrics"
+      },
+      "services": ["Amazon CloudWatch"],
+      "examTip": "Custom CloudWatch metrics handle GenAI-specific measurements. Use dimensions for segmentation and analysis."
+    },
+    {
+      "id": "d4-q07",
+      "domain": 4,
+      "task": "4.1",
+      "skills": ["4.1.3"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A company runs a GenAI application with predictable daily traffic. During business hours, they consistently process 50,000 tokens per minute. After hours, usage drops to nearly zero. They currently use on-demand Bedrock pricing and want to optimize costs.",
+      "question": "Which capacity configuration provides the MOST cost-effective pricing for this usage pattern?",
+      "options": [
+        {"id": "a", "text": "Continue with on-demand pricing for flexibility"},
+        {"id": "b", "text": "Purchase Provisioned Throughput for peak capacity (50,000 tokens/min)"},
+        {"id": "c", "text": "Purchase Provisioned Throughput sized for average daily usage"},
+        {"id": "d", "text": "Use a combination of Provisioned Throughput for business hours baseline plus on-demand for overflow"}
+      ],
+      "correctAnswers": ["d"],
+      "explanation": "Provisioned Throughput provides lower per-token costs but requires commitment. A hybrid approach uses provisioned capacity during predictable business hours and avoids paying for unused capacity overnight. This optimizes costs across the usage pattern.",
+      "incorrectExplanations": {
+        "a": "On-demand is more expensive per token. With 50K tokens/min sustained usage, provisioned would save significant costs.",
+        "b": "Provisioning for peak wastes money during zero-usage off-hours. You'd pay for capacity that sits unused.",
+        "c": "Average daily usage doesn't account for the zero-usage off-hours. This would still overprovision for the usage pattern."
+      },
+      "parseStrategy": {
+        "keyPhrase": "predictable daily traffic with off-hours drop",
+        "eliminationHints": [
+          "On-demand only = expensive for sustained usage",
+          "Peak provisioning = unused off-hours capacity",
+          "Average provisioning = doesn't match pattern"
+        ],
+        "decisionFramework": "Predictable business-hours usage = Provisioned for baseline + on-demand for flexibility"
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Provisioned Throughput saves money at sustained usage. Consider usage patterns to size appropriately."
+    },
+    {
+      "id": "d4-q08",
+      "domain": 4,
+      "task": "4.3",
+      "skills": ["4.3.5", "4.3.6"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A GenAI application has been running for several months. Users report that answer quality has degraded recently, but there have been no code changes. The team suspects model drift or data quality issues.",
+      "question": "Which approach BEST detects and diagnoses quality degradation?",
+      "options": [
+        {"id": "a", "text": "Review recent user complaints and manually test reported issues"},
+        {"id": "b", "text": "Run Bedrock Model Evaluations against a golden dataset and compare to historical baselines"},
+        {"id": "c", "text": "Increase monitoring of CloudWatch error rates"},
+        {"id": "d", "text": "Analyze X-Ray traces for latency changes"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Golden datasets with expected outputs enable systematic quality testing. Running evaluations against these datasets and comparing to historical results reveals quality drift. If scores decline, you can investigate specific failure cases.",
+      "incorrectExplanations": {
+        "a": "Manual complaint review doesn't systematically measure quality or provide comparable baselines.",
+        "c": "Error rates measure technical failures, not quality degradation. The model might return 'incorrect' answers without throwing errors.",
+        "d": "X-Ray measures latency, not output quality. Quality degradation may have no latency correlation."
+      },
+      "parseStrategy": {
+        "keyPhrase": "detect and diagnose quality degradation",
+        "eliminationHints": [
+          "Manual review = not systematic",
+          "Error rates = technical failures, not quality",
+          "X-Ray = latency, not quality"
+        ],
+        "decisionFramework": "Quality drift detection = golden dataset evaluation with baseline comparison"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "Golden datasets enable quality regression testing. Compare current results to historical baselines to detect drift."
+    }
+  ]
+}

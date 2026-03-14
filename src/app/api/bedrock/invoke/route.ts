@@ -105,6 +105,18 @@ function estimateCost(model: string, inputTokens: number, outputTokens: number):
 
 export async function POST(req: NextRequest) {
   try {
+    // Check for AWS credentials
+    if (!process.env.AWS_REGION) {
+      return NextResponse.json({
+        error: 'AWS not configured',
+        details: 'Missing AWS_REGION. Copy .env.example to .env.local and add your AWS credentials.',
+        setup: {
+          required: ['AWS_REGION', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'],
+          alternative: 'Or configure AWS_PROFILE if using AWS CLI profiles',
+        },
+      }, { status: 503 });
+    }
+
     const { prompt, models, params = {} } = await req.json();
 
     if (!prompt) {
@@ -157,9 +169,26 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('Bedrock invoke error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to invoke model' },
-      { status: 500 }
-    );
+
+    const errorMessage = error instanceof Error ? error.message : 'Failed to invoke model';
+
+    // Detect common AWS credential/access errors
+    if (errorMessage.includes('Could not load credentials') ||
+        errorMessage.includes('Missing credentials')) {
+      return NextResponse.json({
+        error: 'AWS credentials not configured',
+        details: 'Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to .env.local',
+      }, { status: 503 });
+    }
+
+    if (errorMessage.includes('AccessDeniedException') ||
+        errorMessage.includes('not authorized')) {
+      return NextResponse.json({
+        error: 'Bedrock model access not enabled',
+        details: 'Enable model access in the AWS Bedrock console: Console > Bedrock > Model access',
+      }, { status: 403 });
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

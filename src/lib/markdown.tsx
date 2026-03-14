@@ -1,17 +1,19 @@
-import React from 'react';
+'use client';
+
+import React, { Suspense, lazy } from 'react';
+
+// Lazy load MermaidDiagram to avoid SSR issues
+const MermaidDiagram = lazy(() => import('@/components/learn/MermaidDiagram'));
 
 /**
  * Parse basic markdown syntax and return React elements
- * Supports: **bold**, *italic*, `code`, and code blocks ```
+ * Supports: **bold**, *italic*, `code`, code blocks ```, and mermaid diagrams
  */
 export function parseMarkdown(text: string): React.ReactNode {
   if (!text) return null;
 
   // Split by code blocks first (```...```)
   const codeBlockRegex = /```(\w*)\n?([\s\S]*?)```/g;
-  const parts: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let match;
 
   // Handle code blocks
   const textWithCodeBlocks = text.replace(codeBlockRegex, (_, lang, code) => {
@@ -26,8 +28,18 @@ export function parseMarkdown(text: string): React.ReactNode {
       const colonIndex = segment.indexOf(':', 10);
       const lang = segment.substring(10, colonIndex);
       const code = segment.substring(colonIndex + 1);
+
+      // Handle mermaid diagrams
+      if (lang === 'mermaid') {
+        return (
+          <Suspense key={index} fallback={<div className="p-4 bg-gray-100 rounded-lg animate-pulse h-32" />}>
+            <MermaidDiagram chart={code} />
+          </Suspense>
+        );
+      }
+
       return (
-        <pre key={index} className="p-3 bg-gray-900 text-gray-100 text-sm rounded-lg overflow-x-auto my-3 whitespace-pre font-mono">
+        <pre key={index} className="p-4 bg-gray-900 text-gray-100 text-sm rounded-lg overflow-x-auto my-4 whitespace-pre font-mono leading-relaxed">
           <code className="whitespace-pre">{code}</code>
         </pre>
       );
@@ -98,7 +110,7 @@ export function MarkdownText({ children, className = '' }: { children: string; c
 
 /**
  * Component for paragraph content with full markdown support
- * Handles code blocks as block-level elements (not wrapped in <p> tags)
+ * Handles code blocks and mermaid diagrams as block-level elements
  */
 export function MarkdownParagraph({ children, className = '' }: { children: string; className?: string }) {
   // First, split by code blocks to handle them separately
@@ -116,11 +128,22 @@ export function MarkdownParagraph({ children, className = '' }: { children: stri
     <div className={className}>
       {segments.map((segment, index) => {
         if (segment.startsWith('CODEBLOCK:')) {
-          // Render code block directly (not in a <p> tag)
           const colonIndex = segment.indexOf(':', 10);
+          const lang = segment.substring(10, colonIndex);
           const code = segment.substring(colonIndex + 1);
+
+          // Handle mermaid diagrams
+          if (lang === 'mermaid') {
+            return (
+              <Suspense key={index} fallback={<div className="p-4 bg-gray-100 rounded-lg animate-pulse h-32" />}>
+                <MermaidDiagram chart={code} />
+              </Suspense>
+            );
+          }
+
+          // Regular code block
           return (
-            <pre key={index} className="p-3 bg-gray-900 text-gray-100 text-sm rounded-lg overflow-x-auto my-3 whitespace-pre font-mono">
+            <pre key={index} className="p-4 bg-gray-900 text-gray-100 text-sm rounded-lg overflow-x-auto my-4 whitespace-pre font-mono leading-relaxed">
               <code className="whitespace-pre">{code}</code>
             </pre>
           );

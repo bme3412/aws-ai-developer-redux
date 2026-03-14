@@ -1,0 +1,228 @@
+{
+  "topicSlug": "troubleshooting",
+  "domainId": 5,
+  "taskId": "5.2",
+  "overview": {
+    "whyItMatters": "GenAI systems fail in ways traditional software doesn't. Hallucinations, quality degradation, retrieval failures, and prompt issues require specialized debugging approaches. Knowing how to diagnose and fix these problems is essential for production systems.",
+    "estimatedMinutes": 35
+  },
+  "concepts": [
+    {
+      "id": "common-failure-modes",
+      "title": "Common GenAI Failure Modes",
+      "content": "Understanding common failure patterns helps you diagnose issues quickly.\n\n**Hallucination:**\nModel generates plausible-sounding but incorrect information. Causes: insufficient context, over-confident generation, knowledge gaps. Signs: factually wrong statements, invented citations, contradictions.\n\n**Retrieval Failures:**\nRAG system retrieves wrong or no documents. Causes: poor embeddings, bad chunking, index issues, query mismatch. Signs: answers unrelated to sources, 'I don't know' for known topics.\n\n**Prompt Issues:**\n- Prompt injection: Malicious input overrides instructions\n- Instruction confusion: Model misunderstands requirements\n- Context overflow: Too much context degrades quality\n- Format failures: Model doesn't follow output format\n\n**Performance Problems:**\n- Latency spikes: Timeouts, slow responses\n- Throttling: Rate limit exceeded errors\n- Memory issues: Context too large, OOM errors\n\n**Quality Drift:**\nOutput quality degrades over time. Causes: model updates, data changes, prompt modifications, concept drift. Signs: increasing user complaints, failing quality metrics.",
+      "keyPoints": [
+        "Hallucination: incorrect but plausible outputs",
+        "Retrieval failures: wrong documents, missed context",
+        "Prompt issues: injection, confusion, overflow",
+        "Quality drift: gradual degradation over time"
+      ],
+      "examTip": "'Model produces incorrect information' -> hallucination. Check grounding, retrieval, context."
+    },
+    {
+      "id": "diagnostic-tools",
+      "title": "Diagnostic Tools and Techniques",
+      "content": "AWS provides tools for diagnosing GenAI issues. Know which tool to use for which problem.\n\n**CloudWatch Logs:**\nApplication-level logging. Log prompts, responses, parameters. Search logs for patterns. Logs Insights queries for analysis. Essential for debugging specific requests.\n\n**Bedrock Invocation Logs:**\nDetailed FM interaction logging. Request/response content, tokens used, latency. Enable for debugging and compliance. Log to S3 or CloudWatch. Critical for understanding FM behavior.\n\n**X-Ray Tracing:**\nDistributed tracing across services. See time spent in each component. Identify slow services, failed calls, bottlenecks. Trace individual requests end-to-end.\n\n**CloudWatch Metrics:**\nAggregate performance data. Latency percentiles, error rates, throughput. Custom metrics for GenAI-specific indicators. Dashboards for real-time visibility.\n\n**Agent Tracing:**\nBedrock Agent tracing shows reasoning and tool calls. See which tools were called, what results returned, how agent reasoned. Essential for debugging complex agent behavior.",
+      "keyPoints": [
+        "CloudWatch Logs for application-level debugging",
+        "Bedrock invocation logs for FM interaction details",
+        "X-Ray for distributed tracing and bottleneck identification",
+        "Agent tracing for debugging agentic systems"
+      ]
+    },
+    {
+      "id": "hallucination-debugging",
+      "title": "Debugging Hallucination Issues",
+      "content": "Hallucination is when the model generates incorrect information confidently. Systematic debugging identifies the root cause.\n\n**Identify the Type:**\n- Knowledge hallucination: Model doesn't know correct answer\n- Context hallucination: Information not in provided context\n- Reasoning hallucination: Logic errors in multi-step reasoning\n\n**Check Retrieval:**\nFor RAG systems, first check if relevant documents were retrieved. Log retrieved chunks. Were the right documents found? Was relevant information in them?\n\n**Examine Context:**\nIs the context sufficient? Is conflicting information present? Is the context so large that relevant parts are lost? Try reducing context to most relevant portions.\n\n**Prompt Analysis:**\n- Is the prompt clear about using only provided information?\n- Does it discourage speculation?\n- Does it instruct to say 'I don't know' when uncertain?\n\n**Mitigation Strategies:**\n- Explicit grounding instructions: 'Only answer from provided context'\n- Confidence thresholds: Filter low-confidence responses\n- Source attribution: Require citations for claims\n- Human review: Flag uncertain responses for review",
+      "keyPoints": [
+        "Distinguish knowledge, context, and reasoning hallucination",
+        "Check retrieval first in RAG systems",
+        "Examine prompt for grounding instructions",
+        "Use source attribution and confidence thresholds"
+      ]
+    },
+    {
+      "id": "retrieval-debugging",
+      "title": "Debugging Retrieval Problems",
+      "content": "RAG retrieval failures cause downstream generation problems. Debug retrieval before blaming the FM.\n\n**No Results Returned:**\n- Check if documents are indexed\n- Verify embedding model compatibility\n- Test with known queries that should match\n- Check index health and status\n\n**Wrong Results Returned:**\n- Examine chunk boundaries: Is relevant info split across chunks?\n- Check embedding quality: Do queries embed near relevant docs?\n- Review metadata filters: Are filters too restrictive?\n- Test similarity thresholds: Too high excludes relevant docs\n\n**Embedding Issues:**\n- Ensure query and document use same embedding model\n- Check for embedding dimension mismatches\n- Verify normalization (cosine vs dot product)\n\n**Index Problems:**\n- OpenSearch index health status\n- Shard allocation and balance\n- Refresh intervals (new docs not yet searchable)\n- Index mapping compatibility\n\n**Debugging Workflow:**\n1. Log the query and retrieved documents\n2. Manually check if relevant documents exist\n3. Test query embedding similarity to document embeddings\n4. Check index configuration and health\n5. Review chunking strategy for document",
+      "keyPoints": [
+        "Check indexing status and document existence",
+        "Verify embedding model compatibility",
+        "Examine chunk boundaries for split context",
+        "Review similarity thresholds and metadata filters"
+      ]
+    },
+    {
+      "id": "performance-debugging",
+      "title": "Debugging Performance Issues",
+      "content": "Performance problems in GenAI have unique characteristics. Token processing, retrieval, and inference all contribute to latency.\n\n**Identify the Bottleneck:**\nX-Ray traces show where time is spent:\n- Network latency: Time reaching AWS services\n- Retrieval latency: Vector search time\n- Inference latency: FM processing time\n- Post-processing: Application logic time\n\n**Token-Related Latency:**\n- Input tokens: Process in parallel (fast)\n- Output tokens: Generate sequentially (slower)\n- Reduce output length to reduce latency\n- Long contexts increase processing time\n\n**Retrieval Performance:**\n- Index size and shard configuration\n- Query complexity (hybrid vs vector-only)\n- Number of results retrieved\n- Reranking adds latency\n\n**Throttling:**\nRate limit errors indicate capacity issues:\n- Check service quotas\n- Implement exponential backoff\n- Consider provisioned throughput\n- Queue requests to smooth bursts\n\n**Cold Start Issues:**\n- Lambda cold starts add latency\n- Provisioned concurrency eliminates cold starts\n- SageMaker endpoint scaling introduces delays",
+      "keyPoints": [
+        "X-Ray identifies bottlenecks across components",
+        "Output tokens generate sequentially (main latency source)",
+        "Check for throttling and quota limits",
+        "Cold starts add latency to serverless"
+      ]
+    },
+    {
+      "id": "systematic-troubleshooting",
+      "title": "Systematic Troubleshooting Approach",
+      "content": "A structured approach helps diagnose issues efficiently.\n\n**The Troubleshooting Framework:**\n1. **Reproduce**: Can you reliably trigger the issue?\n2. **Isolate**: Which component is failing?\n3. **Hypothesize**: What might cause this behavior?\n4. **Test**: Verify your hypothesis\n5. **Fix**: Implement the solution\n6. **Verify**: Confirm the fix works\n7. **Document**: Record for future reference\n\n**Isolation Techniques:**\n- Test FM directly (bypass retrieval, preprocessing)\n- Test retrieval separately (verify documents return)\n- Test with known-good inputs (golden queries)\n- Compare to previous working version\n\n**Regression Testing:**\nAfter fixes, test against golden datasets. Ensure the fix doesn't break other functionality. Automated tests prevent regressions.\n\n**Monitoring for Recurrence:**\n- Set up alerts for the failure condition\n- Track metrics that indicate the problem\n- Dashboard visibility for early detection\n\n**Runbooks:**\nDocument troubleshooting procedures:\n- Symptoms and indicators\n- Diagnostic steps\n- Common causes and fixes\n- Escalation procedures",
+      "keyPoints": [
+        "Follow structured troubleshooting: reproduce, isolate, test, fix",
+        "Isolate components to identify failure point",
+        "Golden datasets verify fixes don't regress",
+        "Document procedures in runbooks"
+      ]
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "5.2.1",
+      "explanation": "Root cause analysis identifies why issues occur. Start with symptoms, trace back to causes. Log analysis shows patterns. X-Ray traces reveal component failures. Bedrock invocation logs show FM behavior.\n\nSystematic isolation narrows the problem. Test components independently. Compare failing vs working cases. Hypothesize and test until root cause identified.",
+      "awsServices": [
+        {
+          "serviceName": "AWS X-Ray",
+          "whenToUse": "Distributed tracing to identify failing components.",
+          "examKeywords": ["trace", "bottleneck", "latency", "debug"]
+        },
+        {
+          "serviceName": "Amazon CloudWatch Logs",
+          "whenToUse": "Log analysis for pattern identification.",
+          "examKeywords": ["logs", "debug", "patterns", "analysis"]
+        }
+      ]
+    },
+    {
+      "skillId": "5.2.2",
+      "explanation": "Output troubleshooting addresses quality issues. Hallucination debugging checks grounding and retrieval. Format issues require prompt adjustments. Quality degradation triggers regression testing.\n\nGolden datasets reveal when outputs deviate from expected. Compare current outputs to baselines. Bedrock Model Evaluations systematically tests quality.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Invocation logs for FM behavior analysis.",
+          "examKeywords": ["invocation logs", "FM debugging", "output quality"]
+        },
+        {
+          "serviceName": "Amazon Bedrock Model Evaluations",
+          "whenToUse": "Systematic quality testing against baselines.",
+          "examKeywords": ["evaluation", "quality", "regression"]
+        }
+      ]
+    },
+    {
+      "skillId": "5.2.3",
+      "explanation": "Retrieval troubleshooting fixes RAG failures. Check document indexing status. Verify embedding compatibility. Test similarity thresholds and filters. Examine chunk boundaries.\n\nOpenSearch provides index diagnostics. Query explain shows scoring details. Embedding comparison reveals semantic mismatches.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon OpenSearch Service",
+          "whenToUse": "Index diagnostics, query explain, search debugging.",
+          "examKeywords": ["index", "search", "retrieval", "vector"]
+        },
+        {
+          "serviceName": "Amazon Bedrock Knowledge Bases",
+          "whenToUse": "Retrieve API for isolated retrieval testing.",
+          "examKeywords": ["Knowledge Base", "retrieval", "RAG"]
+        }
+      ]
+    },
+    {
+      "skillId": "5.2.4",
+      "explanation": "Agent troubleshooting addresses complex autonomous systems. Agent tracing shows the reasoning path. Tool call logs reveal which tools were invoked and their results. Orchestration logs show decision making.\n\nCommon agent issues: tool selection errors, infinite loops, action failures. Tracing makes the agent's 'thinking' visible for debugging.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock Agents",
+          "whenToUse": "Agent tracing for reasoning path visibility.",
+          "examKeywords": ["agent trace", "tool calls", "reasoning", "orchestration"]
+        },
+        {
+          "serviceName": "Amazon CloudWatch",
+          "whenToUse": "Metrics for agent performance and error rates.",
+          "examKeywords": ["agent metrics", "monitoring", "errors"]
+        }
+      ]
+    },
+    {
+      "skillId": "5.2.5",
+      "explanation": "Performance troubleshooting identifies latency sources. X-Ray shows time distribution across components. Token analysis reveals generation bottlenecks. Infrastructure metrics show resource constraints.\n\nCommon performance issues: cold starts, throttling, large contexts, sequential dependencies. Solutions: provisioned concurrency, increased quotas, context optimization, parallelization.",
+      "awsServices": [
+        {
+          "serviceName": "AWS X-Ray",
+          "whenToUse": "Latency analysis across distributed components.",
+          "examKeywords": ["latency", "performance", "trace", "bottleneck"]
+        },
+        {
+          "serviceName": "Amazon CloudWatch",
+          "whenToUse": "Performance metrics, throttling indicators.",
+          "examKeywords": ["metrics", "throttling", "performance"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "Diagnostic Tools by Use Case",
+      "services": ["CloudWatch Logs", "X-Ray", "Bedrock Invocation Logs"],
+      "criteria": [
+        {
+          "criterion": "Best for",
+          "values": {
+            "CloudWatch Logs": "Application-level debugging, pattern search",
+            "X-Ray": "Distributed tracing, latency analysis",
+            "Bedrock Invocation Logs": "FM interaction details, prompt/response"
+          }
+        },
+        {
+          "criterion": "Granularity",
+          "values": {
+            "CloudWatch Logs": "Whatever you log",
+            "X-Ray": "Request traces with timing",
+            "Bedrock Invocation Logs": "Full FM request/response content"
+          }
+        },
+        {
+          "criterion": "When to enable",
+          "values": {
+            "CloudWatch Logs": "Always (standard logging)",
+            "X-Ray": "When tracing needed",
+            "Bedrock Invocation Logs": "For debugging, compliance (cost consideration)"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "diagnose latency or performance issues",
+      "approach": "X-Ray for distributed tracing. Identify which component is slow. Check for throttling in CloudWatch metrics. Review token counts for generation latency.",
+      "keywords": ["latency", "slow", "performance", "bottleneck", "timeout"]
+    },
+    {
+      "questionPattern": "debug hallucination or incorrect outputs",
+      "approach": "Check retrieval first (are right docs found?). Review prompt for grounding instructions. Examine context quality. Enable Bedrock invocation logs for details.",
+      "keywords": ["hallucination", "incorrect", "wrong", "inaccurate"]
+    },
+    {
+      "questionPattern": "troubleshoot RAG retrieval",
+      "approach": "Verify documents are indexed. Check embedding model compatibility. Test with known queries. Review chunking strategy and similarity thresholds.",
+      "keywords": ["retrieval", "RAG", "Knowledge Base", "search", "documents"]
+    },
+    {
+      "questionPattern": "debug agent behavior",
+      "approach": "Enable agent tracing to see reasoning path and tool calls. Check tool configurations. Review action group definitions. Test tools independently.",
+      "keywords": ["agent", "tool", "reasoning", "autonomous"]
+    }
+  ],
+  "keyTakeaways": [
+    "X-Ray identifies bottlenecks across distributed components",
+    "Bedrock invocation logs capture FM interaction details",
+    "Debug retrieval before blaming generation in RAG systems",
+    "Agent tracing shows reasoning paths and tool calls",
+    "Systematic approach: reproduce, isolate, hypothesize, test, fix"
+  ],
+  "commonMistakes": [
+    "Blaming the FM when retrieval is the actual problem",
+    "Not enabling invocation logs (missing FM interaction data)",
+    "Skipping X-Ray tracing (can't identify bottlenecks)",
+    "No golden datasets for regression comparison",
+    "Fixing symptoms instead of root causes"
+  ]
+}

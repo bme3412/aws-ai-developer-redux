@@ -17,10 +17,19 @@ export async function POST(req: NextRequest) {
     const aAliasId = agentAliasId || process.env.BEDROCK_AGENT_ALIAS_ID;
 
     if (!aId || !aAliasId) {
-      return NextResponse.json(
-        { error: 'Agent ID and Alias ID are required. Set BEDROCK_AGENT_ID and BEDROCK_AGENT_ALIAS_ID in env.' },
-        { status: 400 }
-      );
+      return NextResponse.json({
+        error: 'Bedrock Agent not configured',
+        details: 'Set BEDROCK_AGENT_ID and BEDROCK_AGENT_ALIAS_ID in .env.local',
+        setup: {
+          steps: [
+            '1. Go to AWS Console > Bedrock > Agents',
+            '2. Create an agent with action groups',
+            '3. Create an alias for the agent',
+            '4. Copy Agent ID to BEDROCK_AGENT_ID in .env.local',
+            '5. Copy Alias ID to BEDROCK_AGENT_ALIAS_ID in .env.local',
+          ],
+        },
+      }, { status: 503 });
     }
 
     const command = new InvokeAgentCommand({
@@ -74,9 +83,24 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('Agent invocation error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to invoke agent' },
-      { status: 500 }
-    );
+
+    const errorMessage = error instanceof Error ? error.message : 'Failed to invoke agent';
+
+    if (errorMessage.includes('Could not load credentials') ||
+        errorMessage.includes('Missing credentials')) {
+      return NextResponse.json({
+        error: 'AWS credentials not configured',
+        details: 'Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to .env.local',
+      }, { status: 503 });
+    }
+
+    if (errorMessage.includes('ResourceNotFoundException')) {
+      return NextResponse.json({
+        error: 'Agent not found',
+        details: 'Check that BEDROCK_AGENT_ID and BEDROCK_AGENT_ALIAS_ID match an agent in your AWS account',
+      }, { status: 404 });
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

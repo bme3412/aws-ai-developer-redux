@@ -2,10 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, ChevronRight, BookOpen, FlaskConical } from 'lucide-react';
+import { ChevronDown, ChevronRight, BookOpen, FlaskConical, Book, Cloud, Calendar, Lightbulb } from 'lucide-react';
 import { useState } from 'react';
 import { getDomains, getPriorityColor } from '@/lib/domains';
 import { Domain } from '@/types/domain';
+
+const resourceLinks = [
+  { href: '/glossary', label: 'Glossary', icon: Book },
+  { href: '/services', label: 'AWS Services', icon: Cloud },
+  { href: '/study-plan', label: 'Study Plan', icon: Calendar },
+  { href: '/exam-tips', label: 'Exam Tips', icon: Lightbulb },
+];
 
 interface SidebarProps {
   progress?: Record<string, number>;
@@ -42,6 +49,31 @@ export function Sidebar({ progress = {} }: SidebarProps) {
               progress={progress[`domain-${domain.id}`] || 0}
             />
           ))}
+        </div>
+
+        {/* Resources Section */}
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-8 mb-3">
+          Resources
+        </h2>
+        <div className="space-y-1">
+          {resourceLinks.map(link => {
+            const isActive = pathname === link.href;
+            const Icon = link.icon;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  isActive
+                    ? 'bg-white shadow-sm border border-gray-200 text-gray-900'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{link.label}</span>
+              </Link>
+            );
+          })}
         </div>
       </div>
     </aside>

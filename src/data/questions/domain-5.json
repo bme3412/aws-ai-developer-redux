@@ -1,0 +1,243 @@
+{
+  "domain": 5,
+  "questions": [
+    {
+      "id": "d5-q01",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company is preparing to deploy a new GenAI application. The team needs to systematically evaluate the model's output quality across hundreds of test cases. They want quantitative metrics that can be tracked over time and compared across model versions.",
+      "question": "Which approach provides systematic, quantitative model evaluation?",
+      "options": [
+        {"id": "a", "text": "Have domain experts manually review each test case output"},
+        {"id": "b", "text": "Use Amazon Bedrock Model Evaluations with a curated test dataset and defined metrics"},
+        {"id": "c", "text": "Monitor production error rates after deployment"},
+        {"id": "d", "text": "Compare outputs to GPT-4 as a baseline reference"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Bedrock Model Evaluations provides systematic testing against curated datasets with quantitative metrics. Results are comparable across runs and model versions. This enables data-driven deployment decisions and ongoing quality tracking.",
+      "incorrectExplanations": {
+        "a": "Manual review doesn't scale to hundreds of test cases and doesn't provide quantitative, comparable metrics.",
+        "c": "Production error rates are reactive, not proactive. You'd deploy before knowing about quality issues.",
+        "d": "GPT-4 comparison is arbitrary and doesn't address your specific use case requirements."
+      },
+      "parseStrategy": {
+        "keyPhrase": "systematic, quantitative model evaluation",
+        "eliminationHints": [
+          "Manual review = doesn't scale",
+          "Production errors = reactive",
+          "GPT-4 baseline = arbitrary"
+        ],
+        "decisionFramework": "Systematic evaluation with metrics = Bedrock Model Evaluations"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "Model Evaluations is for systematic testing with quantitative metrics. Use it for pre-deployment validation."
+    },
+    {
+      "id": "d5-q02",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.4"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A company needs to evaluate thousands of model outputs for quality characteristics like helpfulness, accuracy, and coherence. Human evaluation is too expensive at this scale. The team needs an automated approach that can capture nuanced quality judgments.",
+      "question": "Which evaluation approach provides scalable, nuanced quality assessment?",
+      "options": [
+        {"id": "a", "text": "Use automated metrics like BLEU and ROUGE scores"},
+        {"id": "b", "text": "Implement LLM-as-a-Judge using a foundation model to evaluate outputs against defined criteria"},
+        {"id": "c", "text": "Measure response length as a proxy for quality"},
+        {"id": "d", "text": "Count keyword matches against reference responses"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "LLM-as-a-Judge uses a foundation model to evaluate other model outputs. It can assess nuanced qualities like helpfulness and coherence that simple metrics miss. Provide clear evaluation criteria and examples for consistent judging.",
+      "incorrectExplanations": {
+        "a": "BLEU and ROUGE measure n-gram overlap, not semantic quality. A correct but differently-worded response would score poorly.",
+        "c": "Response length doesn't correlate with quality. Short, accurate answers may be better than long, rambling ones.",
+        "d": "Keyword matching is surface-level and misses semantic quality. It's a proxy, not a quality measure."
+      },
+      "parseStrategy": {
+        "keyPhrase": "scalable, nuanced quality assessment",
+        "eliminationHints": [
+          "BLEU/ROUGE = n-gram, not semantic",
+          "Response length = not quality",
+          "Keyword matching = surface-level"
+        ],
+        "decisionFramework": "Nuanced automated evaluation = LLM-as-a-Judge"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "LLM-as-a-Judge captures nuanced quality. It scales while providing more insight than simple metrics."
+    },
+    {
+      "id": "d5-q03",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A RAG application retrieves documents and generates answers. Users report that answers sometimes don't match the retrieved documents. The team needs to evaluate whether the generated answers are faithful to the retrieved context.",
+      "question": "Which RAG evaluation metric measures answer faithfulness to retrieved documents?",
+      "options": [
+        {"id": "a", "text": "Retrieval precision (how many retrieved docs are relevant)"},
+        {"id": "b", "text": "Groundedness (whether answer claims are supported by retrieved context)"},
+        {"id": "c", "text": "Latency (how long retrieval and generation take)"},
+        {"id": "d", "text": "Embedding similarity (how close query embeddings are to document embeddings)"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Groundedness measures whether the generated answer is supported by the retrieved context. It detects when the model hallucinates information not present in the documents. This directly addresses the 'answers don't match documents' concern.",
+      "incorrectExplanations": {
+        "a": "Retrieval precision measures search quality, not generation faithfulness. You could retrieve relevant docs but still generate unfaithful answers.",
+        "c": "Latency measures performance, not quality. Fast answers can still be unfaithful.",
+        "d": "Embedding similarity measures retrieval quality, not whether generation is faithful to retrieved content."
+      },
+      "parseStrategy": {
+        "keyPhrase": "answer faithfulness to retrieved documents",
+        "eliminationHints": [
+          "Retrieval precision = search quality",
+          "Latency = performance, not quality",
+          "Embedding similarity = retrieval quality"
+        ],
+        "decisionFramework": "Generation faithfulness to context = groundedness"
+      },
+      "services": ["Amazon Bedrock Knowledge Bases"],
+      "examTip": "Groundedness checks if answers are supported by context. It's essential for RAG quality evaluation."
+    },
+    {
+      "id": "d5-q04",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A GenAI application is experiencing intermittent failures. Some requests succeed while others fail with no clear pattern. The application uses API Gateway, Lambda, Bedrock, and a Knowledge Base. The team needs to identify the failing component.",
+      "question": "Which approach BEST identifies the failing component in the distributed system?",
+      "options": [
+        {"id": "a", "text": "Check CloudWatch Logs for each service individually"},
+        {"id": "b", "text": "Enable X-Ray tracing and analyze failed request traces"},
+        {"id": "c", "text": "Review CloudTrail for API error responses"},
+        {"id": "d", "text": "Monitor overall error rates in CloudWatch Metrics"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "X-Ray tracing shows the complete request path and identifies where failures occur. For intermittent failures, you can compare successful and failed traces to pinpoint the component that differs. This is the designed use case for X-Ray.",
+      "incorrectExplanations": {
+        "a": "Checking logs individually requires manual correlation across services. X-Ray correlates automatically.",
+        "c": "CloudTrail logs API calls for audit, not debugging. It shows what was called, not detailed failure context.",
+        "d": "Overall error rates show there's a problem but don't identify which component is failing."
+      },
+      "parseStrategy": {
+        "keyPhrase": "identify the failing component",
+        "eliminationHints": [
+          "Individual logs = manual correlation",
+          "CloudTrail = audit, not debugging",
+          "Error rates = aggregate, not specific"
+        ],
+        "decisionFramework": "Component failure identification = X-Ray tracing"
+      },
+      "services": ["AWS X-Ray"],
+      "examTip": "X-Ray identifies failing components in distributed systems. Use it for intermittent failures where you need to pinpoint the source."
+    },
+    {
+      "id": "d5-q05",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.2"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A GenAI application generates answers that sometimes contain information not found in the provided context. The team needs to debug these hallucination issues and understand why they occur.",
+      "question": "Which debugging approach BEST identifies the root cause of hallucination?",
+      "options": [
+        {"id": "a", "text": "Increase the number of retrieved documents to provide more context"},
+        {"id": "b", "text": "Enable Bedrock invocation logs to examine prompts, retrieved context, and responses for each request"},
+        {"id": "c", "text": "Reduce temperature to make outputs more deterministic"},
+        {"id": "d", "text": "Switch to a larger model that is less prone to hallucination"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Bedrock invocation logs capture the complete interaction: the prompt, retrieved context, and response. Examining these reveals whether relevant context was retrieved, how the prompt was structured, and where the hallucinated information came from. This is essential for root cause analysis.",
+      "incorrectExplanations": {
+        "a": "More documents might help but doesn't explain why hallucination is happening. You need to understand the current failure first.",
+        "c": "Lower temperature reduces randomness but doesn't prevent hallucination. The model can deterministically generate incorrect information.",
+        "d": "Larger models aren't inherently less prone to hallucination. This doesn't address root cause understanding."
+      },
+      "parseStrategy": {
+        "keyPhrase": "root cause of hallucination",
+        "eliminationHints": [
+          "More documents = doesn't explain cause",
+          "Lower temperature = still can hallucinate",
+          "Larger model = not the root cause"
+        ],
+        "decisionFramework": "Hallucination root cause = examine prompts and context via invocation logs"
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Invocation logs show the full FM interaction. Use them to debug output quality issues by examining inputs and outputs."
+    },
+    {
+      "id": "d5-q06",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.3"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A RAG application's retrieval is returning documents that don't seem relevant to user queries. The Knowledge Base uses Amazon OpenSearch Service for vector search. The team needs to understand why retrieval is failing.",
+      "question": "Which approach helps diagnose vector search retrieval issues?",
+      "options": [
+        {"id": "a", "text": "Check OpenSearch cluster health and index status"},
+        {"id": "b", "text": "Test with known queries, examine returned documents, and verify embedding similarity scores"},
+        {"id": "c", "text": "Increase the number of shards for better performance"},
+        {"id": "d", "text": "Switch to a different embedding model"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Testing with known queries and examining results reveals the failure mode. Are relevant documents being indexed? Are embeddings similar? Are similarity thresholds too strict? This diagnostic approach identifies whether the issue is in indexing, embedding, or search configuration.",
+      "incorrectExplanations": {
+        "a": "Cluster health might show infrastructure issues but doesn't explain semantic relevance problems.",
+        "c": "More shards affects performance but doesn't address semantic search relevance.",
+        "d": "Switching models is a fix, not a diagnosis. You need to understand the current failure first."
+      },
+      "parseStrategy": {
+        "keyPhrase": "diagnose vector search retrieval issues",
+        "eliminationHints": [
+          "Cluster health = infrastructure, not relevance",
+          "More shards = performance, not relevance",
+          "Switch models = fix, not diagnosis"
+        ],
+        "decisionFramework": "Retrieval diagnosis = test with known queries, examine results and scores"
+      },
+      "services": ["Amazon OpenSearch Service", "Amazon Bedrock Knowledge Bases"],
+      "examTip": "Debug retrieval by testing with known queries. Compare expected vs. actual results to identify the failure point."
+    },
+    {
+      "id": "d5-q07",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.3"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company needs to establish ground truth for their GenAI application evaluation. They need domain experts to rate model outputs on multiple criteria like accuracy, helpfulness, and tone. The evaluation must be systematic and produce consistent, aggregatable results.",
+      "question": "Which AWS service provides managed human evaluation workflows?",
+      "options": [
+        {"id": "a", "text": "Amazon Mechanical Turk for crowdsourced evaluation"},
+        {"id": "b", "text": "Amazon SageMaker Ground Truth for structured labeling and evaluation workflows"},
+        {"id": "c", "text": "Amazon Cognito for managing evaluator authentication"},
+        {"id": "d", "text": "AWS Step Functions for orchestrating evaluation workflows"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "SageMaker Ground Truth provides managed workflows for human evaluation. You define evaluation criteria, distribute tasks to evaluators (internal or workforce), and collect structured results. It includes quality controls and produces aggregatable data.",
+      "incorrectExplanations": {
+        "a": "Mechanical Turk provides workers but not the structured workflow management. You'd need to build the evaluation framework separately.",
+        "c": "Cognito handles authentication but doesn't provide evaluation workflow capabilities.",
+        "d": "Step Functions orchestrates workflows but doesn't provide the human evaluation infrastructure."
+      },
+      "parseStrategy": {
+        "keyPhrase": "managed human evaluation workflows",
+        "eliminationHints": [
+          "Mechanical Turk = workers, not workflow",
+          "Cognito = auth, not evaluation",
+          "Step Functions = orchestration, not evaluation"
+        ],
+        "decisionFramework": "Managed human evaluation = SageMaker Ground Truth"
+      },
+      "services": ["Amazon SageMaker Ground Truth"],
+      "examTip": "Ground Truth manages human labeling and evaluation workflows. Use it for systematic human evaluation with quality controls."
+    }
+  ]
+}

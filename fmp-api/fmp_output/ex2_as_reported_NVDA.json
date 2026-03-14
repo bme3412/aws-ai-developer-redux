@@ -1,0 +1,33 @@
+[
+  {
+    "symbol": "NVDA",
+    "fiscalYear": 2026,
+    "period": "FY",
+    "reportedCurrency": "USD",
+    "date": "2026-01-24",
+    "data": {
+      "revenues": 215938000000,
+      "costofrevenue": 3200000000,
+      "grossprofit": 153463000000,
+      "researchanddevelopmentexpense": 18497000000,
+      "sellinggeneralandadministrativeexpense": 4579000000,
+      "operatingexpenses": 23076000000,
+      "operatingincomeloss": 139297000000,
+      "investmentincomeinterest": 2300000000,
+      "interestexpensenonoperating": 259000000,
+      "othernonoperatingincomeexpense": 9022000000,
+      "nonoperatingincomeexpense": 11063000000,
+      "incomelossfromcontinuingoperationsbeforeincometaxesextraordinaryitemsnoncontrollinginterest": 141450000000,
+      "incometaxexpensebenefit": 21383000000,
+      "netincomeloss": 120067000000,
+      "earningspersharebasic": 4.93,
+      "earningspersharediluted": 4.9,
+      "weightedaveragenumberofsharesoutstandingbasic": 24359000000,
+      "weightedaveragenumberofdilutedsharesoutstanding": 24514000000,
+      "othercomprehensiveincomeavailableforsalesecuritiesadjustmentnetoftaxportionattributabletoparent": 107000000,
+      "othercomprehensiveincomelosscashflowhedgegainlossafterreclassificationandtaxparent": 43000000,
+      "othercomprehensiveincomelossnetoftaxportionattributabletoparent": 150000000,
+      "comprehensiveincomenetoftax": 120217000000
+    }
+  }
+]

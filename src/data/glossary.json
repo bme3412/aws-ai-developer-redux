@@ -1,0 +1,187 @@
+{
+  "terms": [
+    {
+      "id": "foundation-model",
+      "term": "Foundation Model (FM)",
+      "definition": "A large-scale machine learning model trained on broad datasets that can be adapted to a wide range of downstream tasks. Examples include Claude, Titan, and Llama models available through Amazon Bedrock.",
+      "relatedServices": ["Amazon Bedrock"],
+      "category": "core-concepts"
+    },
+    {
+      "id": "rag",
+      "term": "Retrieval-Augmented Generation (RAG)",
+      "definition": "A technique that combines information retrieval with text generation. The system retrieves relevant documents from a knowledge base and provides them as context to the FM, improving accuracy and reducing hallucination.",
+      "relatedServices": ["Amazon Bedrock Knowledge Bases", "Amazon OpenSearch Service"],
+      "category": "architecture-patterns"
+    },
+    {
+      "id": "vector-embedding",
+      "term": "Vector Embedding",
+      "definition": "A numerical representation of text (or other data) in a high-dimensional space where semantically similar items are closer together. Used for semantic search in RAG systems.",
+      "relatedServices": ["Amazon Titan Embeddings", "Amazon OpenSearch Service"],
+      "category": "core-concepts"
+    },
+    {
+      "id": "prompt-engineering",
+      "term": "Prompt Engineering",
+      "definition": "The practice of crafting effective instructions for foundation models to achieve desired outputs. Includes techniques like few-shot learning, chain-of-thought, and system prompts.",
+      "relatedServices": ["Amazon Bedrock"],
+      "category": "techniques"
+    },
+    {
+      "id": "guardrails",
+      "term": "Guardrails",
+      "definition": "Safety controls that filter FM inputs and outputs. Can block harmful content, denied topics, and PII. Amazon Bedrock Guardrails provides managed implementation.",
+      "relatedServices": ["Amazon Bedrock Guardrails"],
+      "category": "safety-security"
+    },
+    {
+      "id": "agents",
+      "term": "AI Agents",
+      "definition": "Autonomous AI systems that can plan, reason, and execute actions to accomplish tasks. They use foundation models for decision-making and can invoke external tools and APIs.",
+      "relatedServices": ["Amazon Bedrock Agents"],
+      "category": "architecture-patterns"
+    },
+    {
+      "id": "action-groups",
+      "term": "Action Groups",
+      "definition": "In Amazon Bedrock Agents, collections of actions that the agent can perform. Each action is backed by a Lambda function and defined by an OpenAPI schema.",
+      "relatedServices": ["Amazon Bedrock Agents", "AWS Lambda"],
+      "category": "aws-specific"
+    },
+    {
+      "id": "fine-tuning",
+      "term": "Fine-Tuning",
+      "definition": "The process of further training a foundation model on domain-specific data to improve performance for particular tasks. Amazon Bedrock supports continued pre-training and fine-tuning.",
+      "relatedServices": ["Amazon Bedrock", "Amazon SageMaker"],
+      "category": "techniques"
+    },
+    {
+      "id": "hallucination",
+      "term": "Hallucination",
+      "definition": "When an FM generates plausible-sounding but incorrect or unsupported information. Mitigation strategies include RAG, grounding instructions, and source attribution.",
+      "relatedServices": ["Amazon Bedrock Knowledge Bases"],
+      "category": "core-concepts"
+    },
+    {
+      "id": "token",
+      "term": "Token",
+      "definition": "The basic unit of text processing for LLMs. A token is roughly 4 characters or 0.75 words in English. Token counts determine costs and context limits.",
+      "relatedServices": ["Amazon Bedrock"],
+      "category": "core-concepts"
+    },
+    {
+      "id": "context-window",
+      "term": "Context Window",
+      "definition": "The maximum number of tokens an FM can process in a single request, including both input and output. Larger windows allow more context but increase costs.",
+      "relatedServices": ["Amazon Bedrock"],
+      "category": "core-concepts"
+    },
+    {
+      "id": "knowledge-base",
+      "term": "Knowledge Base",
+      "definition": "A managed service for RAG in Amazon Bedrock. It handles document ingestion, chunking, embedding generation, vector storage, and retrieval.",
+      "relatedServices": ["Amazon Bedrock Knowledge Bases", "Amazon S3", "Amazon OpenSearch Service"],
+      "category": "aws-specific"
+    },
+    {
+      "id": "provisioned-throughput",
+      "term": "Provisioned Throughput",
+      "definition": "A pricing model in Amazon Bedrock that provides dedicated capacity with guaranteed performance and lower per-token costs for sustained workloads.",
+      "relatedServices": ["Amazon Bedrock"],
+      "category": "aws-specific"
+    },
+    {
+      "id": "model-invocation-logs",
+      "term": "Model Invocation Logs",
+      "definition": "Detailed logging of Bedrock FM interactions including prompts, responses, and parameters. Essential for debugging, quality analysis, and compliance.",
+      "relatedServices": ["Amazon Bedrock", "Amazon CloudWatch", "Amazon S3"],
+      "category": "aws-specific"
+    },
+    {
+      "id": "llm-as-judge",
+      "term": "LLM-as-a-Judge",
+      "definition": "An evaluation technique where one FM evaluates outputs from another FM. Provides scalable, nuanced quality assessment for helpfulness, accuracy, and other criteria.",
+      "relatedServices": ["Amazon Bedrock Model Evaluations"],
+      "category": "techniques"
+    },
+    {
+      "id": "chain-of-thought",
+      "term": "Chain-of-Thought (CoT)",
+      "definition": "A prompting technique that instructs the model to show its reasoning process step-by-step. Improves accuracy on complex tasks and provides transparency.",
+      "relatedServices": ["Amazon Bedrock"],
+      "category": "techniques"
+    },
+    {
+      "id": "semantic-caching",
+      "term": "Semantic Caching",
+      "definition": "Caching FM responses based on query meaning rather than exact text match. Uses embedding similarity to identify semantically equivalent queries.",
+      "relatedServices": ["Amazon ElastiCache"],
+      "category": "techniques"
+    },
+    {
+      "id": "model-cascading",
+      "term": "Model Cascading",
+      "definition": "Routing queries to different model tiers based on complexity. Simple queries go to cheaper, faster models while complex queries go to more capable models.",
+      "relatedServices": ["Amazon Bedrock"],
+      "category": "techniques"
+    },
+    {
+      "id": "prompt-injection",
+      "term": "Prompt Injection",
+      "definition": "A security attack where malicious user input attempts to override system instructions. Mitigated through input validation, clear prompt structure, and guardrails.",
+      "relatedServices": ["Amazon Bedrock Guardrails"],
+      "category": "safety-security"
+    },
+    {
+      "id": "vpc-endpoint",
+      "term": "VPC Endpoint",
+      "definition": "Private connectivity between a VPC and AWS services without using the public internet. Interface VPC Endpoints (PrivateLink) provide private access to Amazon Bedrock.",
+      "relatedServices": ["Amazon VPC", "Amazon Bedrock"],
+      "category": "safety-security"
+    },
+    {
+      "id": "model-card",
+      "term": "Model Card",
+      "definition": "Standardized documentation for AI models describing capabilities, limitations, intended uses, and ethical considerations. SageMaker Model Cards provide programmatic management.",
+      "relatedServices": ["Amazon SageMaker"],
+      "category": "governance"
+    },
+    {
+      "id": "streaming",
+      "term": "Response Streaming",
+      "definition": "Returning FM responses incrementally as they generate rather than waiting for completion. Improves perceived latency for long-form generation.",
+      "relatedServices": ["Amazon Bedrock"],
+      "category": "techniques"
+    },
+    {
+      "id": "mcp",
+      "term": "Model Context Protocol (MCP)",
+      "definition": "An open protocol for connecting AI assistants to external tools and data sources. Enables dynamic tool discovery without application code changes.",
+      "relatedServices": [],
+      "category": "architecture-patterns"
+    },
+    {
+      "id": "react-pattern",
+      "term": "ReAct Pattern",
+      "definition": "A reasoning-action framework where agents alternate between reasoning about what to do and taking actions. Bedrock Agents use ReAct-style orchestration.",
+      "relatedServices": ["Amazon Bedrock Agents"],
+      "category": "architecture-patterns"
+    },
+    {
+      "id": "grounding",
+      "term": "Grounding",
+      "definition": "Constraining FM outputs to be based on provided context or retrieved documents. Reduces hallucination by ensuring answers come from verified sources.",
+      "relatedServices": ["Amazon Bedrock Knowledge Bases"],
+      "category": "techniques"
+    }
+  ],
+  "categories": {
+    "core-concepts": "Core Concepts",
+    "architecture-patterns": "Architecture Patterns",
+    "techniques": "Techniques",
+    "safety-security": "Safety & Security",
+    "aws-specific": "AWS-Specific",
+    "governance": "Governance"
+  }
+}

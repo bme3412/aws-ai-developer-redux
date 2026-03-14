@@ -1,0 +1,212 @@
+{
+  "topicSlug": "performance-optimization",
+  "domainId": 4,
+  "taskId": "4.2",
+  "overview": {
+    "whyItMatters": "GenAI latency directly impacts user experience. A 5-second response feels slow; 10 seconds feels broken. Understanding performance optimization—from model selection to retrieval tuning to streaming—is essential for production applications.",
+    "estimatedMinutes": 35
+  },
+  "concepts": [
+    {
+      "id": "latency-optimization",
+      "title": "Latency Optimization Strategies",
+      "content": "Latency in GenAI comes from multiple sources: network, retrieval, model inference, and post-processing. Optimize each component.\n\n**Pre-Computation:**\nFor predictable queries, pre-compute responses. Nightly batch jobs generate answers to common questions. Real-time requests retrieve pre-computed results. Works for stable content like FAQs.\n\n**Bedrock Latency-Optimized Models:**\nSome models offer latency-optimized variants. Trade some quality for faster response. Choose based on your latency requirements and quality tolerance.\n\n**Parallel Requests:**\nWhen you need multiple model calls, run them in parallel. Step Functions parallel states. Concurrent Lambda invocations. Don't serialize independent operations.\n\n**Streaming:**\nStream responses to users. First token appears quickly even if full response takes time. Dramatically improves perceived latency. Users see progress instead of waiting.\n\n**Geographic Distribution:**\nCloudFront serves from edge locations. For global users, reduce network latency by caching at the edge. Consider Cross-Region Inference for Bedrock to route to closest region.",
+      "keyPoints": [
+        "Pre-compute responses for predictable queries",
+        "Use latency-optimized model variants when available",
+        "Parallelize independent model calls",
+        "Stream responses to improve perceived latency"
+      ],
+      "examTip": "'Reduce latency' -> streaming, pre-computation, parallel requests, latency-optimized models."
+    },
+    {
+      "id": "retrieval-performance",
+      "title": "Retrieval System Performance",
+      "content": "RAG systems spend significant time in retrieval. Optimize vector search and document retrieval for overall performance.\n\n**Index Optimization:**\nOpenSearch index settings impact search performance. Shard count, replica count, refresh intervals. Right-size for your workload: too few shards causes hot spots, too many causes overhead.\n\n**Query Preprocessing:**\nOptimize queries before search. Expand queries for better recall. Remove noise words. Rewrite for the index's expectations. Good preprocessing improves both quality and speed.\n\n**Hybrid Search Configuration:**\nCombine keyword (BM25) and vector (semantic) search. Configure weighting between methods. Hybrid often gives best results, but tuning matters. Custom scoring functions can prioritize based on your requirements.\n\n**Bedrock Reranker Models:**\nRerank retrieved results for relevance. Initial retrieval returns candidates; reranker reorders by relevance. Adds latency but improves quality. Use when retrieval precision matters more than speed.\n\n**Embedding Model Performance:**\nDifferent embedding models have different speed/quality tradeoffs. Amazon Titan embeddings are optimized for AWS infrastructure. Batch embedding generation for bulk indexing.",
+      "keyPoints": [
+        "Optimize index settings (shards, replicas, refresh)",
+        "Preprocess queries for better search performance",
+        "Tune hybrid search weighting for your use case",
+        "Reranking improves quality at some latency cost"
+      ]
+    },
+    {
+      "id": "throughput-optimization",
+      "title": "Throughput and Concurrency",
+      "content": "Throughput measures how many requests you can process per unit time. Different from latency—you can have low latency but low throughput if you can't parallelize.\n\n**Token Processing Optimization:**\nLLM throughput is often measured in tokens per second. Input tokens process in parallel (fast). Output tokens generate sequentially (slower). Optimize prompts to reduce output length where possible.\n\n**Batch Inference:**\nProcess multiple requests together. SageMaker batch transform for offline bulk processing. For real-time, batch requests that arrive within a time window.\n\n**Concurrent Invocations:**\nBedrock supports concurrent requests. Lambda concurrency enables parallel processing. Configure limits to match your throughput needs and account quotas.\n\n**Queue Management:**\nSQS queues buffer bursts. Lambda concurrency limits prevent overwhelming downstream services. Dead letter queues handle failures. Design for sustainable throughput, not peak bursts.",
+      "keyPoints": [
+        "Input tokens parallel, output tokens sequential",
+        "Batch inference for bulk processing efficiency",
+        "Configure concurrency limits appropriately",
+        "Use queues to manage traffic bursts"
+      ]
+    },
+    {
+      "id": "model-parameters",
+      "title": "Model Parameter Tuning for Performance",
+      "content": "Model parameters affect both quality and performance. Tuning them optimizes for your specific requirements.\n\n**Temperature:**\n- Low (0.0-0.3): Deterministic, focused responses. Faster (less exploration). Use for factual tasks.\n- High (0.7-1.0): Creative, varied responses. Slower (more exploration). Use for creative tasks.\n\n**Top-K and Top-P:**\nLimit the token selection pool. Lower values = faster, more focused. Higher values = slower, more diverse. Balance based on task needs.\n\n**Max Tokens:**\nLimit output length directly. Shorter outputs = faster responses. Set based on actual needs, not maximum possible.\n\n**A/B Testing:**\nTest parameter combinations systematically. Measure quality and latency. Find the optimal balance for your use case. What works for one application doesn't necessarily work for another.\n\n**Model Selection Impact:**\nSmaller models are generally faster. Claude Haiku faster than Sonnet faster than Opus. Choose the smallest model that meets quality requirements.",
+      "keyPoints": [
+        "Low temperature: faster, more focused responses",
+        "Lower top-k/top-p: faster, less diverse",
+        "Set max_tokens based on actual needs",
+        "A/B test to find optimal parameter combinations"
+      ]
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "4.2.1",
+      "explanation": "Latency optimization addresses each component of the request path. Pre-computation handles predictable queries. Latency-optimized models trade quality for speed. Parallel requests prevent serialization. Streaming improves perceived latency.\n\nCloudFront and Cross-Region Inference address network latency for global users. Edge caching serves common responses quickly. Cross-Region routes to available, closer regions.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Latency-optimized models. Streaming API. Cross-Region Inference.",
+          "examKeywords": ["latency", "streaming", "cross-region", "fast"]
+        },
+        {
+          "serviceName": "Amazon CloudFront",
+          "whenToUse": "Edge caching for global latency reduction.",
+          "examKeywords": ["edge", "CDN", "global", "cache"]
+        }
+      ]
+    },
+    {
+      "skillId": "4.2.2",
+      "explanation": "Retrieval performance impacts overall RAG latency. OpenSearch index optimization includes shard sizing, replica configuration, and refresh intervals. Query preprocessing improves both speed and relevance.\n\nHybrid search with custom scoring balances keyword and semantic matches. Tuning the balance optimizes for your specific content and queries. Bedrock Knowledge Bases support hybrid search configuration.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon OpenSearch Service",
+          "whenToUse": "Vector search optimization. Index tuning. Hybrid search configuration.",
+          "examKeywords": ["index", "search", "hybrid", "OpenSearch"]
+        },
+        {
+          "serviceName": "Amazon Bedrock Knowledge Bases",
+          "whenToUse": "Managed retrieval with configurable search.",
+          "examKeywords": ["retrieval", "Knowledge Base", "search"]
+        }
+      ]
+    },
+    {
+      "skillId": "4.2.3",
+      "explanation": "Throughput optimization enables processing more requests. Batch inference maximizes efficiency for bulk workloads. Concurrent invocations handle parallel interactive requests.\n\nToken optimization reduces output generation time. Shorter outputs finish faster. Optimize prompts to get required information in fewer tokens.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Concurrent invocations for throughput.",
+          "examKeywords": ["throughput", "concurrent", "parallel"]
+        },
+        {
+          "serviceName": "Amazon SageMaker",
+          "whenToUse": "Batch transform for bulk processing.",
+          "examKeywords": ["batch", "bulk", "transform"]
+        }
+      ]
+    },
+    {
+      "skillId": "4.2.4",
+      "explanation": "Model parameters affect performance directly. Temperature, top-k, top-p control generation behavior. Lower values generally mean faster responses. Max tokens limits output length.\n\nA/B testing finds optimal parameters. What works varies by use case. Systematic testing with quality and latency metrics identifies best configurations.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Parameter tuning (temperature, top-k, top-p, max_tokens).",
+          "examKeywords": ["temperature", "parameters", "tuning", "top-p"]
+        }
+      ]
+    },
+    {
+      "skillId": "4.2.5",
+      "explanation": "Resource allocation and capacity planning ensure consistent performance. Capacity planning projects token usage based on traffic patterns. Utilization monitoring identifies under/over-provisioning.\n\nAuto-scaling adjusts capacity automatically. Configure scaling policies based on GenAI-specific metrics rather than generic CPU/memory. Queue depth and latency are better indicators for GenAI workloads.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon CloudWatch",
+          "whenToUse": "Utilization monitoring. Custom metrics for GenAI workloads.",
+          "examKeywords": ["monitoring", "utilization", "metrics", "capacity"]
+        },
+        {
+          "serviceName": "AWS Auto Scaling",
+          "whenToUse": "Automatic capacity adjustment based on demand.",
+          "examKeywords": ["auto-scaling", "capacity", "dynamic"]
+        }
+      ]
+    },
+    {
+      "skillId": "4.2.6",
+      "explanation": "System performance analysis identifies bottlenecks across the full request path. X-Ray traces requests through services. API call profiling shows where time is spent.\n\nVector database optimization includes index configuration and query tuning. Inference latency depends on model choice and parameter settings. Analyze each component to find optimization opportunities.",
+      "awsServices": [
+        {
+          "serviceName": "AWS X-Ray",
+          "whenToUse": "Distributed tracing. Bottleneck identification.",
+          "examKeywords": ["trace", "profiling", "bottleneck", "latency analysis"]
+        },
+        {
+          "serviceName": "Amazon OpenSearch Service",
+          "whenToUse": "Vector database performance optimization.",
+          "examKeywords": ["vector", "search optimization", "index"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "Latency vs Throughput Optimization",
+      "services": ["Streaming", "Batching", "Parallelization"],
+      "criteria": [
+        {
+          "criterion": "Optimizes for",
+          "values": {
+            "Streaming": "Perceived latency (time to first token)",
+            "Batching": "Throughput (requests per second)",
+            "Parallelization": "Total latency (multiple operations)"
+          }
+        },
+        {
+          "criterion": "Best for",
+          "values": {
+            "Streaming": "Interactive user-facing applications",
+            "Batching": "Bulk processing, offline workloads",
+            "Parallelization": "Multi-step workflows, aggregation"
+          }
+        },
+        {
+          "criterion": "Implementation",
+          "values": {
+            "Streaming": "InvokeModelWithResponseStream + SSE",
+            "Batching": "SageMaker batch transform, request batching",
+            "Parallelization": "Step Functions parallel states, concurrent Lambda"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "reduce response latency",
+      "approach": "Streaming for perceived latency. Pre-computation for predictable queries. Latency-optimized models. Parallel independent operations.",
+      "keywords": ["latency", "fast", "response time", "quick"]
+    },
+    {
+      "questionPattern": "improve retrieval performance",
+      "approach": "OpenSearch index optimization. Query preprocessing. Hybrid search tuning. Consider reranking for quality.",
+      "keywords": ["retrieval", "search", "vector", "RAG performance"]
+    },
+    {
+      "questionPattern": "handle high throughput",
+      "approach": "Batch processing for bulk. Concurrent invocations for interactive. Queue-based architecture for bursts.",
+      "keywords": ["throughput", "scale", "concurrent", "bulk"]
+    }
+  ],
+  "keyTakeaways": [
+    "Streaming dramatically improves perceived latency",
+    "Pre-compute responses for predictable queries",
+    "Optimize retrieval: index settings, query preprocessing, hybrid search",
+    "Lower temperature and max_tokens for faster responses",
+    "X-Ray identifies bottlenecks across the request path"
+  ],
+  "commonMistakes": [
+    "Not using streaming for user-facing applications",
+    "Serializing independent operations instead of parallelizing",
+    "Default index settings instead of tuning for workload",
+    "Higher temperature/max_tokens than needed (slower, costlier)",
+    "Scaling on CPU instead of GenAI-specific metrics"
+  ]
+}

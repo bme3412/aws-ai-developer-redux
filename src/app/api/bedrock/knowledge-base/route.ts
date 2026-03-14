@@ -19,10 +19,17 @@ export async function POST(req: NextRequest) {
 
     const kbId = knowledgeBaseId || process.env.BEDROCK_KNOWLEDGE_BASE_ID;
     if (!kbId) {
-      return NextResponse.json(
-        { error: 'Knowledge Base ID is required. Set BEDROCK_KNOWLEDGE_BASE_ID in env or provide knowledgeBaseId.' },
-        { status: 400 }
-      );
+      return NextResponse.json({
+        error: 'Knowledge Base not configured',
+        details: 'Set BEDROCK_KNOWLEDGE_BASE_ID in .env.local',
+        setup: {
+          steps: [
+            '1. Go to AWS Console > Bedrock > Knowledge bases',
+            '2. Create a knowledge base with your data source (S3, etc.)',
+            '3. Copy the Knowledge Base ID to BEDROCK_KNOWLEDGE_BASE_ID in .env.local',
+          ],
+        },
+      }, { status: 503 });
     }
 
     if (mode === 'retrieve-only') {
@@ -94,9 +101,24 @@ export async function POST(req: NextRequest) {
     );
   } catch (error) {
     console.error('Knowledge base error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to query knowledge base' },
-      { status: 500 }
-    );
+
+    const errorMessage = error instanceof Error ? error.message : 'Failed to query knowledge base';
+
+    if (errorMessage.includes('Could not load credentials') ||
+        errorMessage.includes('Missing credentials')) {
+      return NextResponse.json({
+        error: 'AWS credentials not configured',
+        details: 'Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to .env.local',
+      }, { status: 503 });
+    }
+
+    if (errorMessage.includes('ResourceNotFoundException')) {
+      return NextResponse.json({
+        error: 'Knowledge Base not found',
+        details: 'Check that BEDROCK_KNOWLEDGE_BASE_ID matches a knowledge base in your AWS account',
+      }, { status: 404 });
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

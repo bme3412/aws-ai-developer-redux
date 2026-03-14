@@ -193,6 +193,30 @@
               "services": ["Amazon Bedrock Prompt Flows"]
             }
           ]
+        },
+        {
+          "id": "1.7",
+          "name": "Deep Dive: Amazon Bedrock",
+          "articleSlug": "bedrock-deep-dive",
+          "skills": [
+            {
+              "id": "1.7.1",
+              "description": "Bedrock architecture, APIs, model families, pricing models",
+              "services": ["Amazon Bedrock"]
+            }
+          ]
+        },
+        {
+          "id": "1.8",
+          "name": "Deep Dive: RAG Architecture Patterns",
+          "articleSlug": "rag-patterns",
+          "skills": [
+            {
+              "id": "1.8.1",
+              "description": "RAG patterns, chunking strategies, embedding optimization, quality evaluation",
+              "services": ["Amazon Bedrock Knowledge Bases", "Amazon OpenSearch Service"]
+            }
+          ]
         }
       ]
     },
@@ -367,6 +391,30 @@
               "id": "2.5.6",
               "description": "Troubleshooting: CloudWatch Logs Insights, X-Ray tracing, Q Developer error recognition",
               "services": ["Amazon CloudWatch", "AWS X-Ray", "Amazon Q Developer"]
+            }
+          ]
+        },
+        {
+          "id": "2.6",
+          "name": "Deep Dive: Agent Design Patterns",
+          "articleSlug": "agent-patterns",
+          "skills": [
+            {
+              "id": "2.6.1",
+              "description": "ReAct pattern, Action Groups, multi-agent architectures, agent memory and safety",
+              "services": ["Amazon Bedrock Agents", "AWS Lambda", "AWS Step Functions"]
+            }
+          ]
+        },
+        {
+          "id": "2.7",
+          "name": "Deep Dive: Production GenAI Patterns",
+          "articleSlug": "production-patterns",
+          "skills": [
+            {
+              "id": "2.7.1",
+              "description": "Resilience patterns, semantic caching, token management, observability, graceful degradation",
+              "services": ["Amazon CloudWatch", "AWS X-Ray", "Amazon ElastiCache", "Amazon OpenSearch Service"]
             }
           ]
         }

@@ -1,0 +1,185 @@
+{
+  "topicSlug": "cost-optimization",
+  "domainId": 4,
+  "taskId": "4.1",
+  "overview": {
+    "whyItMatters": "GenAI can get expensive fast. Token costs add up, and inefficient architectures waste money. Understanding cost optimization is essential for sustainable GenAI applications. The best solutions balance cost with quality and latency.",
+    "estimatedMinutes": 30
+  },
+  "concepts": [
+    {
+      "id": "token-optimization",
+      "title": "Token Efficiency",
+      "content": "Tokens are the currency of GenAI. Every input and output token costs money. Optimizing token usage is the most direct way to reduce costs.\n\n**Token Estimation and Tracking:**\nUnderstand your token usage patterns. CloudWatch metrics track input/output tokens per request. Build dashboards showing token consumption by application, user, or feature. Know where tokens go before optimizing.\n\n**Context Window Optimization:**\nContext windows have limits (8K, 32K, 128K+ tokens depending on model). Don't waste context on irrelevant information. Select the most relevant content for each request. Summarize when full context isn't needed.\n\n**Prompt Compression:**\nShorter prompts cost less. Remove redundant instructions. Use abbreviations when the model understands them. But don't sacrifice clarity—confused models produce poor outputs that need regeneration.\n\n**Response Size Controls:**\nSet max_tokens to limit output length. Don't generate 1000 tokens when 100 suffice. Be specific: 'Respond in 2-3 sentences' is cheaper than open-ended generation.\n\n**Context Pruning:**\nFor multi-turn conversations, prune old context. Summarize earlier turns instead of including full history. Keep recent turns detailed, older turns summarized. Balance context quality with token cost.",
+      "keyPoints": [
+        "Track token usage with CloudWatch metrics",
+        "Optimize context: only include relevant information",
+        "Compress prompts without sacrificing clarity",
+        "Set max_tokens to limit response length"
+      ],
+      "examTip": "'Reduce token costs' -> context optimization, prompt compression, response limits."
+    },
+    {
+      "id": "model-tiering",
+      "title": "Model Selection and Tiering",
+      "content": "Different models have different cost/capability tradeoffs. Smart model selection matches queries to appropriate models.\n\n**Model Cascading:**\nRoute simple queries to cheap models, complex queries to expensive models. Most queries are simple. A classifier (fast, cheap) determines query complexity. Route accordingly.\n\nExample tier:\n- Tier 1: Claude Haiku ($0.25/$1.25 per million tokens) - FAQs, simple generation\n- Tier 2: Claude Sonnet ($3/$15) - Moderate complexity, analysis\n- Tier 3: Claude Opus ($15/$75) - Complex reasoning, specialized tasks\n\n**Price-to-Performance:**\nCheaper isn't always better. A model that costs 10x more but produces correct answers on the first try may be cheaper than retry loops with a cheap model. Measure total cost including retries and error handling.\n\n**Task-Specific Models:**\nSome tasks don't need general-purpose models. Embedding models are cheap. Classification can use smaller models. Use specialized models where they suffice.\n\n**Query Complexity Analysis:**\nBuild classifiers that estimate query complexity:\n- Length and structure of query\n- Presence of reasoning keywords\n- Domain specificity\n- Historical performance on similar queries",
+      "keyPoints": [
+        "Cascade: simple queries to cheap models, complex to expensive",
+        "Consider total cost including retries, not just per-token cost",
+        "Use specialized models where general-purpose isn't needed",
+        "Build classifiers for query complexity routing"
+      ]
+    },
+    {
+      "id": "caching-strategies",
+      "title": "Caching for Cost Reduction",
+      "content": "Why pay to generate the same response twice? Caching stores results for reuse.\n\n**Semantic Caching:**\nCache based on meaning, not exact match. 'What's the capital of France?' and 'Tell me France's capital city' should hit the same cache. Embedding similarity determines cache hits.\n\n**Result Fingerprinting:**\nGenerate deterministic keys from query content. Exact matches hit cache directly. Faster than semantic similarity but misses paraphrases.\n\n**Edge Caching:**\nCloudFront caches API responses at the edge. Repeated queries from different users hit edge cache. Useful for common queries like FAQs.\n\n**Prompt Caching:**\nBedrock prompt caching stores prompt prefixes. When multiple requests share a common system prompt, caching avoids reprocessing. Significant savings for applications with large system prompts.\n\n**Cache Invalidation:**\nCached responses become stale. Knowledge bases update, models improve, context changes. Set TTLs appropriate to your data freshness requirements. Build cache invalidation into your data update pipelines.",
+      "keyPoints": [
+        "Semantic caching: Match similar queries to cached responses",
+        "Prompt caching: Reuse processed prompt prefixes",
+        "Edge caching: CloudFront for geographically distributed users",
+        "Set appropriate TTLs; invalidate when data changes"
+      ]
+    },
+    {
+      "id": "capacity-planning",
+      "title": "Resource Utilization and Capacity",
+      "content": "Right-size your GenAI infrastructure. Over-provisioning wastes money; under-provisioning causes failures.\n\n**Batching:**\nProcess multiple requests together for efficiency. Batch inference on SageMaker processes files of inputs. Even Bedrock benefits from batching—multiple requests in parallel saturate allocated capacity.\n\n**Provisioned Throughput:**\nBedrock provisioned throughput pre-purchases capacity. Lower per-token cost but requires commitment. Calculate break-even point vs on-demand. Typically worthwhile at 40-60%+ utilization.\n\n**Auto-Scaling:**\nScale capacity based on demand. SageMaker endpoint auto-scaling adjusts instance count. Configure based on GenAI patterns: scale on queue depth or token throughput, not just CPU.\n\n**Capacity Planning:**\nForecast token usage. Peak times, growth projections, seasonal patterns. Provision appropriately. Reserved capacity saves money for predictable baselines; on-demand handles spikes.",
+      "keyPoints": [
+        "Batch requests for throughput efficiency",
+        "Provisioned throughput: Lower cost at 40%+ utilization",
+        "Auto-scale on GenAI metrics (queue depth, tokens)",
+        "Forecast and plan capacity; mix reserved and on-demand"
+      ]
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "4.1.1",
+      "explanation": "Token efficiency starts with measurement. CloudWatch metrics track input and output tokens. Build dashboards by application, feature, user segment. Understand where tokens are consumed before optimizing.\n\nContext optimization is often the biggest win. Don't stuff context windows with irrelevant information. Select relevant content for each query. Use summarization for large documents.\n\nPrompt compression reduces input tokens. Remove redundancy, use concise phrasing. But maintain clarity—ambiguous prompts cause poor outputs and regeneration cycles.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Token usage tracking. Context window management. Response length controls.",
+          "examKeywords": ["tokens", "context", "max_tokens", "efficiency"]
+        },
+        {
+          "serviceName": "Amazon CloudWatch",
+          "whenToUse": "Metrics dashboards for token consumption monitoring.",
+          "examKeywords": ["metrics", "monitoring", "tracking", "dashboard"]
+        }
+      ]
+    },
+    {
+      "skillId": "4.1.2",
+      "explanation": "Model selection balances cost and capability. Cheaper models work for simple tasks. Complex tasks need capable models. Model cascading routes based on query complexity.\n\nPrice-to-performance analysis considers total cost. A model that gets it right the first time may be cheaper than multiple retries with a cheap model. Measure error rates and retry costs.\n\nTask-specific models are often more efficient. Embedding models, classifiers, summarizers—use specialized tools where they suffice instead of general-purpose FMs.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Multiple model options at different price points. Model selection based on requirements.",
+          "examKeywords": ["model selection", "tiering", "cascading", "cost-capability"]
+        }
+      ]
+    },
+    {
+      "skillId": "4.1.3",
+      "explanation": "Resource utilization optimization matches capacity to demand. Batching improves throughput efficiency. SageMaker batch transform for bulk processing. Bedrock parallel requests for interactive workloads.\n\nProvisioned throughput commits to capacity for lower per-token costs. Calculate utilization to determine if commitment makes sense. Typically saves money above 40-60% utilization.\n\nAuto-scaling matches capacity to demand automatically. Configure scaling policies based on GenAI-relevant metrics: queue depth, token processing rate, latency. Generic CPU scaling often doesn't capture GenAI patterns.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Provisioned throughput for predictable workloads.",
+          "examKeywords": ["provisioned", "throughput", "capacity", "commitment"]
+        },
+        {
+          "serviceName": "Amazon SageMaker",
+          "whenToUse": "Batch transform for bulk processing. Endpoint auto-scaling.",
+          "examKeywords": ["batch", "auto-scaling", "endpoint"]
+        }
+      ]
+    },
+    {
+      "skillId": "4.1.4",
+      "explanation": "Caching prevents redundant computation. Semantic caching uses embedding similarity to find matches even for paraphrased queries. ElastiCache or custom solutions store cached responses.\n\nPrompt caching in Bedrock stores processed prompt prefixes. When multiple requests share common system prompts, significant savings. Particularly valuable for applications with large, complex system prompts.\n\nEdge caching with CloudFront serves repeated responses from edge locations. Common queries hit cache without reaching origin. Set cache headers appropriately; invalidate when underlying data changes.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon ElastiCache",
+          "whenToUse": "Semantic caching with Redis. Store and retrieve cached responses.",
+          "examKeywords": ["cache", "semantic", "Redis", "store responses"]
+        },
+        {
+          "serviceName": "Amazon CloudFront",
+          "whenToUse": "Edge caching for geographically distributed users.",
+          "examKeywords": ["edge", "CDN", "cache", "global"]
+        },
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Prompt caching for system prompt prefix reuse.",
+          "examKeywords": ["prompt caching", "prefix", "reuse"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "Caching Options",
+      "services": ["Semantic Caching (ElastiCache)", "Prompt Caching (Bedrock)", "Edge Caching (CloudFront)"],
+      "criteria": [
+        {
+          "criterion": "Cache match",
+          "values": {
+            "Semantic Caching (ElastiCache)": "Similar meaning queries",
+            "Prompt Caching (Bedrock)": "Exact prompt prefix matches",
+            "Edge Caching (CloudFront)": "Exact request matches"
+          }
+        },
+        {
+          "criterion": "Best for",
+          "values": {
+            "Semantic Caching (ElastiCache)": "FAQs, common questions with variations",
+            "Prompt Caching (Bedrock)": "Applications with large, shared system prompts",
+            "Edge Caching (CloudFront)": "Repeated identical requests from multiple locations"
+          }
+        },
+        {
+          "criterion": "Setup complexity",
+          "values": {
+            "Semantic Caching (ElastiCache)": "Custom implementation needed",
+            "Prompt Caching (Bedrock)": "Built into Bedrock API",
+            "Edge Caching (CloudFront)": "Configure cache behaviors"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "reduce GenAI costs",
+      "approach": "Model cascading (cheap for simple, expensive for complex), caching (semantic, prompt, edge), token optimization (context pruning, response limits).",
+      "keywords": ["cost", "reduce", "optimize", "efficient", "token"]
+    },
+    {
+      "questionPattern": "variable traffic with cost control",
+      "approach": "On-demand Bedrock for variable traffic. Provisioned throughput only if utilization justifies commitment. Auto-scaling for SageMaker endpoints.",
+      "keywords": ["variable", "traffic", "scaling", "capacity"]
+    },
+    {
+      "questionPattern": "avoid redundant model calls",
+      "approach": "Semantic caching for similar queries. Prompt caching for shared prefixes. Edge caching for repeated identical requests.",
+      "keywords": ["cache", "redundant", "repeated", "same query"]
+    }
+  ],
+  "keyTakeaways": [
+    "Track token usage with CloudWatch before optimizing",
+    "Model cascading: route simple to cheap models, complex to capable",
+    "Semantic caching avoids redundant computation for similar queries",
+    "Provisioned throughput saves money at 40%+ utilization",
+    "Prompt caching reuses processed system prompt prefixes"
+  ],
+  "commonMistakes": [
+    "Not measuring token usage before optimization efforts",
+    "Using the most capable model for all queries (expensive)",
+    "No caching strategy for repeated or similar queries",
+    "Provisioned throughput with low utilization (wasted commitment)",
+    "Auto-scaling on CPU instead of GenAI-specific metrics"
+  ]
+}

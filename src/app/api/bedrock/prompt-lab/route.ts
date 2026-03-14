@@ -127,9 +127,25 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('Prompt lab error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to execute prompt' },
-      { status: 500 }
-    );
+
+    const errorMessage = error instanceof Error ? error.message : 'Failed to execute prompt';
+
+    if (errorMessage.includes('Could not load credentials') ||
+        errorMessage.includes('Missing credentials')) {
+      return NextResponse.json({
+        error: 'AWS credentials not configured',
+        details: 'Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to .env.local',
+      }, { status: 503 });
+    }
+
+    if (errorMessage.includes('AccessDeniedException') ||
+        errorMessage.includes('not authorized')) {
+      return NextResponse.json({
+        error: 'Bedrock model access not enabled',
+        details: 'Enable Claude model access in the AWS Bedrock console: Console > Bedrock > Model access',
+      }, { status: 403 });
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

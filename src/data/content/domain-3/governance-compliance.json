@@ -1,0 +1,190 @@
+{
+  "topicSlug": "governance-compliance",
+  "domainId": 3,
+  "taskId": "3.3",
+  "overview": {
+    "whyItMatters": "AI governance ensures your GenAI systems are auditable, compliant, and accountable. As AI regulations evolve, having proper governance frameworks in place protects your organization. This isn't just about avoiding penalties—it's about building trustworthy AI.",
+    "estimatedMinutes": 30
+  },
+  "concepts": [
+    {
+      "id": "model-documentation",
+      "title": "Model Cards and Documentation",
+      "content": "Model cards are standardized documentation for AI models. They describe capabilities, limitations, intended uses, and ethical considerations.\n\n**SageMaker Model Cards:**\nProgrammatically create and manage model documentation. Include:\n- Model purpose and intended use cases\n- Training data descriptions\n- Performance metrics across different conditions\n- Known limitations and failure modes\n- Ethical considerations and potential biases\n- Recommended use guidelines\n\n**Why Model Cards Matter:**\n- Transparency: Users understand what the model can and cannot do\n- Accountability: Clear record of model capabilities at deployment\n- Compliance: Documentation required by emerging AI regulations\n- Knowledge transfer: New team members understand model context\n\n**Model Registry:**\nSageMaker Model Registry stores model versions with metadata. Track which model version is deployed where. Roll back to previous versions if issues arise. Model cards attach to specific versions.\n\n**Integration with Governance:**\nModel cards feed governance processes. Compliance teams review cards before deployment approval. Updates to cards trigger review workflows. Audit trails show model evolution over time.",
+      "keyPoints": [
+        "Model cards document capabilities, limitations, intended use",
+        "SageMaker Model Cards for programmatic documentation",
+        "Model Registry tracks versions with attached documentation",
+        "Cards support compliance, transparency, and accountability"
+      ],
+      "examTip": "'Document model capabilities' or 'model transparency' -> SageMaker Model Cards."
+    },
+    {
+      "id": "data-lineage",
+      "title": "Data Lineage and Source Tracking",
+      "content": "Understanding where data comes from, how it transforms, and where it goes is essential for governance. Data lineage tracks this journey.\n\n**AWS Glue Data Lineage:**\nAutomatically tracks data as it flows through Glue ETL jobs. Visualize transformations from source to destination. Understand impact of source changes on downstream systems.\n\n**Glue Data Catalog:**\nCentral metadata repository. Register data sources with descriptions, schemas, and classifications. Tag datasets with sensitivity levels, ownership, and compliance requirements. The catalog is your source of truth for available data.\n\n**Metadata Tagging for FM Outputs:**\nTag generated content with source attribution. When FM generates from Knowledge Base documents, track which sources contributed. Enable users to verify and trace claims.\n\n**Lineage Use Cases:**\n- Compliance audits: Show where data came from\n- Impact analysis: Understand downstream effects of source changes\n- Debugging: Trace issues to source data problems\n- Attribution: Credit content sources appropriately",
+      "keyPoints": [
+        "Glue Data Lineage tracks data transformation flows",
+        "Data Catalog centralizes metadata with classifications",
+        "Tag FM outputs with source attribution",
+        "Lineage supports audits, impact analysis, debugging"
+      ]
+    },
+    {
+      "id": "audit-logging",
+      "title": "Audit Logging and Compliance Tracking",
+      "content": "Every significant action in your GenAI system should be logged for audit purposes. This creates an unmodifiable record of what happened, when, and by whom.\n\n**CloudTrail for API Calls:**\nCloudTrail logs all AWS API calls automatically. Every Bedrock invocation, every SageMaker endpoint call, every S3 access. Who made the call, when, from where, what parameters.\n\nEnable CloudTrail across all regions. Configure log file validation to detect tampering. Store logs in locked-down S3 buckets with object lock.\n\n**CloudWatch Logs for Decision Logs:**\nLog application-level decisions that CloudTrail doesn't capture. What prompts were used, what guardrails triggered, what outputs were generated. These operational logs complement CloudTrail's API-level logs.\n\n**Compliance Requirements:**\nDifferent regulations require different logging:\n- GDPR: Data access and processing logs\n- HIPAA: PHI access logs\n- SOC 2: Security event logs\n- Industry-specific: Financial, healthcare, government\n\n**Log Retention:**\nRetain logs according to compliance requirements. S3 Lifecycle policies manage retention. Some regulations require multi-year retention. Balance cost with compliance needs.",
+      "keyPoints": [
+        "CloudTrail logs all AWS API calls automatically",
+        "CloudWatch Logs for application-level decision logging",
+        "Log validation detects tampering",
+        "Retention policies match compliance requirements"
+      ]
+    },
+    {
+      "id": "governance-systems",
+      "title": "Governance Systems and Continuous Monitoring",
+      "content": "Governance is ongoing, not one-time. Systems must continuously monitor for policy violations, drift, and misuse.\n\n**AWS Organizations:**\nApply policies across accounts. Service Control Policies (SCPs) enforce guardrails at the organization level. Prevent accounts from disabling required controls. Centralize governance for multi-account GenAI deployments.\n\n**AWS Config:**\nContinuously evaluate resource configurations against rules. Detect non-compliant configurations: endpoints without encryption, buckets without access logging, roles with excessive permissions. Auto-remediate or alert.\n\n**Continuous Monitoring:**\n- Misuse detection: Unusual usage patterns, policy violations\n- Drift detection: Model output quality degrading over time\n- Policy violation alerts: Guardrails triggering frequently\n- Bias monitoring: Output patterns showing systematic bias\n\n**CloudWatch for GenAI Monitoring:**\nCustom metrics for GenAI-specific monitoring. Track guardrail trigger rates, output quality scores, latency distributions. Set alarms for anomalies. Dashboard visibility for governance teams.\n\n**Responsible AI Framework:**\nBeyond technical controls, establish organizational frameworks:\n- Ethics review for new GenAI use cases\n- Bias testing requirements before deployment\n- Human oversight for high-risk applications\n- Incident response procedures for AI issues",
+      "keyPoints": [
+        "Organizations + SCPs enforce governance across accounts",
+        "Config continuously evaluates compliance",
+        "Continuous monitoring for misuse, drift, violations, bias",
+        "CloudWatch metrics and dashboards for GenAI governance"
+      ]
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "3.3.1",
+      "explanation": "Compliance frameworks require documentation, tracking, and controls. SageMaker Model Cards provide standardized model documentation. Glue Data Lineage tracks data flow. Metadata tagging enables attribution and traceability.\n\nBuild compliance into your architecture from the start. Retrofit is expensive. Design for auditability: log everything, tag everything, document everything. Make compliance automatic, not manual effort.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon SageMaker",
+          "whenToUse": "Model Cards for documentation. Model Registry for version tracking.",
+          "examKeywords": ["model card", "documentation", "registry", "version"]
+        },
+        {
+          "serviceName": "AWS Glue",
+          "whenToUse": "Data lineage tracking. Data Catalog for metadata management.",
+          "examKeywords": ["lineage", "catalog", "metadata", "tracking"]
+        },
+        {
+          "serviceName": "Amazon CloudWatch",
+          "whenToUse": "Metrics and dashboards for compliance monitoring.",
+          "examKeywords": ["metrics", "monitoring", "dashboard", "compliance"]
+        }
+      ]
+    },
+    {
+      "skillId": "3.3.2",
+      "explanation": "Data source tracking enables attribution and audit. Glue Data Catalog registers data sources with metadata. Tag sources with classification, ownership, and sensitivity. Use this metadata throughout the pipeline.\n\nCloudTrail logs API-level access. Every Bedrock call, every S3 read. This creates an immutable audit trail. Enable log file validation to detect tampering.\n\nSource attribution in outputs connects generated content to sources. When RAG retrieves documents, track which sources contributed. Users can verify claims by checking sources.",
+      "awsServices": [
+        {
+          "serviceName": "AWS Glue Data Catalog",
+          "whenToUse": "Register and classify data sources. Central metadata repository.",
+          "examKeywords": ["catalog", "data source", "metadata", "register"]
+        },
+        {
+          "serviceName": "AWS CloudTrail",
+          "whenToUse": "Audit logging for all API calls. Immutable record.",
+          "examKeywords": ["audit", "logging", "API calls", "trail"]
+        }
+      ]
+    },
+    {
+      "skillId": "3.3.3",
+      "explanation": "Governance systems enforce organizational policies. AWS Organizations with SCPs apply guardrails across accounts. Prevent disabling of required controls. Centralize governance for GenAI across the organization.\n\nAWS Config continuously evaluates configurations. Rules detect non-compliant resources. Auto-remediation fixes issues automatically. Compliance dashboards show organizational posture.\n\nResponsible AI requires more than technical controls. Ethics review, bias testing, human oversight, incident response. Build organizational processes alongside technical systems.",
+      "awsServices": [
+        {
+          "serviceName": "AWS Organizations",
+          "whenToUse": "Organizational policies via SCPs. Multi-account governance.",
+          "examKeywords": ["organization", "SCP", "policy", "multi-account"]
+        },
+        {
+          "serviceName": "AWS Config",
+          "whenToUse": "Continuous compliance evaluation. Configuration rules.",
+          "examKeywords": ["config", "compliance", "rules", "evaluate"]
+        }
+      ]
+    },
+    {
+      "skillId": "3.3.4",
+      "explanation": "Continuous monitoring detects issues before they become incidents. Misuse detection looks for unusual patterns: unexpected users, abnormal volumes, policy violations. Drift detection tracks output quality over time.\n\nBias monitoring examines output patterns for systematic unfairness. Are certain groups getting different treatment? CloudWatch metrics can track bias indicators. Bedrock Model Evaluations can test for bias systematically.\n\nAlerts notify teams of issues. Don't rely on manual review of logs. Automate detection and alerting. CloudWatch Alarms trigger on metric thresholds. SNS delivers notifications to response teams.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon CloudWatch",
+          "whenToUse": "Metrics, alarms, dashboards for GenAI monitoring.",
+          "examKeywords": ["monitoring", "drift", "anomaly", "alert"]
+        },
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Model Evaluations for systematic bias testing.",
+          "examKeywords": ["evaluation", "bias", "testing"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "Governance Documentation",
+      "services": ["SageMaker Model Cards", "Glue Data Catalog", "CloudTrail"],
+      "criteria": [
+        {
+          "criterion": "What it documents",
+          "values": {
+            "SageMaker Model Cards": "Model capabilities, limitations, intended use",
+            "Glue Data Catalog": "Data sources, schemas, classifications",
+            "CloudTrail": "API calls, who did what when"
+          }
+        },
+        {
+          "criterion": "Automation level",
+          "values": {
+            "SageMaker Model Cards": "Manual creation, programmatic updates",
+            "Glue Data Catalog": "Can auto-discover from crawlers",
+            "CloudTrail": "Fully automatic API logging"
+          }
+        },
+        {
+          "criterion": "Primary audience",
+          "values": {
+            "SageMaker Model Cards": "Model users, compliance teams",
+            "Glue Data Catalog": "Data consumers, governance",
+            "CloudTrail": "Security, audit, compliance"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "document model capabilities and limitations",
+      "approach": "SageMaker Model Cards for standardized model documentation. Attach to Model Registry versions for tracking.",
+      "keywords": ["document", "model card", "capabilities", "limitations"]
+    },
+    {
+      "questionPattern": "track data lineage or sources",
+      "approach": "Glue Data Lineage for transformation tracking. Data Catalog for source registration. CloudTrail for access logging.",
+      "keywords": ["lineage", "source", "track data", "audit trail"]
+    },
+    {
+      "questionPattern": "organizational governance or policy enforcement",
+      "approach": "AWS Organizations with SCPs for multi-account policy. AWS Config for continuous compliance evaluation.",
+      "keywords": ["governance", "policy", "organization", "compliance", "enforce"]
+    }
+  ],
+  "keyTakeaways": [
+    "Model Cards document capabilities, limitations, and intended use",
+    "Glue Data Catalog + Lineage track data sources and transformations",
+    "CloudTrail logs all API calls; CloudWatch Logs for application decisions",
+    "Organizations + SCPs enforce governance across accounts",
+    "Continuous monitoring for misuse, drift, violations, and bias"
+  ],
+  "commonMistakes": [
+    "No model documentation before deployment",
+    "Not knowing where training/context data comes from",
+    "Disabling CloudTrail logging to save costs",
+    "Manual compliance checks instead of automated Config rules",
+    "No monitoring for model drift or bias after deployment"
+  ]
+}

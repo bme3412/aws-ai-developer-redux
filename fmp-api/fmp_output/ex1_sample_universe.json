@@ -1,0 +1,482 @@
+[
+  {
+    "symbol": "AAPL",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "MSFT",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "NVDA",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "GOOGL",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "META",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "AVGO",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "ADBE",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "CRM",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "AMD",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "INTC",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "ORCL",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "CSCO",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "IBM",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "NOW",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "QCOM",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "TXN",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "AMAT",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "MU",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "LRCX",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "SNPS",
+    "sector": "Technology"
+  },
+  {
+    "symbol": "GOOG",
+    "sector": "Communication Services"
+  },
+  {
+    "symbol": "NFLX",
+    "sector": "Communication Services"
+  },
+  {
+    "symbol": "DIS",
+    "sector": "Communication Services"
+  },
+  {
+    "symbol": "CMCSA",
+    "sector": "Communication Services"
+  },
+  {
+    "symbol": "T",
+    "sector": "Communication Services"
+  },
+  {
+    "symbol": "VZ",
+    "sector": "Communication Services"
+  },
+  {
+    "symbol": "TMUS",
+    "sector": "Communication Services"
+  },
+  {
+    "symbol": "EA",
+    "sector": "Communication Services"
+  },
+  {
+    "symbol": "WBD",
+    "sector": "Communication Services"
+  },
+  {
+    "symbol": "TTWO",
+    "sector": "Communication Services"
+  },
+  {
+    "symbol": "AMZN",
+    "sector": "Consumer Discretionary"
+  },
+  {
+    "symbol": "TSLA",
+    "sector": "Consumer Discretionary"
+  },
+  {
+    "symbol": "HD",
+    "sector": "Consumer Discretionary"
+  },
+  {
+    "symbol": "MCD",
+    "sector": "Consumer Discretionary"
+  },
+  {
+    "symbol": "NKE",
+    "sector": "Consumer Discretionary"
+  },
+  {
+    "symbol": "SBUX",
+    "sector": "Consumer Discretionary"
+  },
+  {
+    "symbol": "LOW",
+    "sector": "Consumer Discretionary"
+  },
+  {
+    "symbol": "TJX",
+    "sector": "Consumer Discretionary"
+  },
+  {
+    "symbol": "BKNG",
+    "sector": "Consumer Discretionary"
+  },
+  {
+    "symbol": "CMG",
+    "sector": "Consumer Discretionary"
+  },
+  {
+    "symbol": "PG",
+    "sector": "Consumer Staples"
+  },
+  {
+    "symbol": "KO",
+    "sector": "Consumer Staples"
+  },
+  {
+    "symbol": "PEP",
+    "sector": "Consumer Staples"
+  },
+  {
+    "symbol": "COST",
+    "sector": "Consumer Staples"
+  },
+  {
+    "symbol": "WMT",
+    "sector": "Consumer Staples"
+  },
+  {
+    "symbol": "PM",
+    "sector": "Consumer Staples"
+  },
+  {
+    "symbol": "MO",
+    "sector": "Consumer Staples"
+  },
+  {
+    "symbol": "CL",
+    "sector": "Consumer Staples"
+  },
+  {
+    "symbol": "MDLZ",
+    "sector": "Consumer Staples"
+  },
+  {
+    "symbol": "GIS",
+    "sector": "Consumer Staples"
+  },
+  {
+    "symbol": "JPM",
+    "sector": "Financials"
+  },
+  {
+    "symbol": "BAC",
+    "sector": "Financials"
+  },
+  {
+    "symbol": "WFC",
+    "sector": "Financials"
+  },
+  {
+    "symbol": "GS",
+    "sector": "Financials"
+  },
+  {
+    "symbol": "MS",
+    "sector": "Financials"
+  },
+  {
+    "symbol": "BLK",
+    "sector": "Financials"
+  },
+  {
+    "symbol": "SCHW",
+    "sector": "Financials"
+  },
+  {
+    "symbol": "AXP",
+    "sector": "Financials"
+  },
+  {
+    "symbol": "C",
+    "sector": "Financials"
+  },
+  {
+    "symbol": "USB",
+    "sector": "Financials"
+  },
+  {
+    "symbol": "UNH",
+    "sector": "Healthcare"
+  },
+  {
+    "symbol": "JNJ",
+    "sector": "Healthcare"
+  },
+  {
+    "symbol": "PFE",
+    "sector": "Healthcare"
+  },
+  {
+    "symbol": "ABBV",
+    "sector": "Healthcare"
+  },
+  {
+    "symbol": "MRK",
+    "sector": "Healthcare"
+  },
+  {
+    "symbol": "LLY",
+    "sector": "Healthcare"
+  },
+  {
+    "symbol": "TMO",
+    "sector": "Healthcare"
+  },
+  {
+    "symbol": "ABT",
+    "sector": "Healthcare"
+  },
+  {
+    "symbol": "BMY",
+    "sector": "Healthcare"
+  },
+  {
+    "symbol": "AMGN",
+    "sector": "Healthcare"
+  },
+  {
+    "symbol": "CAT",
+    "sector": "Industrials"
+  },
+  {
+    "symbol": "BA",
+    "sector": "Industrials"
+  },
+  {
+    "symbol": "HON",
+    "sector": "Industrials"
+  },
+  {
+    "symbol": "UNP",
+    "sector": "Industrials"
+  },
+  {
+    "symbol": "RTX",
+    "sector": "Industrials"
+  },
+  {
+    "symbol": "DE",
+    "sector": "Industrials"
+  },
+  {
+    "symbol": "LMT",
+    "sector": "Industrials"
+  },
+  {
+    "symbol": "GE",
+    "sector": "Industrials"
+  },
+  {
+    "symbol": "MMM",
+    "sector": "Industrials"
+  },
+  {
+    "symbol": "UPS",
+    "sector": "Industrials"
+  },
+  {
+    "symbol": "XOM",
+    "sector": "Energy"
+  },
+  {
+    "symbol": "CVX",
+    "sector": "Energy"
+  },
+  {
+    "symbol": "COP",
+    "sector": "Energy"
+  },
+  {
+    "symbol": "SLB",
+    "sector": "Energy"
+  },
+  {
+    "symbol": "EOG",
+    "sector": "Energy"
+  },
+  {
+    "symbol": "MPC",
+    "sector": "Energy"
+  },
+  {
+    "symbol": "PSX",
+    "sector": "Energy"
+  },
+  {
+    "symbol": "VLO",
+    "sector": "Energy"
+  },
+  {
+    "symbol": "OXY",
+    "sector": "Energy"
+  },
+  {
+    "symbol": "HAL",
+    "sector": "Energy"
+  },
+  {
+    "symbol": "LIN",
+    "sector": "Materials"
+  },
+  {
+    "symbol": "APD",
+    "sector": "Materials"
+  },
+  {
+    "symbol": "SHW",
+    "sector": "Materials"
+  },
+  {
+    "symbol": "ECL",
+    "sector": "Materials"
+  },
+  {
+    "symbol": "DD",
+    "sector": "Materials"
+  },
+  {
+    "symbol": "NEM",
+    "sector": "Materials"
+  },
+  {
+    "symbol": "FCX",
+    "sector": "Materials"
+  },
+  {
+    "symbol": "NUE",
+    "sector": "Materials"
+  },
+  {
+    "symbol": "VMC",
+    "sector": "Materials"
+  },
+  {
+    "symbol": "MLM",
+    "sector": "Materials"
+  },
+  {
+    "symbol": "PLD",
+    "sector": "Real Estate"
+  },
+  {
+    "symbol": "AMT",
+    "sector": "Real Estate"
+  },
+  {
+    "symbol": "EQIX",
+    "sector": "Real Estate"
+  },
+  {
+    "symbol": "CCI",
+    "sector": "Real Estate"
+  },
+  {
+    "symbol": "PSA",
+    "sector": "Real Estate"
+  },
+  {
+    "symbol": "SPG",
+    "sector": "Real Estate"
+  },
+  {
+    "symbol": "O",
+    "sector": "Real Estate"
+  },
+  {
+    "symbol": "WELL",
+    "sector": "Real Estate"
+  },
+  {
+    "symbol": "DLR",
+    "sector": "Real Estate"
+  },
+  {
+    "symbol": "AVB",
+    "sector": "Real Estate"
+  },
+  {
+    "symbol": "NEE",
+    "sector": "Utilities"
+  },
+  {
+    "symbol": "DUK",
+    "sector": "Utilities"
+  },
+  {
+    "symbol": "SO",
+    "sector": "Utilities"
+  },
+  {
+    "symbol": "D",
+    "sector": "Utilities"
+  },
+  {
+    "symbol": "AEP",
+    "sector": "Utilities"
+  },
+  {
+    "symbol": "EXC",
+    "sector": "Utilities"
+  },
+  {
+    "symbol": "SRE",
+    "sector": "Utilities"
+  },
+  {
+    "symbol": "XEL",
+    "sector": "Utilities"
+  },
+  {
+    "symbol": "ED",
+    "sector": "Utilities"
+  },
+  {
+    "symbol": "WEC",
+    "sector": "Utilities"
+  }
+]

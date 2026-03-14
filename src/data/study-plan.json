@@ -1,0 +1,187 @@
+{
+  "weeks": [
+    {
+      "week": 1,
+      "title": "Foundation & Core Concepts",
+      "focus": "Build foundational understanding of GenAI on AWS",
+      "goals": [
+        "Understand foundation model fundamentals",
+        "Learn Amazon Bedrock architecture and capabilities",
+        "Master prompt engineering basics"
+      ],
+      "domains": [1],
+      "tasks": [
+        {
+          "day": "1-2",
+          "activity": "Domain 1.1-1.2: FM Fundamentals & Model Selection",
+          "details": "Read concept articles on FM architecture, model families, and selection criteria. Focus on understanding when to use different models.",
+          "timeMinutes": 120
+        },
+        {
+          "day": "3-4",
+          "activity": "Domain 1.3-1.4: Data Pipelines & RAG Foundations",
+          "details": "Learn data preparation concepts and RAG architecture. Understand vector embeddings and Knowledge Bases.",
+          "timeMinutes": 120
+        },
+        {
+          "day": "5",
+          "activity": "Domain 1.5-1.6: Prompt Engineering Deep Dive",
+          "details": "Master prompt techniques: few-shot, chain-of-thought, system prompts. Try the Prompt Lab if AWS credentials are configured.",
+          "timeMinutes": 90
+        },
+        {
+          "day": "6-7",
+          "activity": "Week 1 Review & Practice",
+          "details": "Complete Domain 1 practice questions. Review any weak areas identified.",
+          "timeMinutes": 120
+        }
+      ],
+      "practiceQuestions": 20,
+      "keyServices": ["Amazon Bedrock", "Amazon Bedrock Knowledge Bases", "Amazon Titan"]
+    },
+    {
+      "week": 2,
+      "title": "Implementation & Integration",
+      "focus": "Learn how to build and deploy GenAI applications",
+      "goals": [
+        "Understand Bedrock Agents and agentic patterns",
+        "Learn deployment options and integration patterns",
+        "Master API invocation methods"
+      ],
+      "domains": [2],
+      "tasks": [
+        {
+          "day": "1-2",
+          "activity": "Domain 2.1: Agentic AI Patterns",
+          "details": "Learn Bedrock Agents, Action Groups, and orchestration patterns. Understand ReAct and tool calling.",
+          "timeMinutes": 120
+        },
+        {
+          "day": "3",
+          "activity": "Domain 2.2: Model Deployment Options",
+          "details": "Compare Bedrock vs SageMaker vs Lambda deployments. Understand when to use each option.",
+          "timeMinutes": 60
+        },
+        {
+          "day": "4-5",
+          "activity": "Domain 2.3-2.4: Integration Patterns",
+          "details": "Learn API Gateway integration, VPC endpoints, sync vs async patterns, streaming responses.",
+          "timeMinutes": 120
+        },
+        {
+          "day": "6",
+          "activity": "Domain 2.5: Pre-built Solutions",
+          "details": "Explore Amazon Q Business and Q Developer use cases. Understand when to use pre-built vs custom solutions.",
+          "timeMinutes": 60
+        },
+        {
+          "day": "7",
+          "activity": "Week 2 Review & Practice",
+          "details": "Complete Domain 2 practice questions. Hands-on with labs if available.",
+          "timeMinutes": 120
+        }
+      ],
+      "practiceQuestions": 17,
+      "keyServices": ["Amazon Bedrock Agents", "AWS Lambda", "Amazon API Gateway", "Amazon Q"]
+    },
+    {
+      "week": 3,
+      "title": "Security, Safety & Optimization",
+      "focus": "Master safety controls, security, and performance optimization",
+      "goals": [
+        "Understand Guardrails and content filtering",
+        "Learn security best practices",
+        "Master cost and performance optimization"
+      ],
+      "domains": [3, 4],
+      "tasks": [
+        {
+          "day": "1-2",
+          "activity": "Domain 3.1-3.2: Safety & Security",
+          "details": "Learn Guardrails configuration, prompt injection defense, PII protection, and VPC endpoints.",
+          "timeMinutes": 120
+        },
+        {
+          "day": "3",
+          "activity": "Domain 3.3-3.4: Governance & Responsible AI",
+          "details": "Understand Model Cards, data lineage, compliance frameworks, and fairness evaluation.",
+          "timeMinutes": 90
+        },
+        {
+          "day": "4-5",
+          "activity": "Domain 4.1-4.2: Cost & Performance",
+          "details": "Learn token optimization, model cascading, caching strategies, latency optimization, and streaming.",
+          "timeMinutes": 120
+        },
+        {
+          "day": "6",
+          "activity": "Domain 4.3: Monitoring & Observability",
+          "details": "Master CloudWatch metrics, X-Ray tracing, and GenAI-specific monitoring.",
+          "timeMinutes": 60
+        },
+        {
+          "day": "7",
+          "activity": "Week 3 Review & Practice",
+          "details": "Complete Domain 3 and 4 practice questions. Focus on service selection scenarios.",
+          "timeMinutes": 120
+        }
+      ],
+      "practiceQuestions": 21,
+      "keyServices": ["Amazon Bedrock Guardrails", "AWS KMS", "Amazon VPC", "Amazon CloudWatch", "AWS X-Ray"]
+    },
+    {
+      "week": 4,
+      "title": "Testing, Review & Exam Prep",
+      "focus": "Final preparation and exam readiness",
+      "goals": [
+        "Master evaluation and troubleshooting",
+        "Complete comprehensive review",
+        "Build exam-day confidence"
+      ],
+      "domains": [5, 1, 2, 3, 4],
+      "tasks": [
+        {
+          "day": "1-2",
+          "activity": "Domain 5: Evaluation & Troubleshooting",
+          "details": "Learn Model Evaluations, LLM-as-a-Judge, golden datasets, and debugging techniques.",
+          "timeMinutes": 120
+        },
+        {
+          "day": "3-4",
+          "activity": "Full Practice Exam",
+          "details": "Take a timed practice exam covering all domains. Target 75+ minutes, 65 questions.",
+          "timeMinutes": 180
+        },
+        {
+          "day": "5",
+          "activity": "Gap Analysis & Targeted Review",
+          "details": "Review practice exam results. Focus study on weak areas identified.",
+          "timeMinutes": 120
+        },
+        {
+          "day": "6",
+          "activity": "Service Deep Dive",
+          "details": "Review Tier 1 services reference. Ensure you know key features and exam keywords for each.",
+          "timeMinutes": 90
+        },
+        {
+          "day": "7",
+          "activity": "Final Review & Rest",
+          "details": "Light review of exam tips and strategies. Get good rest before exam day.",
+          "timeMinutes": 60
+        }
+      ],
+      "practiceQuestions": 72,
+      "keyServices": ["Amazon Bedrock Model Evaluations", "Amazon SageMaker Ground Truth"]
+    }
+  ],
+  "tips": [
+    "Focus on Domains 1 and 2 first - they comprise 57% of the exam",
+    "Understand the 'why' behind service choices, not just the 'what'",
+    "Practice recognizing exam keywords that map to specific services",
+    "Time management: ~1 minute per question, flag and move on if stuck",
+    "Read questions carefully - look for qualifiers like 'MOST', 'LEAST', 'FIRST'"
+  ],
+  "totalHours": 35,
+  "totalQuestions": 130
+}

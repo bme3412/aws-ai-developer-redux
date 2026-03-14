@@ -1,4 +1,5 @@
 import { Progress } from '@/types/domain';
+import { getDomains } from './domains';
 
 const STORAGE_KEY = 'aws-genai-study-progress';
 
@@ -96,10 +97,14 @@ export function getOverallProgress(): {
   averageScore: number;
 } {
   const progress = getProgress();
+  const domains = getDomains();
 
-  // These would ideally come from domain data
-  const totalArticles = 18; // Sum of all tasks
-  const totalLabs = 5;
+  // Derive totals from actual domain data
+  const totalArticles = domains.reduce((sum, d) => sum + d.tasks.length, 0);
+  const totalLabs = domains.reduce(
+    (sum, d) => sum + d.tasks.filter(t => t.labSlug).length,
+    0
+  );
 
   const readArticles = Object.keys(progress.articlesRead).length;
   const completedLabs = Object.keys(progress.labsCompleted).length;
