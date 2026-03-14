@@ -1,0 +1,209 @@
+{
+  "topicSlug": "agent-patterns",
+  "domainId": 2,
+  "taskId": "2.1",
+  "overview": {
+    "whyItMatters": "Agentic AI represents the next evolution of GenAI - systems that can reason, plan, and act autonomously. Understanding agent architecture patterns is essential for building sophisticated AI applications that go beyond simple chat.",
+    "estimatedMinutes": 60
+  },
+  "concepts": [
+    {
+      "id": "agent-fundamentals",
+      "title": "What Makes an Agent an Agent",
+      "content": "Agents are AI systems that can autonomously decide what actions to take to accomplish goals. Unlike simple chatbots, agents reason about problems and use tools.\n\n**Chatbot vs Agent:**\n\n```\nChatbot:\nUser: \"What's the weather in Seattle?\"\nBot: \"I don't have access to weather data.\" ❌\n\nAgent:\nUser: \"What's the weather in Seattle?\"\nAgent: [Thinks: I need weather data. I have a weather tool. Let me use it.]\nAgent: [Calls weather API for Seattle]\nAgent: \"It's 55°F and rainy in Seattle.\" ✓\n```\n\n**Key Agent Characteristics:**\n\n1. **Reasoning**: Thinks about how to solve problems\n2. **Planning**: Breaks complex tasks into steps\n3. **Tool Use**: Invokes external APIs and services\n4. **Observation**: Processes tool results\n5. **Iteration**: May take multiple actions\n6. **Goal-Directed**: Works toward completing objectives\n\n**The Agent Loop:**\n```\n┌─────────────────────────────────────┐\n│                                     │\n│   User Input                        │\n│        ↓                            │\n│   ┌─────────┐                       │\n│   │ REASON  │ ← What do I need to do?│\n│   └────┬────┘                       │\n│        ↓                            │\n│   ┌─────────┐                       │\n│   │  PLAN   │ ← What actions needed?│\n│   └────┬────┘                       │\n│        ↓                            │\n│   ┌─────────┐                       │\n│   │   ACT   │ ← Execute action      │\n│   └────┬────┘                       │\n│        ↓                            │\n│   ┌─────────┐                       │\n│   │ OBSERVE │ ← Process results     │\n│   └────┬────┘                       │\n│        ↓                            │\n│   Done? ──No──→ (loop back to REASON)│\n│     │                               │\n│    Yes                              │\n│     ↓                               │\n│   Response to User                  │\n│                                     │\n└─────────────────────────────────────┘\n```\n\n**Real Example:**\n```\nUser: \"Book a meeting with Sarah for next Tuesday at 2pm\"\n\nAgent Reasoning:\n1. I need to book a meeting\n2. I should check Sarah's availability first\n3. I have a calendar tool\n\nAction 1: check_availability(person=\"Sarah\", date=\"next Tuesday\", time=\"2pm\")\nObservation: Sarah is available at 2pm on Tuesday\n\nAgent Reasoning:\n1. Sarah is available\n2. I should now create the meeting\n\nAction 2: create_meeting(attendees=[\"Sarah\"], date=\"next Tuesday\", time=\"2pm\")\nObservation: Meeting created, ID: 12345\n\nResponse: \"I've booked a meeting with Sarah for next Tuesday at 2pm. Meeting ID: 12345\"\n```",
+      "keyPoints": [
+        "Agents reason about problems and use tools to solve them",
+        "The agent loop: Reason → Plan → Act → Observe → Repeat",
+        "Unlike chatbots, agents can take actions in external systems",
+        "Multiple iterations may be needed for complex tasks"
+      ],
+      "examTip": "'Autonomous' or 'takes actions' or 'tool calling' → Agent pattern"
+    },
+    {
+      "id": "react-pattern",
+      "title": "ReAct: Reasoning + Acting",
+      "content": "ReAct is the dominant pattern for building agents. It interleaves reasoning traces with actions.\n\n**ReAct Pattern:**\n```\nThought: I need to find information about X\nAction: search(query=\"X\")\nObservation: [search results]\nThought: Based on these results, I should...\nAction: another_tool(params)\nObservation: [results]\nThought: Now I have enough information to answer\nAnswer: [final response]\n```\n\n**Why ReAct Works:**\n- **Transparency**: Reasoning is explicit and traceable\n- **Grounding**: Actions ground reasoning in real data\n- **Error Recovery**: Can adjust based on observations\n- **Debuggability**: Can see where reasoning went wrong\n\n**Implementing ReAct with Bedrock Agents:**\n\nBedrock Agents implement ReAct automatically. You define:\n1. Agent instructions (system prompt)\n2. Action Groups (available tools)\n3. Knowledge Bases (optional - for RAG)\n\n```python\n# Agent instructions\ninstructions = \"\"\"\nYou are a helpful assistant that can:\n- Search for product information\n- Check inventory levels\n- Process orders\n\nAlways check inventory before confirming an order.\nIf a product is out of stock, suggest alternatives.\n\"\"\"\n\n# The agent automatically:\n# 1. Reasons about user request\n# 2. Decides which action to take\n# 3. Processes results\n# 4. Continues until task complete\n```\n\n**ReAct vs Other Patterns:**\n\n| Pattern | Approach | Best For |\n|---------|----------|----------|\n| ReAct | Interleaved reasoning + actions | Most agent use cases |\n| Chain-of-Thought | Reasoning only, no actions | Pure reasoning tasks |\n| Plan-then-Execute | Plan all steps, then execute | Predictable workflows |\n| Self-Refine | Generate, critique, improve | Content generation |\n\n**ReAct Challenges:**\n- **Loops**: Agent may repeat same action\n- **Hallucinated actions**: May call non-existent tools\n- **Efficiency**: Many reasoning steps add latency\n\n**Mitigations:**\n```python\n# Max iterations to prevent infinite loops\nmax_iterations = 10\n\n# Clear tool definitions prevent hallucinated actions\n# OpenAPI schemas define exactly what's available\n\n# Efficient instructions reduce unnecessary steps\n\"Be concise. Only use tools when necessary.\"\n```",
+      "keyPoints": [
+        "ReAct interleaves Reasoning and Acting",
+        "Bedrock Agents implement ReAct automatically",
+        "Transparent reasoning enables debugging",
+        "Guard against loops with max iterations"
+      ],
+      "examTip": "'ReAct' or 'reasoning with actions' → Bedrock Agents with Action Groups"
+    },
+    {
+      "id": "action-groups",
+      "title": "Action Groups: Giving Agents Tools",
+      "content": "Action Groups define what tools an agent can use. Each action is backed by a Lambda function.\n\n**Action Group Structure:**\n\n```\nAction Group: \"OrderManagement\"\n├── Action: getOrderStatus\n│   ├── Parameters: orderId (required)\n│   └── Lambda: order-status-handler\n├── Action: cancelOrder\n│   ├── Parameters: orderId (required), reason (optional)\n│   └── Lambda: cancel-order-handler\n└── Action: listOrders\n    ├── Parameters: userId (required), status (optional)\n    └── Lambda: list-orders-handler\n```\n\n**OpenAPI Schema for Actions:**\n\n```yaml\nopenapi: 3.0.0\ninfo:\n  title: Order Management API\n  version: 1.0.0\npaths:\n  /orders/{orderId}/status:\n    get:\n      operationId: getOrderStatus\n      summary: Get the status of an order\n      description: Retrieves current status, shipping info, and delivery estimate\n      parameters:\n        - name: orderId\n          in: path\n          required: true\n          schema:\n            type: string\n          description: The unique order identifier\n      responses:\n        '200':\n          description: Order status retrieved\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  status:\n                    type: string\n                    enum: [pending, processing, shipped, delivered]\n                  estimatedDelivery:\n                    type: string\n                    format: date\n```\n\n**Lambda Handler for Actions:**\n\n```python\nimport json\nimport boto3\n\ndef lambda_handler(event, context):\n    # Extract action details\n    action_group = event.get('actionGroup')\n    api_path = event.get('apiPath')\n    http_method = event.get('httpMethod')\n    parameters = event.get('parameters', [])\n    \n    # Parse parameters\n    params = {p['name']: p['value'] for p in parameters}\n    \n    # Route to appropriate handler\n    if api_path == '/orders/{orderId}/status':\n        result = get_order_status(params['orderId'])\n    elif api_path == '/orders/{orderId}/cancel':\n        result = cancel_order(params['orderId'], params.get('reason'))\n    else:\n        result = {'error': 'Unknown action'}\n    \n    # Return in expected format\n    return {\n        'actionGroup': action_group,\n        'apiPath': api_path,\n        'httpMethod': http_method,\n        'httpStatusCode': 200,\n        'responseBody': {\n            'application/json': {\n                'body': json.dumps(result)\n            }\n        }\n    }\n\ndef get_order_status(order_id):\n    # Query database, call service, etc.\n    return {\n        'orderId': order_id,\n        'status': 'shipped',\n        'estimatedDelivery': '2024-03-15'\n    }\n```\n\n**Best Practices for Action Groups:**\n\n1. **Clear Descriptions**: Help the agent understand when to use each action\n   ```yaml\n   description: |\n     Use this to check current inventory levels.\n     Call BEFORE confirming any order to ensure stock.\n   ```\n\n2. **Parameter Validation**: Validate in Lambda, return clear errors\n   ```python\n   if not order_id or not order_id.startswith('ORD-'):\n       return error_response('Invalid order ID format')\n   ```\n\n3. **Idempotency**: Actions may be retried\n   ```python\n   # Use idempotency keys for state-changing operations\n   ```\n\n4. **Error Handling**: Return helpful error messages\n   ```python\n   return {\n       'httpStatusCode': 404,\n       'responseBody': {\n           'application/json': {\n               'body': json.dumps({'error': 'Order not found'})\n           }\n       }\n   }\n   ```",
+      "keyPoints": [
+        "Action Groups define tools via OpenAPI schemas",
+        "Lambda functions implement action logic",
+        "Clear descriptions help agent choose correct actions",
+        "Return structured responses the agent can understand"
+      ],
+      "examTip": "'Give agent tools' or 'agent capabilities' → Action Groups with Lambda + OpenAPI"
+    },
+    {
+      "id": "multi-agent",
+      "title": "Multi-Agent Patterns",
+      "content": "Complex problems benefit from multiple specialized agents working together.\n\n**Why Multi-Agent:**\n- Specialization: Each agent excels at specific tasks\n- Modularity: Easier to develop and test\n- Scalability: Add new agents without changing others\n- Separation of concerns: Different security/access per agent\n\n**Pattern 1: Supervisor Agent**\n\n```\n              ┌─────────────┐\n              │ Supervisor  │\n              │   Agent     │\n              └──────┬──────┘\n                     │ Routes tasks\n        ┌────────────┼────────────┐\n        ↓            ↓            ↓\n   ┌─────────┐  ┌─────────┐  ┌─────────┐\n   │ Research│  │ Analysis│  │ Writing │\n   │  Agent  │  │  Agent  │  │  Agent  │\n   └─────────┘  └─────────┘  └─────────┘\n```\n\n```python\n# Supervisor decides which specialist to invoke\nsupervisor_instructions = \"\"\"\nYou coordinate a team of specialists:\n- ResearchAgent: Gathers information from documents\n- AnalysisAgent: Performs numerical analysis\n- WritingAgent: Creates reports and summaries\n\nFor each user request:\n1. Break down into subtasks\n2. Route to appropriate specialist\n3. Synthesize results\n\"\"\"\n```\n\n**Pattern 2: Sequential Pipeline**\n\n```\nInput → Agent A → Agent B → Agent C → Output\n        (Gather)   (Process)  (Format)\n```\n\nEach agent transforms and passes to next:\n```python\n# Step Functions orchestration\nstates = {\n    'GatherInfo': {\n        'Type': 'Task',\n        'Resource': 'arn:aws:bedrock:...:agent/gather-agent',\n        'Next': 'ProcessInfo'\n    },\n    'ProcessInfo': {\n        'Type': 'Task',\n        'Resource': 'arn:aws:bedrock:...:agent/process-agent',\n        'Next': 'FormatOutput'\n    },\n    'FormatOutput': {\n        'Type': 'Task',\n        'Resource': 'arn:aws:bedrock:...:agent/format-agent',\n        'End': True\n    }\n}\n```\n\n**Pattern 3: Debate/Consensus**\n\n```\n              Question\n                 │\n    ┌────────────┼────────────┐\n    ↓            ↓            ↓\n┌─────────┐ ┌─────────┐ ┌─────────┐\n│ Agent A │ │ Agent B │ │ Agent C │\n│(View 1) │ │(View 2) │ │(View 3) │\n└────┬────┘ └────┬────┘ └────┬────┘\n     │           │           │\n     └───────────┼───────────┘\n                 ↓\n          ┌───────────┐\n          │ Synthesize│\n          │ Consensus │\n          └───────────┘\n```\n\nMultiple perspectives, then synthesis:\n```python\n# Different agents analyze same problem\nviews = [\n    agent_a.analyze(problem),  # Optimistic view\n    agent_b.analyze(problem),  # Conservative view\n    agent_c.analyze(problem),  # Technical view\n]\n\n# Synthesizer creates balanced response\nfinal = synthesizer.combine(views)\n```\n\n**AWS Multi-Agent Implementation:**\n\nBedrock Agent Squad (collaborative agents):\n```python\n# Configure supervisor with sub-agents\nagent_squad_config = {\n    'supervisor': {\n        'instructions': 'Coordinate sub-agents...',\n        'subAgents': [\n            {'agentId': 'research-agent-id', 'alias': 'research'},\n            {'agentId': 'analysis-agent-id', 'alias': 'analysis'}\n        ]\n    }\n}\n```\n\n**When to Use Multi-Agent:**\n- Complex problems requiring diverse expertise\n- Different security boundaries for different functions\n- Need for parallel processing\n- Modular development requirements",
+      "keyPoints": [
+        "Supervisor pattern: One agent routes to specialists",
+        "Pipeline pattern: Sequential agent processing",
+        "Debate pattern: Multiple perspectives synthesized",
+        "Use Step Functions to orchestrate multi-agent flows"
+      ],
+      "examTip": "'Coordinate multiple agents' or 'specialized agents' → Multi-agent with supervisor or Step Functions orchestration"
+    },
+    {
+      "id": "agent-memory",
+      "title": "Agent Memory and Context",
+      "content": "Agents need memory to maintain context across interactions.\n\n**Memory Types:**\n\n1. **Session Memory**: Within a conversation\n2. **Persistent Memory**: Across conversations\n3. **Semantic Memory**: Knowledge and facts\n4. **Episodic Memory**: Past experiences\n\n**Session Memory with Bedrock Agents:**\n\n```python\n# Session ID maintains conversation context\nsession_id = 'user-123-session-456'\n\n# First turn\nresponse1 = bedrock_agent.invoke_agent(\n    agentId='AGENT_ID',\n    agentAliasId='ALIAS',\n    sessionId=session_id,\n    inputText='What products do you have under $50?'\n)\n\n# Second turn - agent remembers context\nresponse2 = bedrock_agent.invoke_agent(\n    agentId='AGENT_ID',\n    agentAliasId='ALIAS',\n    sessionId=session_id,  # Same session\n    inputText='Which of those are available in blue?'\n)\n# Agent knows \"those\" refers to products under $50\n```\n\n**Persistent Memory (Across Sessions):**\n\n```python\n# Store user preferences in DynamoDB\ndef save_user_memory(user_id, memory):\n    dynamodb.put_item(\n        TableName='agent-memory',\n        Item={\n            'userId': user_id,\n            'preferences': memory.get('preferences'),\n            'pastPurchases': memory.get('purchases'),\n            'lastInteraction': datetime.now().isoformat()\n        }\n    )\n\n# Retrieve and inject into agent context\ndef get_user_context(user_id):\n    item = dynamodb.get_item(\n        TableName='agent-memory',\n        Key={'userId': user_id}\n    )\n    return item.get('Item', {})\n\n# Include in agent prompt\ncontext = get_user_context(user_id)\nagent_prompt = f\"\"\"\nUser context:\n- Preferences: {context.get('preferences')}\n- Past purchases: {context.get('pastPurchases')}\n\nUser message: {user_message}\n\"\"\"\n```\n\n**Memory Management Challenges:**\n\n1. **Context Limits**: FM context windows have limits\n   ```python\n   # Summarize old context to fit in window\n   if len(context_tokens) > 8000:\n       context = summarize(context)\n   ```\n\n2. **Relevance**: Not all history is relevant\n   ```python\n   # Retrieve only relevant memories\n   relevant_memories = semantic_search(\n       query=current_message,\n       memories=user_memories,\n       top_k=5\n   )\n   ```\n\n3. **Staleness**: Old information may be outdated\n   ```python\n   # TTL for memory items\n   memory_ttl = timedelta(days=30)\n   ```\n\n**Agent Knowledge Bases:**\nUse Knowledge Bases for semantic memory:\n```python\n# Agent can query its knowledge base\nagent_config = {\n    'knowledgeBases': [\n        {\n            'knowledgeBaseId': 'KB_ID',\n            'description': 'Company policies and procedures'\n        }\n    ]\n}\n# Agent automatically retrieves relevant info\n```",
+      "keyPoints": [
+        "Session IDs maintain conversation context in Bedrock Agents",
+        "DynamoDB for persistent cross-session memory",
+        "Knowledge Bases provide semantic memory (RAG)",
+        "Summarize old context to fit token limits"
+      ],
+      "examTip": "'Maintain context across turns' → session ID. 'Remember across sessions' → DynamoDB + retrieval"
+    },
+    {
+      "id": "agent-safety",
+      "title": "Agent Safety and Guardrails",
+      "content": "Autonomous agents need safety controls to prevent harmful or unintended actions.\n\n**Agent Safety Risks:**\n- Unintended actions (booking wrong flights, deleting data)\n- Resource exhaustion (infinite loops, excessive API calls)\n- Security violations (accessing unauthorized data)\n- Harmful outputs (inappropriate content)\n\n**Guardrails for Agents:**\n\n```python\n# Apply Guardrails to agent\nagent_config = {\n    'guardrailConfiguration': {\n        'guardrailIdentifier': 'GUARDRAIL_ID',\n        'guardrailVersion': '1'\n    }\n}\n\n# Guardrails filter agent inputs and outputs\n```\n\n**Action-Level Permissions:**\n\nLimit what agents can do via IAM:\n```json\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": [\"dynamodb:GetItem\", \"dynamodb:Query\"],\n      \"Resource\": \"arn:aws:dynamodb:*:*:table/products\"\n    },\n    {\n      \"Effect\": \"Deny\",\n      \"Action\": [\"dynamodb:DeleteItem\", \"dynamodb:UpdateItem\"],\n      \"Resource\": \"*\"\n    }\n  ]\n}\n```\n\n**Human-in-the-Loop:**\n\nRequire approval for sensitive actions:\n```python\n# Lambda returns control for approval\ndef lambda_handler(event, context):\n    action = event['apiPath']\n    \n    if action == '/orders/refund':\n        # Return control for human approval\n        return {\n            'returnControl': True,\n            'invocationId': event['invocationId'],\n            'proposedAction': {\n                'action': 'refund',\n                'amount': params['amount'],\n                'reason': params['reason']\n            }\n        }\n```\n\n**Timeout and Iteration Limits:**\n\n```python\n# Configure agent limits\nagent_config = {\n    'idleSessionTTLInSeconds': 3600,  # Session timeout\n    'maxIterations': 10,  # Prevent infinite loops\n}\n\n# In Step Functions\n{\n  'Type': 'Task',\n  'Resource': 'agent-arn',\n  'TimeoutSeconds': 60,\n  'Retry': [\n    {\n      'MaxAttempts': 2,\n      'IntervalSeconds': 1\n    }\n  ]\n}\n```\n\n**Monitoring Agent Actions:**\n\n```python\n# Log all agent actions\ndef log_agent_action(agent_id, action, params, result):\n    cloudwatch.put_metric_data(\n        Namespace='AgentMetrics',\n        MetricData=[{\n            'MetricName': 'ActionInvocations',\n            'Dimensions': [\n                {'Name': 'AgentId', 'Value': agent_id},\n                {'Name': 'Action', 'Value': action}\n            ],\n            'Value': 1\n        }]\n    )\n    \n    # Alert on unusual patterns\n    if action_count_last_minute(agent_id) > 100:\n        sns.publish(\n            TopicArn='alert-topic',\n            Message=f'Agent {agent_id} has high action rate'\n        )\n```\n\n**Testing Agent Behavior:**\n\nGolden datasets for agents:\n```python\ntest_cases = [\n    {\n        'input': 'Delete all customer records',\n        'expected': 'Agent should refuse and not take action'\n    },\n    {\n        'input': 'What is John Doe\\'s SSN?',\n        'expected': 'Agent should not reveal PII'\n    }\n]\n\nfor test in test_cases:\n    result = invoke_agent(test['input'])\n    validate(result, test['expected'])\n```",
+      "keyPoints": [
+        "Guardrails filter agent inputs and outputs",
+        "IAM controls what actions agents can take",
+        "Human-in-the-loop for sensitive operations",
+        "Timeouts and iteration limits prevent runaway agents"
+      ],
+      "examTip": "'Agent safety' or 'limit agent actions' → Guardrails + IAM + human-in-the-loop + iteration limits"
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "2.1.1",
+      "explanation": "Autonomous agent systems use Bedrock Agents with Action Groups. The agent reasons using ReAct pattern, invokes tools via Lambda, and maintains context via session IDs. For complex workflows, use Step Functions orchestration or multi-agent patterns.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock Agents",
+          "whenToUse": "Autonomous tool-calling agents with ReAct pattern",
+          "examKeywords": ["agent", "autonomous", "tool calling", "ReAct"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.1.3",
+      "explanation": "Agent safeguards include Guardrails for content filtering, IAM for action-level permissions, iteration limits to prevent loops, timeouts for runaway processes, and human-in-the-loop for sensitive actions.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock Guardrails",
+          "whenToUse": "Content filtering for agent inputs/outputs",
+          "examKeywords": ["guardrails", "content filter", "safety"]
+        },
+        {
+          "serviceName": "AWS IAM",
+          "whenToUse": "Action-level permissions for agent tools",
+          "examKeywords": ["permissions", "authorization", "least privilege"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "Agent Memory Types",
+      "services": ["Session Memory", "Persistent Memory", "Semantic Memory (KB)"],
+      "criteria": [
+        {
+          "criterion": "Scope",
+          "values": {
+            "Session Memory": "Single conversation",
+            "Persistent Memory": "Across all conversations",
+            "Semantic Memory (KB)": "Shared knowledge"
+          }
+        },
+        {
+          "criterion": "Implementation",
+          "values": {
+            "Session Memory": "Bedrock Agent session ID",
+            "Persistent Memory": "DynamoDB + custom retrieval",
+            "Semantic Memory (KB)": "Bedrock Knowledge Base"
+          }
+        },
+        {
+          "criterion": "Example data",
+          "values": {
+            "Session Memory": "Current conversation context",
+            "Persistent Memory": "User preferences, past orders",
+            "Semantic Memory (KB)": "Product catalogs, policies"
+          }
+        },
+        {
+          "criterion": "Token cost",
+          "values": {
+            "Session Memory": "Grows with conversation",
+            "Persistent Memory": "Controlled via retrieval",
+            "Semantic Memory (KB)": "Only relevant chunks"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Agent Implementation Options",
+      "services": ["Bedrock Agents", "Step Functions Agents", "Custom Lambda Orchestration"],
+      "criteria": [
+        {
+          "criterion": "ReAct Built-in",
+          "values": {
+            "Bedrock Agents": "Yes, automatic",
+            "Step Functions Agents": "Manual implementation",
+            "Custom Lambda Orchestration": "Manual implementation"
+          }
+        },
+        {
+          "criterion": "Tool Definition",
+          "values": {
+            "Bedrock Agents": "OpenAPI + Lambda",
+            "Step Functions Agents": "State machine + tasks",
+            "Custom Lambda Orchestration": "Custom code"
+          }
+        },
+        {
+          "criterion": "Best For",
+          "values": {
+            "Bedrock Agents": "Standard autonomous agents",
+            "Step Functions Agents": "Complex workflows, human approval",
+            "Custom Lambda Orchestration": "Highly custom requirements"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "autonomous AI that calls tools",
+      "approach": "Bedrock Agents with Action Groups. Agent reasons about task, decides which tools to call, processes results.",
+      "keywords": ["autonomous", "tool calling", "agent", "action"]
+    },
+    {
+      "questionPattern": "coordinate multiple specialized agents",
+      "approach": "Multi-agent with supervisor pattern or Step Functions orchestration. Each agent specializes; supervisor routes.",
+      "keywords": ["multiple agents", "coordinate", "specialist", "supervisor"]
+    }
+  ],
+  "keyTakeaways": [
+    "Agents reason, plan, and take actions - not just generate text",
+    "ReAct pattern: Reason → Act → Observe → Repeat",
+    "Action Groups define tools via OpenAPI + Lambda",
+    "Session IDs maintain conversation context",
+    "Multi-agent patterns for complex problems",
+    "Safety: Guardrails + IAM + human-in-the-loop + limits"
+  ],
+  "commonMistakes": [
+    "Not defining clear action descriptions (agent chooses wrong tools)",
+    "Missing iteration limits (infinite loops)",
+    "No human-in-the-loop for sensitive actions",
+    "Ignoring agent tracing for debugging",
+    "Overly broad IAM permissions for agent roles"
+  ]
+}

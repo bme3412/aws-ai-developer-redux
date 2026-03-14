@@ -1,0 +1,215 @@
+{
+  "topicSlug": "enterprise-integration",
+  "domainId": 2,
+  "taskId": "2.3",
+  "overview": {
+    "whyItMatters": "GenAI applications don't exist in isolation. They integrate with existing systems: CRMs, ERPs, databases, legacy applications. Understanding enterprise integration patterns is essential for building production GenAI systems that work within real organizational constraints.",
+    "estimatedMinutes": 35
+  },
+  "concepts": [
+    {
+      "id": "integration-patterns",
+      "title": "Enterprise Integration Patterns for GenAI",
+      "content": "GenAI integrations follow two fundamental patterns: API-based synchronous integration and event-driven asynchronous integration. The choice depends on latency requirements, system coupling, and reliability needs.\n\n**API-Based Integration (Synchronous):**\nThe calling system waits for the GenAI response. Use API Gateway to expose GenAI capabilities as REST/HTTP APIs. Backend Lambda functions invoke Bedrock and return results. This pattern works for interactive applications where users expect immediate responses.\n\nChallenges: FM inference is slow (seconds, not milliseconds). Long-running requests can timeout. Design for async handoff when latency exceeds acceptable thresholds.\n\n**Event-Driven Integration (Asynchronous):**\nSystems communicate through events without direct coupling. EventBridge routes events to GenAI processors. Results flow back through events or are stored for retrieval. This pattern decouples systems, improves reliability, and handles bursty workloads gracefully.\n\nBest for: Batch processing, background enrichment, systems that can tolerate processing delays.\n\n**Data Synchronization:**\nGenAI applications often need data from enterprise systems. AWS AppFlow provides managed data transfer from SaaS applications (Salesforce, ServiceNow, SAP) to S3 or other AWS services. This feeds knowledge bases and provides context for FM inference.",
+      "keyPoints": [
+        "API Gateway for synchronous GenAI APIs",
+        "EventBridge for event-driven, loosely coupled integration",
+        "AppFlow for data sync from SaaS applications",
+        "Choose sync vs async based on latency tolerance"
+      ]
+    },
+    {
+      "id": "security-integration",
+      "title": "Security for Enterprise GenAI",
+      "content": "Enterprise GenAI systems must integrate with existing security frameworks. This means identity federation, role-based access control, and least-privilege access to both models and data.\n\n**Identity Federation:**\nUsers authenticate through existing identity providers (Okta, Azure AD, corporate LDAP). Amazon Cognito federates these identities, issuing AWS credentials for accessing GenAI services. This avoids creating separate AI-specific authentication.\n\n**Role-Based Access Control (RBAC):**\nDifferent users need different access levels. Sales reps might access customer-facing AI features. Analysts might access data exploration tools. Admins might configure prompts and guardrails. IAM policies and Cognito groups implement these distinctions.\n\n**Model and Data Access:**\nNot everyone should access every model or data source. IAM policies control which Bedrock models users can invoke, which Knowledge Bases they can query, and which data sources feed their requests. Implement least privilege: users get only the access they need.\n\n**VPC Integration:**\nKeep GenAI traffic within your network. VPC endpoints for Bedrock and SageMaker ensure traffic never traverses the public internet. PrivateLink provides secure connectivity to AWS services.\n\n```\n┌─────────────────────────────────────────────────────────────────────┐\n│                        VPC Architecture                              │\n├─────────────────────────────────────────────────────────────────────┤\n│                                                                      │\n│  ┌──────────────────────── Your VPC ────────────────────────────┐   │\n│  │                                                               │   │\n│  │   ┌─────────────┐    ┌─────────────────────────────────┐    │   │\n│  │   │   Lambda    │───▶│  VPC Endpoint                   │    │   │\n│  │   │ (Private)   │    │  (Bedrock Runtime)              │    │   │\n│  │   └─────────────┘    │  com.amazonaws.region.bedrock   │    │   │\n│  │                      └───────────────┬─────────────────┘    │   │\n│  │   ┌─────────────┐                    │                      │   │\n│  │   │    EC2      │───▶  VPC Endpoint ─┘                      │   │\n│  │   │ (App Tier)  │    (SageMaker Runtime)                    │   │\n│  │   └─────────────┘                                           │   │\n│  │                                                               │   │\n│  └───────────────────────────────────────────────────────────────┘   │\n│                               │                                      │\n│                               │ PrivateLink (no internet)           │\n│                               ▼                                      │\n│                    ┌─────────────────────┐                          │\n│                    │   AWS Services      │                          │\n│                    │   (Bedrock, SageMaker)                         │\n│                    └─────────────────────┘                          │\n│                                                                      │\n│  Benefits:                                                          │\n│  • Traffic stays on AWS backbone                                    │\n│  • No NAT Gateway or internet path                                  │\n│  • Enhanced security posture                                        │\n└─────────────────────────────────────────────────────────────────────┘\n```",
+      "keyPoints": [
+        "Cognito for identity federation with enterprise IdPs",
+        "IAM for RBAC over models and data sources",
+        "VPC endpoints keep traffic off public internet",
+        "Least privilege: minimize access to only what's needed"
+      ]
+    },
+    {
+      "id": "cross-environment",
+      "title": "Cross-Environment Deployments",
+      "content": "Not all GenAI workloads run in standard AWS regions. Some organizations need on-premises processing, edge inference, or hybrid architectures.\n\n**AWS Outposts:**\nRun AWS infrastructure on-premises. Deploy SageMaker endpoints locally for data that cannot leave the data center. Useful for highly regulated industries or latency-sensitive edge processing.\n\n**AWS Wavelength:**\nUltra-low-latency inference at the network edge. Deploy inference workloads within carrier networks for mobile and IoT applications requiring single-digit millisecond latency.\n\n**Hybrid Routing:**\nSome requests process locally, others route to cloud. Implement routing logic that considers data sensitivity, latency requirements, and capacity. API Gateway can route based on request attributes.\n\n**Secure Connectivity:**\nOn-premises systems need secure paths to cloud GenAI services. AWS Direct Connect provides dedicated network connections. Site-to-Site VPN works for lower-bandwidth needs. Both keep traffic encrypted and off the public internet.",
+      "keyPoints": [
+        "Outposts: AWS infrastructure on-premises for regulated workloads",
+        "Wavelength: Edge inference with ultra-low latency",
+        "Direct Connect/VPN for secure hybrid connectivity",
+        "Route based on sensitivity, latency, and capacity needs"
+      ]
+    },
+    {
+      "id": "cicd-genai",
+      "title": "CI/CD for GenAI Applications",
+      "content": "GenAI applications need CI/CD pipelines, but with GenAI-specific considerations. Code changes are only part of the story; prompt changes, model updates, and guardrail configurations also need deployment workflows.\n\n```\n┌─────────────────────────────────────────────────────────────────────┐\n│                    GenAI CI/CD Pipeline                              │\n├─────────────────────────────────────────────────────────────────────┤\n│                                                                      │\n│  ┌─────────┐   ┌─────────┐   ┌─────────────┐   ┌─────────┐         │\n│  │  Code   │──▶│  Build  │──▶│   Test      │──▶│ Deploy  │         │\n│  │ Commit  │   │CodeBuild│   │             │   │  Prod   │         │\n│  └─────────┘   └─────────┘   └─────────────┘   └─────────┘         │\n│                                    │                                 │\n│                    ┌───────────────┼───────────────┐                │\n│                    ▼               ▼               ▼                │\n│               ┌─────────┐   ┌──────────┐   ┌───────────┐           │\n│               │ Prompt  │   │ Quality  │   │ Security  │           │\n│               │Regression│   │ Metrics  │   │   Scan   │           │\n│               │  Tests  │   │(BLEU,etc)│   │(Injection)│           │\n│               └─────────┘   └──────────┘   └───────────┘           │\n│                    │               │               │                │\n│                    └───────────────┴───────────────┘                │\n│                               │                                      │\n│                               ▼                                      │\n│                    ┌─────────────────┐                              │\n│                    │ Gate: Pass/Fail │                              │\n│                    │ Quality > 0.85  │                              │\n│                    └────────┬────────┘                              │\n│                             │                                        │\n│              ┌──────────────┴──────────────┐                        │\n│              ▼                             ▼                        │\n│         Pass: Deploy                  Fail: Alert                   │\n│                                       & Rollback                    │\n└─────────────────────────────────────────────────────────────────────┘\n```\n\n**CodePipeline + CodeBuild:**\nStandard CI/CD for application code. Build, test, deploy through defined stages. Add GenAI-specific testing: prompt regression tests, output quality checks, guardrail validation.\n\n**GenAI-Specific Testing:**\n- Prompt regression: Does the new code produce expected outputs for known inputs?\n- Quality metrics: BLEU, ROUGE, or custom metrics for output quality\n- Safety checks: Run outputs through guardrails before deployment\n- Cost projections: Estimate token usage and costs for new prompts\n\n**Security Scanning:**\nScan for prompt injection vulnerabilities. Test that user inputs cannot manipulate model behavior. Automated security scans should check for common GenAI attack vectors.\n\n**Rollback Strategies:**\nGenAI outputs are probabilistic. Quality degradation might not be immediately obvious. Build monitoring that detects output quality drops and triggers automatic rollback to previous versions.",
+      "keyPoints": [
+        "CodePipeline + CodeBuild for GenAI CI/CD",
+        "Include prompt regression and quality tests",
+        "Security scan for prompt injection vulnerabilities",
+        "Monitor output quality and automate rollback"
+      ]
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "2.3.1",
+      "explanation": "Legacy system integration requires bridging old and new. API-based integration wraps GenAI capabilities in REST APIs that legacy systems can call. This is the least invasive approach: legacy systems make HTTP calls without knowing about FMs.\n\nEvent-driven loose coupling uses EventBridge as the integration hub. Legacy systems publish events; GenAI processors subscribe and react. Neither system directly depends on the other, improving reliability and enabling independent scaling.\n\nData sync patterns keep GenAI systems informed with current data. AppFlow moves data from enterprise SaaS to AWS. Change data capture (CDC) from databases feeds real-time updates. This data populates knowledge bases and provides context for inference.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon API Gateway",
+          "whenToUse": "Expose GenAI as REST APIs for legacy system integration.",
+          "examKeywords": ["API", "REST", "legacy integration", "HTTP"]
+        },
+        {
+          "serviceName": "Amazon EventBridge",
+          "whenToUse": "Event-driven integration with loose coupling between systems.",
+          "examKeywords": ["event-driven", "loose coupling", "decouple", "events"]
+        },
+        {
+          "serviceName": "AWS AppFlow",
+          "whenToUse": "Managed data transfer from SaaS applications to AWS.",
+          "examKeywords": ["data sync", "SaaS", "Salesforce", "data transfer"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.3.2",
+      "explanation": "Application enhancement adds GenAI capabilities to existing applications. Microservices architecture isolates GenAI functions in dedicated services that other applications call. This limits blast radius and enables independent scaling.\n\nWebhooks enable applications to trigger GenAI processing. When a customer submits feedback, a webhook triggers sentiment analysis and response generation. The application doesn't wait; it receives results asynchronously.\n\nEvent-driven patterns scale naturally. Process a single customer query or millions; EventBridge and Lambda scale automatically. No capacity planning for GenAI bursts.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon API Gateway",
+          "whenToUse": "API interfaces for microservices GenAI integration.",
+          "examKeywords": ["microservices", "API", "webhook"]
+        },
+        {
+          "serviceName": "AWS Lambda",
+          "whenToUse": "Serverless GenAI processors triggered by events or webhooks.",
+          "examKeywords": ["serverless", "event processing", "webhook handler"]
+        },
+        {
+          "serviceName": "Amazon EventBridge",
+          "whenToUse": "Event routing for GenAI enhancement workflows.",
+          "examKeywords": ["event", "trigger", "workflow"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.3.3",
+      "explanation": "Security integration federates identity and enforces access control. Cognito connects to enterprise identity providers through SAML or OIDC. Users authenticate once; Cognito provides AWS credentials for accessing GenAI services.\n\nRBAC through IAM policies controls who can invoke which models and access which data. Create IAM roles for user groups (analysts, admins, end users) with appropriate permissions. Attach conditions for fine-grained control.\n\nLeast privilege is critical for GenAI. Users should only access models and data needed for their role. Over-permissioned access risks data exposure and cost overruns.",
+      "awsServices": [
+        {
+          "serviceName": "AWS IAM",
+          "whenToUse": "RBAC policies for model and data access control.",
+          "examKeywords": ["RBAC", "access control", "permissions", "least privilege"]
+        },
+        {
+          "serviceName": "Amazon Cognito",
+          "whenToUse": "Identity federation with enterprise IdPs. User authentication.",
+          "examKeywords": ["federation", "identity", "authentication", "SAML", "OIDC"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.3.4",
+      "explanation": "Cross-environment deployment addresses requirements that standard cloud deployment can't meet. Outposts brings AWS to your data center for workloads that cannot leave premises due to regulations or data sovereignty.\n\nWavelength deploys inference at the carrier network edge for ultra-low-latency mobile applications. Think real-time translation, AR/VR, or autonomous systems requiring sub-10ms response.\n\nSecure routing combines these options. Route requests based on data sensitivity (regulated data stays on-prem), latency needs (real-time to edge), or capacity (burst to cloud).",
+      "awsServices": [
+        {
+          "serviceName": "AWS Outposts",
+          "whenToUse": "On-premises AWS infrastructure for regulated or latency-sensitive GenAI.",
+          "examKeywords": ["on-premises", "data center", "regulated", "local"]
+        },
+        {
+          "serviceName": "AWS Wavelength",
+          "whenToUse": "Edge deployment for ultra-low-latency mobile/IoT applications.",
+          "examKeywords": ["edge", "low latency", "mobile", "5G"]
+        },
+        {
+          "serviceName": "Amazon VPC",
+          "whenToUse": "Secure networking and routing between environments.",
+          "examKeywords": ["networking", "routing", "secure connectivity"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.3.5",
+      "explanation": "CI/CD for GenAI includes application code plus prompts, configurations, and model artifacts. CodePipeline orchestrates the full deployment workflow. CodeBuild runs tests including GenAI-specific validation.\n\nGenAI testing goes beyond unit tests. Test prompt outputs against expected results. Measure quality metrics. Run security scans for prompt injection vulnerabilities. Validate guardrails catch expected violations.\n\nGenAI Gateway provides a centralized abstraction for observability and control. Route all FM calls through the gateway to enable consistent logging, access control, cost tracking, and rapid model switching without application changes.",
+      "awsServices": [
+        {
+          "serviceName": "AWS CodePipeline",
+          "whenToUse": "CI/CD orchestration for GenAI applications.",
+          "examKeywords": ["CI/CD", "pipeline", "deployment", "automation"]
+        },
+        {
+          "serviceName": "AWS CodeBuild",
+          "whenToUse": "Build and test including GenAI-specific validation.",
+          "examKeywords": ["build", "test", "validation"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "Integration Pattern Options",
+      "services": ["API Gateway (Sync)", "EventBridge (Async)", "AppFlow (Data)"],
+      "criteria": [
+        {
+          "criterion": "Coupling",
+          "values": {
+            "API Gateway (Sync)": "Tighter - caller waits for response",
+            "EventBridge (Async)": "Loose - fire and forget",
+            "AppFlow (Data)": "Data sync - no runtime coupling"
+          }
+        },
+        {
+          "criterion": "Latency",
+          "values": {
+            "API Gateway (Sync)": "Real-time (user waits)",
+            "EventBridge (Async)": "Eventual (background processing)",
+            "AppFlow (Data)": "Scheduled or triggered batch"
+          }
+        },
+        {
+          "criterion": "Best for",
+          "values": {
+            "API Gateway (Sync)": "Interactive applications, user-facing features",
+            "EventBridge (Async)": "Background processing, system integration",
+            "AppFlow (Data)": "Data synchronization from SaaS systems"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "integrate GenAI with existing enterprise systems",
+      "approach": "API Gateway for synchronous, EventBridge for async. Consider latency tolerance. Legacy systems often prefer simple REST APIs (API Gateway). Modern event-driven architectures use EventBridge.",
+      "keywords": ["integrate", "enterprise", "legacy", "existing systems"]
+    },
+    {
+      "questionPattern": "identity federation or access control",
+      "approach": "Cognito for federation with enterprise IdPs. IAM for RBAC and least privilege. VPC endpoints for network isolation.",
+      "keywords": ["identity", "federation", "RBAC", "access control", "authentication"]
+    },
+    {
+      "questionPattern": "on-premises or edge GenAI",
+      "approach": "Outposts for on-premises (data can't leave). Wavelength for edge/low-latency. Direct Connect for secure hybrid connectivity.",
+      "keywords": ["on-premises", "edge", "local", "data center", "low latency"]
+    }
+  ],
+  "keyTakeaways": [
+    "API Gateway for sync integration, EventBridge for async, loosely coupled integration",
+    "Cognito federates enterprise identities; IAM enforces RBAC for GenAI resources",
+    "Outposts for on-premises GenAI, Wavelength for edge inference",
+    "CI/CD pipelines need GenAI-specific testing: prompt regression, quality metrics, security scans",
+    "VPC endpoints keep GenAI traffic off public internet"
+  ],
+  "commonMistakes": [
+    "Building synchronous APIs for workloads that could be async",
+    "Over-permissioned IAM policies for GenAI access",
+    "Forgetting GenAI-specific tests in CI/CD pipelines",
+    "Not using VPC endpoints for production GenAI workloads",
+    "Ignoring prompt injection in security scans"
+  ]
+}

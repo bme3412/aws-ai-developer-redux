@@ -1,0 +1,247 @@
+{
+  "topicSlug": "fm-api-integrations",
+  "domainId": 2,
+  "taskId": "2.4",
+  "overview": {
+    "whyItMatters": "Calling foundation models correctly is fundamental. Understanding synchronous vs asynchronous patterns, streaming responses, error handling, and intelligent routing determines whether your application is reliable and performant or frustrating and flaky.",
+    "estimatedMinutes": 35
+  },
+  "concepts": [
+    {
+      "id": "sync-async-patterns",
+      "title": "Synchronous and Asynchronous FM Calls",
+      "content": "FM API calls can be synchronous (wait for response) or asynchronous (submit and retrieve later). The choice impacts user experience, system architecture, and cost.\n\n```\n┌─────────────────────────────────────────────────────────────────────┐\n│                    FM API Call Patterns                              │\n├─────────────────────────────────────────────────────────────────────┤\n│                                                                      │\n│  SYNCHRONOUS          ASYNCHRONOUS           STREAMING               │\n│  ────────────         ─────────────          ─────────               │\n│                                                                      │\n│  Client               Client                 Client                  │\n│    │                    │                      │                     │\n│    ▼                    ▼                      ▼                     │\n│  Request ──────▶    Submit ──────▶         Request ──────▶          │\n│    │                    │                      │                     │\n│   ~~~                Return                    ▼                     │\n│  WAIT               job_id                 Token 1                   │\n│   ~~~                   │                      ▼                     │\n│    │                 Poll or                Token 2                   │\n│    ▼                Callback                   ▼                     │\n│  Response               │                   Token N                   │\n│    │                    ▼                      ▼                     │\n│    ▼                Response                [DONE]                   │\n│  Done                   │                      │                     │\n│                         ▼                      ▼                     │\n│                       Done                   Done                    │\n│                                                                      │\n│  Latency:           Latency:               Latency:                  │\n│  High (wait)        Decoupled              Fast TTFB                 │\n│                                                                      │\n│  Use: Simple        Use: Batch             Use: Chat UI              │\n│  API calls          Background             Real-time                 │\n└─────────────────────────────────────────────────────────────────────┘\n```\n\n**Synchronous (Bedrock InvokeModel):**\nThe caller waits while the model processes. Simple to implement. Works for interactive use cases where users expect immediate responses. Lambda, EC2, ECS, or any compute can call Bedrock synchronously.\n\nLimitations: Long inference times (10+ seconds for complex prompts) can cause timeouts. API Gateway has a 29-second limit. Users waiting for responses may abandon.\n\n**Asynchronous Patterns:**\nSubmit requests, get results later. Implement with SQS queues: producers submit requests, Lambda consumers process them, results go to another queue or storage.\n\nBedrock doesn't have native async invoke, but you build async patterns around it. SQS decouples submission from processing. Step Functions orchestrates multi-step async workflows.\n\n**Batch Inference:**\nProcess many requests together for efficiency. SageMaker batch transform jobs process files of inputs. Useful for bulk processing where real-time response isn't needed: document analysis, data enrichment, offline processing.",
+      "keyPoints": [
+        "InvokeModel: Synchronous, caller waits for response",
+        "SQS + Lambda: Build async patterns for background processing",
+        "Batch inference: Process many requests together for efficiency",
+        "Match pattern to latency tolerance and use case"
+      ]
+    },
+    {
+      "id": "streaming-responses",
+      "title": "Streaming FM Responses",
+      "content": "Streaming delivers tokens as they're generated rather than waiting for the complete response. This dramatically improves perceived latency for users.\n\n**Why Streaming Matters:**\nFM generation is sequential: each token is generated one at a time. A 500-token response takes time to generate. Without streaming, users stare at a loading spinner. With streaming, they see text appear in real-time, like watching someone type.\n\n**Bedrock Streaming API:**\nUse InvokeModelWithResponseStream instead of InvokeModel. The response is a stream of chunks containing partial outputs. Your application processes chunks as they arrive.\n\n**Python streaming example (boto3):**\n\n```python\nimport boto3\nimport json\n\nclient = boto3.client('bedrock-runtime')\n\nresponse = client.invoke_model_with_response_stream(\n    modelId='anthropic.claude-3-sonnet-20240229-v1:0',\n    body=json.dumps({\n        'anthropic_version': 'bedrock-2023-05-31',\n        'messages': [{'role': 'user', 'content': 'Explain quantum computing'}],\n        'max_tokens': 1024\n    })\n)\n\n# Process streaming response\nfor event in response['body']:\n    chunk = json.loads(event['chunk']['bytes'])\n    if chunk['type'] == 'content_block_delta':\n        print(chunk['delta']['text'], end='', flush=True)\n    elif chunk['type'] == 'message_stop':\n        print('\\n[Stream complete]')\n```\n\n**TypeScript streaming example:**\n\n```typescript\nimport { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from '@aws-sdk/client-bedrock-runtime';\n\nconst client = new BedrockRuntimeClient({});\n\nconst response = await client.send(new InvokeModelWithResponseStreamCommand({\n  modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',\n  body: JSON.stringify({\n    anthropic_version: 'bedrock-2023-05-31',\n    messages: [{ role: 'user', content: 'Explain quantum computing' }],\n    max_tokens: 1024\n  })\n}));\n\nfor await (const event of response.body) {\n  if (event.chunk) {\n    const chunk = JSON.parse(new TextDecoder().decode(event.chunk.bytes));\n    if (chunk.type === 'content_block_delta') {\n      process.stdout.write(chunk.delta.text);\n    }\n  }\n}\n```\n\n**Delivering Streams to Clients:**\n- **Server-Sent Events (SSE)**: HTTP-based, works through proxies, simpler than WebSockets. Client opens connection, server pushes events.\n- **WebSockets**: Bidirectional communication. More complex but enables interactive back-and-forth.\n- **API Gateway Chunked Encoding**: API Gateway can proxy streaming responses to clients using chunked transfer encoding.\n\n**Implementation Considerations:**\nNot all content should stream. If you're validating or filtering output before display, you need the complete response first. Stream for user-facing text; buffer when post-processing is needed.",
+      "keyPoints": [
+        "InvokeModelWithResponseStream for streaming responses",
+        "SSE is simplest for server-to-client streaming",
+        "Streaming improves perceived latency significantly",
+        "Buffer when you need to validate/filter before display"
+      ]
+    },
+    {
+      "id": "resilience-patterns",
+      "title": "Building Resilient FM Integrations",
+      "content": "FM APIs can fail, timeout, or be rate-limited. Production applications need resilience patterns to handle these gracefully.\n\n**Exponential Backoff:**\nAWS SDK implements this automatically. When requests fail with retriable errors, wait and retry with increasing delays. Prevents thundering herd problems during outages.\n\n**Rate Limiting:**\nBedrock and SageMaker have account-level rate limits. API Gateway can enforce application-level limits to prevent single users from consuming all capacity. Use usage plans and API keys for per-client limits.\n\n**Circuit Breakers:**\nWhen a service is failing consistently, stop trying. Circuit breaker opens after N failures, fast-fails requests for a cooldown period, then tries again. Prevents wasting resources on known-failing services.\n\n**Fallback Strategies:**\n- Return cached responses for similar queries\n- Fall back to a different model (if Sonnet fails, try Haiku)\n- Graceful degradation: return partial results or apologetic messages\n- Queue for retry: accept the request, process when service recovers\n\n**X-Ray Tracing:**\nDistributed tracing across services. See where requests spend time, identify bottlenecks, debug failures. Essential for understanding performance in complex GenAI pipelines.",
+      "keyPoints": [
+        "Exponential backoff: Built into AWS SDK for retriable errors",
+        "API Gateway rate limiting: Prevent capacity exhaustion",
+        "Circuit breakers: Stop calling failing services",
+        "Fallback: Cache, alternative models, graceful degradation"
+      ],
+      "examTip": "'Resilient' or 'handle failures gracefully' -> exponential backoff, circuit breakers, fallback strategies."
+    },
+    {
+      "id": "intelligent-routing",
+      "title": "Intelligent Request Routing",
+      "content": "Not all requests should go to the same model or endpoint. Intelligent routing directs requests based on content, cost, performance, or other criteria.\n\n**Static Routing:**\nPredefined rules route requests. API Gateway routes based on path (/simple goes to Haiku, /complex goes to Sonnet). Simple to implement, but inflexible.\n\n**Content-Based Dynamic Routing:**\nAnalyze request content to determine routing. Step Functions orchestrates classification then routing. A small, fast classifier determines complexity, then routes to appropriate model.\n\n**Metric-Based Routing:**\nRoute based on current system state. If primary endpoint is overloaded (high latency, errors), route to secondary. CloudWatch metrics trigger routing changes through Lambda or Step Functions.\n\n**API Gateway Request Transformation:**\nTransform requests before they reach backends. Add system prompts, inject context, format for specific model requirements. Keeps transformation logic centralized.\n\n**Use Cases:**\n- Cost optimization: Route simple queries to cheap models\n- Performance: Route latency-sensitive requests to provisioned throughput\n- Compliance: Route sensitive data to specific regions or endpoints\n- A/B testing: Route percentage of traffic to test new models or prompts",
+      "keyPoints": [
+        "Static routing: Path-based, simple rules",
+        "Content-based: Classify then route to appropriate model",
+        "Metric-based: Route based on system health/load",
+        "Step Functions orchestrates complex routing logic"
+      ]
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "2.4.1",
+      "explanation": "Synchronous Bedrock calls work from any compute: Lambda, EC2, ECS, Fargate, even client applications with proper credentials. The AWS SDK handles authentication, serialization, and transport.\n\nAWS SDK best practices: Use the latest SDK version. Enable retry configuration for transient failures. Set appropriate timeouts (model inference can take 10-30 seconds for complex prompts).\n\nAPI Gateway adds a managed layer: authentication, throttling, caching, monitoring. For production APIs, front Bedrock calls with API Gateway. Validate inputs before they reach the model.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "InvokeModel API for synchronous FM calls from any compute.",
+          "examKeywords": ["InvokeModel", "synchronous", "API call"]
+        },
+        {
+          "serviceName": "Amazon API Gateway",
+          "whenToUse": "Front-end for Bedrock APIs. Validation, throttling, authentication.",
+          "examKeywords": ["API", "throttling", "validation", "gateway"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.4.2",
+      "explanation": "Asynchronous patterns decouple request submission from processing. SQS queues buffer requests. Lambda functions consume and process. Results go to output queues, SNS notifications, or storage.\n\nBatch inference with SageMaker processes files of inputs. Upload inputs to S3, run batch transform job, results appear in S3. No real-time response, but efficient for bulk processing.\n\nWhen to use async: Background processing, bulk operations, workloads that tolerate delays, protecting downstream services from traffic spikes.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon SQS",
+          "whenToUse": "Queue-based async processing. Decouple submission from inference.",
+          "examKeywords": ["queue", "async", "decouple", "buffer"]
+        },
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Process queue messages with InvokeModel in Lambda consumers.",
+          "examKeywords": ["batch", "process", "consumer"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.4.3",
+      "explanation": "Streaming APIs return tokens incrementally. InvokeModelWithResponseStream opens a stream that delivers chunks as tokens are generated. Processing each chunk updates the user interface in real-time.\n\nSSE (Server-Sent Events) is the standard for server-to-client streaming over HTTP. The client opens a connection; the server sends events. Works through proxies, simpler than WebSockets. API Gateway supports SSE through chunked transfer encoding.\n\nWebSockets enable bidirectional streaming but are more complex. Use when you need client-to-server streaming during inference (rare for FM use cases).",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "InvokeModelWithResponseStream for streaming token delivery.",
+          "examKeywords": ["streaming", "ResponseStream", "real-time"]
+        },
+        {
+          "serviceName": "Amazon API Gateway",
+          "whenToUse": "Proxy streaming responses to clients. WebSocket APIs for bidirectional.",
+          "examKeywords": ["SSE", "WebSocket", "chunked", "streaming proxy"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.4.4",
+      "explanation": "Resilience requires multiple strategies working together. AWS SDK provides exponential backoff automatically. You configure retry counts and add circuit breakers.\n\nAPI Gateway rate limiting prevents capacity exhaustion. Set account-level service quotas. Use usage plans for per-client limits. Return 429 (Too Many Requests) rather than failing completely.\n\nX-Ray traces requests across services. Instrument Lambda functions and SDK calls. Trace maps show request flow and identify slow components. Essential for debugging production issues.",
+      "awsServices": [
+        {
+          "serviceName": "AWS X-Ray",
+          "whenToUse": "Distributed tracing for debugging and performance analysis.",
+          "examKeywords": ["tracing", "debug", "performance", "distributed"]
+        },
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "SDK with retry configuration for resilient FM calls.",
+          "examKeywords": ["retry", "resilient", "SDK"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.4.5",
+      "explanation": "Intelligent routing optimizes cost, performance, and reliability. Static routing uses API Gateway path-based routing or Lambda function logic. Simple but requires manual configuration.\n\nDynamic routing makes decisions at runtime. Classify request complexity, check endpoint health, consider cost constraints. Step Functions orchestrates this decision logic cleanly.\n\nAPI Gateway request transformations modify requests before routing. Add system prompts, inject user context, format for model requirements. Centralizes transformation logic in the gateway.",
+      "awsServices": [
+        {
+          "serviceName": "AWS Step Functions",
+          "whenToUse": "Orchestrate content-based and metric-based routing decisions.",
+          "examKeywords": ["routing", "orchestrate", "dynamic", "decision"]
+        },
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Multiple models as routing targets for different query types.",
+          "examKeywords": ["model selection", "routing target"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "FM API Call Patterns",
+      "services": ["Synchronous", "Asynchronous (SQS)", "Streaming"],
+      "criteria": [
+        {
+          "criterion": "API",
+          "values": {
+            "Synchronous": "InvokeModel",
+            "Asynchronous (SQS)": "InvokeModel via Lambda consumer",
+            "Streaming": "InvokeModelWithResponseStream"
+          }
+        },
+        {
+          "criterion": "Latency",
+          "values": {
+            "Synchronous": "Full wait (10-30s for complex)",
+            "Asynchronous (SQS)": "Decoupled - no wait",
+            "Streaming": "Fast first token (~200ms)"
+          }
+        },
+        {
+          "criterion": "Timeout risk",
+          "values": {
+            "Synchronous": "High - API GW 29s limit",
+            "Asynchronous (SQS)": "None - processed async",
+            "Streaming": "Low - connection stays open"
+          }
+        },
+        {
+          "criterion": "Best for",
+          "values": {
+            "Synchronous": "Simple APIs, short responses",
+            "Asynchronous (SQS)": "Batch processing, background jobs",
+            "Streaming": "Chat UIs, real-time user feedback"
+          }
+        },
+        {
+          "criterion": "Complexity",
+          "values": {
+            "Synchronous": "Simplest",
+            "Asynchronous (SQS)": "Medium - queue management",
+            "Streaming": "Medium - chunk processing"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Streaming Options for FM Responses",
+      "services": ["Server-Sent Events (SSE)", "WebSockets", "Polling"],
+      "criteria": [
+        {
+          "criterion": "Direction",
+          "values": {
+            "Server-Sent Events (SSE)": "Server to client only",
+            "WebSockets": "Bidirectional",
+            "Polling": "Client pulls from server"
+          }
+        },
+        {
+          "criterion": "Complexity",
+          "values": {
+            "Server-Sent Events (SSE)": "Simple - standard HTTP",
+            "WebSockets": "More complex - persistent connection",
+            "Polling": "Simplest but inefficient"
+          }
+        },
+        {
+          "criterion": "Best for",
+          "values": {
+            "Server-Sent Events (SSE)": "Streaming FM responses to web clients",
+            "WebSockets": "Interactive chat with user input during streaming",
+            "Polling": "Legacy clients that can't use SSE/WS"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "real-time token streaming to users",
+      "approach": "InvokeModelWithResponseStream + SSE or WebSocket through API Gateway. SSE is simpler for server-to-client streaming. WebSocket only if bidirectional is needed.",
+      "keywords": ["streaming", "real-time", "tokens", "progressive"]
+    },
+    {
+      "questionPattern": "handle FM API failures gracefully",
+      "approach": "Exponential backoff (SDK default), circuit breakers, fallback to alternative models or cached responses. X-Ray for debugging failures.",
+      "keywords": ["failure", "resilient", "retry", "fallback", "graceful"]
+    },
+    {
+      "questionPattern": "route requests to different models",
+      "approach": "Step Functions for content-based routing. API Gateway for path-based static routing. CloudWatch metrics for health-based routing.",
+      "keywords": ["route", "model selection", "dynamic", "intelligent"]
+    }
+  ],
+  "keyTakeaways": [
+    "InvokeModel for sync, SQS + Lambda for async, InvokeModelWithResponseStream for streaming",
+    "SSE is the standard for streaming FM responses to web clients",
+    "Exponential backoff + circuit breakers + fallbacks = resilient integration",
+    "X-Ray traces requests across services for debugging",
+    "Step Functions orchestrates intelligent content-based routing"
+  ],
+  "commonMistakes": [
+    "Not using streaming for user-facing applications (poor UX)",
+    "Missing timeout configuration (default may be too short for FM)",
+    "No fallback strategy when FM calls fail",
+    "Polling instead of SSE/WebSocket for real-time updates",
+    "Hardcoding model selection instead of intelligent routing"
+  ]
+}

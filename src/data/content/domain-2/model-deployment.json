@@ -1,0 +1,176 @@
+{
+  "topicSlug": "model-deployment",
+  "domainId": 2,
+  "taskId": "2.2",
+  "overview": {
+    "whyItMatters": "Choosing the right deployment strategy determines your application's cost, latency, and reliability profile. The wrong choice means either overpaying for unused capacity or struggling with performance issues. Understanding when to use Lambda, Bedrock provisioned throughput, or SageMaker endpoints is a core exam skill.",
+    "estimatedMinutes": 30
+  },
+  "concepts": [
+    {
+      "id": "deployment-patterns",
+      "title": "Model Deployment Patterns",
+      "content": "There's no one-size-fits-all deployment strategy. The right choice depends on your traffic patterns, latency requirements, cost constraints, and whether you're using managed or custom models.\n\n```\n┌─────────────────────────────────────────────────────────────────────┐\n│                   Deployment Decision Tree                          │\n├─────────────────────────────────────────────────────────────────────┤\n│                                                                      │\n│                    ┌──────────────────────┐                         │\n│                    │  Using a custom or   │                         │\n│                    │  fine-tuned model?   │                         │\n│                    └──────────┬───────────┘                         │\n│                               │                                      │\n│              ┌────────────────┴────────────────┐                    │\n│              ▼                                 ▼                    │\n│            YES                                NO                    │\n│              │                                 │                    │\n│              ▼                                 ▼                    │\n│    ┌─────────────────┐              ┌──────────────────────┐       │\n│    │   SageMaker     │              │  Is traffic pattern  │       │\n│    │   Endpoints     │              │  predictable?        │       │\n│    └─────────────────┘              └──────────┬───────────┘       │\n│                                                │                    │\n│                            ┌───────────────────┴───────────────┐   │\n│                            ▼                                   ▼   │\n│                        VARIABLE                          PREDICTABLE│\n│                            │                                   │   │\n│                            ▼                                   ▼   │\n│                   ┌────────────────┐              ┌────────────────┐│\n│                   │ Lambda +       │              │ Need <50ms     ││\n│                   │ On-Demand      │              │ latency?       ││\n│                   └────────────────┘              └───────┬────────┘│\n│                                                           │        │\n│                                              ┌────────────┴────────┐│\n│                                              ▼                     ▼│\n│                                            YES                    NO│\n│                                              │                     ││\n│                                              ▼                     ▼│\n│                                     ┌────────────────┐  ┌──────────┐│\n│                                     │ Provisioned    │  │ On-Demand││\n│                                     │ Throughput     │  │ (cheaper)││\n│                                     └────────────────┘  └──────────┘│\n└─────────────────────────────────────────────────────────────────────┘\n```\n\n**Lambda + Bedrock On-Demand**: The simplest pattern. Lambda functions call Bedrock's InvokeModel API. You pay only for actual usage. Best for variable traffic, development/testing, or applications where cold starts are acceptable. Zero infrastructure management.\n\n**Bedrock Provisioned Throughput**: Pre-purchase model capacity for consistent performance. You commit to a throughput level (model units) and get guaranteed capacity with lower per-token costs. Best for production workloads with predictable, sustained traffic.\n\n**SageMaker Endpoints**: Deploy custom or fine-tuned models to dedicated inference instances. Full control over hardware (CPU, GPU, memory), scaling, and model versions. Required when using models not available in Bedrock or when you need specific instance types for performance.\n\n**Container-Based (ECS/EKS)**: For maximum control or specialized requirements. Deploy model containers with custom runtimes, specific GPU configurations, or integration with existing container orchestration. Highest operational overhead but most flexibility.",
+      "keyPoints": [
+        "Lambda + Bedrock: Simplest, pay-per-use, best for variable traffic",
+        "Provisioned Throughput: Committed capacity, lower per-token cost, predictable workloads",
+        "SageMaker: Custom models, full hardware control, fine-tuning support",
+        "Container-based: Maximum flexibility, highest operational overhead"
+      ],
+      "examTip": "'Least operational overhead' + FM access -> Bedrock. 'Custom model' or 'fine-tuned' -> SageMaker."
+    },
+    {
+      "id": "model-cascading",
+      "title": "Model Cascading for Cost Optimization",
+      "content": "Model cascading is a powerful cost optimization pattern. Route simple queries to smaller, cheaper models and escalate complex queries to larger, more capable models only when needed.\n\n**The pattern:**\n1. Classify incoming query complexity (fast, cheap model or rule-based)\n2. Route simple queries to small model (Claude Haiku, Titan Express)\n3. If the response is uncertain or insufficient, escalate to larger model (Claude Sonnet, Claude Opus)\n4. Cache responses to avoid redundant escalations\n\n**Why it works:**\n- 70-80% of queries are often simple (FAQs, lookups, simple generations)\n- Small models handle these at 10-20x lower cost than large models\n- Only complex queries that actually need sophisticated reasoning use expensive models\n\n**Implementation with Step Functions:**\n- State 1: Complexity classification\n- State 2: Route to appropriate model based on classification\n- State 3: Evaluate response quality/confidence\n- State 4: Escalate if needed, return if sufficient\n\nThis pattern can reduce FM costs by 50-70% compared to always using the largest model.\n\n**Cost Comparison Example:**\n```\n┌─────────────────────────────────────────────────────────────────────┐\n│                   Model Cascading Cost Savings                       │\n├─────────────────────────────────────────────────────────────────────┤\n│                                                                      │\n│  Scenario: 100,000 queries/day, avg 500 tokens each                 │\n│                                                                      │\n│  WITHOUT cascading (all queries to Sonnet):                         │\n│  ├── 100K × 500 tokens × $0.003/1K = $150/day                       │\n│  └── Monthly: ~$4,500                                               │\n│                                                                      │\n│  WITH cascading (70% simple → Haiku, 30% complex → Sonnet):         │\n│  ├── 70K × 500 × $0.00025/1K = $8.75/day  (Haiku)                   │\n│  ├── 30K × 500 × $0.003/1K   = $45/day    (Sonnet)                  │\n│  ├── Total: $53.75/day                                              │\n│  └── Monthly: ~$1,612                                               │\n│                                                                      │\n│  SAVINGS: 64% reduction (~$2,888/month)                             │\n└─────────────────────────────────────────────────────────────────────┘\n```\n\n**Python cascading implementation:**\n\n```python\nimport boto3\nimport json\n\nclient = boto3.client('bedrock-runtime')\n\nasync def cascading_inference(query: str) -> dict:\n    # Step 1: Try fast/cheap model first\n    haiku_response = invoke_model('anthropic.claude-3-haiku-20240307-v1:0', query)\n    \n    # Step 2: Check if response quality is sufficient\n    if is_confident_response(haiku_response):\n        return {'model': 'haiku', 'response': haiku_response, 'cost': 'low'}\n    \n    # Step 3: Escalate to larger model for complex queries\n    sonnet_response = invoke_model('anthropic.claude-3-sonnet-20240229-v1:0', query)\n    return {'model': 'sonnet', 'response': sonnet_response, 'cost': 'medium'}\n\ndef is_confident_response(response: str) -> bool:\n    # Check for uncertainty indicators\n    uncertainty_phrases = ['I\\'m not sure', 'I don\\'t know', 'unclear', 'might be']\n    return not any(phrase in response.lower() for phrase in uncertainty_phrases)\n\ndef invoke_model(model_id: str, query: str) -> str:\n    response = client.invoke_model(\n        modelId=model_id,\n        body=json.dumps({\n            'anthropic_version': 'bedrock-2023-05-31',\n            'messages': [{'role': 'user', 'content': query}],\n            'max_tokens': 1024\n        })\n    )\n    return json.loads(response['body'].read())['content'][0]['text']\n```",
+      "keyPoints": [
+        "Classify query complexity before model selection",
+        "Simple queries to small models (Haiku, Titan Express)",
+        "Complex queries escalate to large models (Sonnet, Opus)",
+        "Can reduce costs 50-70% compared to single-model approach"
+      ]
+    },
+    {
+      "id": "container-optimization",
+      "title": "Container-Based Deployment Optimization",
+      "content": "When deploying models in containers (ECS, EKS, or SageMaker), optimization focuses on memory, GPU utilization, and token processing capacity.\n\n**Memory Optimization:**\n- LLMs are memory-hungry. A 7B parameter model needs ~14GB just for weights (FP16)\n- Quantization (INT8, INT4) reduces memory requirements at some quality cost\n- Right-size containers: too small causes OOM, too large wastes money\n\n**GPU Utilization:**\n- Batch requests to improve GPU efficiency\n- Monitor GPU memory and compute utilization\n- Consider multi-model serving to increase utilization\n\n**Token Processing:**\n- Input tokens are processed in parallel (fast)\n- Output tokens are generated sequentially (slower)\n- Longer outputs = more latency regardless of hardware\n- Streaming responses improve perceived latency\n\n**Scaling Considerations:**\n- Scale based on token throughput, not just request count\n- A few long requests can saturate capacity meant for many short ones\n- Use custom metrics (tokens/second, queue depth) for auto-scaling",
+      "keyPoints": [
+        "LLMs need substantial memory; quantization reduces requirements",
+        "Batch requests to improve GPU utilization",
+        "Output generation is sequential; streaming improves perceived latency",
+        "Scale on token throughput, not just request count"
+      ]
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "2.2.1",
+      "explanation": "Deployment patterns match infrastructure to workload characteristics. Lambda with on-demand Bedrock is the default starting point: zero infrastructure, pay-per-use, automatic scaling. Its main limitation is cold start latency for infrequent calls.\n\nBedrock provisioned throughput eliminates cold starts and provides guaranteed capacity. Calculate your expected throughput, commit to model units, and get consistent performance. The break-even point vs on-demand depends on utilization; typically 40-60% utilization makes provisioned worthwhile.\n\nSageMaker endpoints are necessary when Bedrock doesn't offer your model, you need specific hardware, or you're running fine-tuned models. Multi-model endpoints can host multiple models on shared infrastructure for efficiency.",
+      "awsServices": [
+        {
+          "serviceName": "AWS Lambda",
+          "whenToUse": "Serverless FM invocation for variable traffic, event-driven architectures.",
+          "examKeywords": ["serverless", "on-demand", "event-driven", "variable traffic"]
+        },
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Managed FM access. On-demand for variable traffic, provisioned for production.",
+          "examKeywords": ["managed", "provisioned throughput", "FM access"]
+        },
+        {
+          "serviceName": "Amazon SageMaker",
+          "whenToUse": "Custom models, fine-tuned models, specific hardware requirements.",
+          "examKeywords": ["custom model", "fine-tuned", "endpoint", "hardware control"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.2.2",
+      "explanation": "Container-based deployment gives full control over the inference environment. Use ECS or EKS when you need custom model serving frameworks, specific GPU types, or integration with existing container infrastructure.\n\nMemory management is critical. Model weights must fit in memory (or GPU memory for acceleration). Use profiling to determine actual requirements, then add headroom for inference batches and system overhead.\n\nGPU utilization in ML workloads is often low (30-40%) because of I/O bottlenecks and small batch sizes. Techniques to improve utilization: larger batch sizes, multi-model serving, continuous batching, and workload consolidation.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon ECS",
+          "whenToUse": "Container orchestration for model serving with AWS-managed control plane.",
+          "examKeywords": ["container", "ECS", "Fargate", "model serving"]
+        },
+        {
+          "serviceName": "Amazon EKS",
+          "whenToUse": "Kubernetes-based model serving for teams with K8s expertise.",
+          "examKeywords": ["Kubernetes", "EKS", "container orchestration"]
+        },
+        {
+          "serviceName": "AWS Fargate",
+          "whenToUse": "Serverless containers when you don't need GPU or want simpler management.",
+          "examKeywords": ["serverless container", "Fargate"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.2.3",
+      "explanation": "Cost optimization in model deployment focuses on right-sizing and intelligent routing. Model cascading routes queries to the cheapest model capable of handling them.\n\nSmaller models for specific tasks often outperform larger models at a fraction of the cost. A fine-tuned small model for your domain can beat a general-purpose large model. Consider task-specific model selection rather than one model for everything.\n\nAPI-based cascading implements tiered model usage. Start with the cheapest option, evaluate output quality/confidence, escalate only when needed. This requires quality evaluation logic but yields significant cost savings.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Access multiple model sizes for cascading. Haiku for simple, Sonnet/Opus for complex.",
+          "examKeywords": ["model selection", "cascading", "tiered", "cost optimization"]
+        },
+        {
+          "serviceName": "Amazon SageMaker",
+          "whenToUse": "Multi-model endpoints for efficient resource sharing across models.",
+          "examKeywords": ["multi-model", "endpoint", "resource sharing"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "Model Deployment Options",
+      "services": ["Lambda + Bedrock On-Demand", "Bedrock Provisioned Throughput", "SageMaker Endpoints"],
+      "criteria": [
+        {
+          "criterion": "Operational overhead",
+          "values": {
+            "Lambda + Bedrock On-Demand": "Lowest - fully managed",
+            "Bedrock Provisioned Throughput": "Low - managed with capacity commitment",
+            "SageMaker Endpoints": "Medium - manage endpoints and scaling"
+          }
+        },
+        {
+          "criterion": "Cost model",
+          "values": {
+            "Lambda + Bedrock On-Demand": "Pay per token, no commitment",
+            "Bedrock Provisioned Throughput": "Hourly commitment, lower per-token",
+            "SageMaker Endpoints": "Per-instance-hour + data transfer"
+          }
+        },
+        {
+          "criterion": "Best for",
+          "values": {
+            "Lambda + Bedrock On-Demand": "Variable traffic, development, unpredictable usage",
+            "Bedrock Provisioned Throughput": "Production with predictable, sustained traffic",
+            "SageMaker Endpoints": "Custom models, fine-tuned models, specific hardware"
+          }
+        },
+        {
+          "criterion": "Model flexibility",
+          "values": {
+            "Lambda + Bedrock On-Demand": "Bedrock-available models only",
+            "Bedrock Provisioned Throughput": "Bedrock-available models only",
+            "SageMaker Endpoints": "Any model you can deploy"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "minimize operational overhead for FM access",
+      "approach": "Bedrock (on-demand or provisioned) over SageMaker. Lambda + Bedrock is the most hands-off option. SageMaker requires endpoint management.",
+      "keywords": ["operational overhead", "managed", "least effort", "FM access"]
+    },
+    {
+      "questionPattern": "custom or fine-tuned model deployment",
+      "approach": "SageMaker endpoints are required for custom models. Bedrock only hosts its available models. If the question mentions fine-tuning a custom model, SageMaker is the answer.",
+      "keywords": ["custom model", "fine-tuned", "deploy custom", "own model"]
+    },
+    {
+      "questionPattern": "cost optimization with variable traffic",
+      "approach": "Model cascading with on-demand pricing. Don't commit to provisioned throughput for variable workloads. Route simple queries to small models.",
+      "keywords": ["cost", "variable traffic", "optimization", "unpredictable"]
+    }
+  ],
+  "keyTakeaways": [
+    "Lambda + Bedrock on-demand: simplest, pay-per-use, best for variable traffic",
+    "Provisioned throughput: committed capacity for production workloads with predictable traffic",
+    "SageMaker: required for custom/fine-tuned models or specific hardware needs",
+    "Model cascading routes simple queries to cheap models, saving 50-70% on costs",
+    "Container deployments need careful memory and GPU optimization"
+  ],
+  "commonMistakes": [
+    "Using provisioned throughput for variable traffic (overpaying for unused capacity)",
+    "Using SageMaker when Bedrock would suffice (unnecessary operational overhead)",
+    "Not implementing model cascading when query complexity varies",
+    "Under-provisioning container memory for LLM workloads",
+    "Scaling on request count instead of token throughput"
+  ]
+}

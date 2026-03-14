@@ -1,0 +1,227 @@
+{
+  "id": "production-patterns",
+  "domainId": 2,
+  "title": "Production GenAI Patterns: From PoC to Production-Ready",
+  "description": "Master the patterns and practices that separate prototype GenAI systems from robust production deployments. Learn resilience, observability, security, and operational excellence patterns.",
+  "duration": 50,
+  "content": [
+    {
+      "type": "section",
+      "title": "The Production Gap",
+      "content": "Building a GenAI proof-of-concept that impresses stakeholders is surprisingly easy. Building a production system that handles real traffic, fails gracefully, stays within budget, and maintains quality over time? That's where 90% of GenAI projects struggle.\n\nThis article bridges that gap. We'll explore the patterns that distinguish prototype code from production-grade systems, with specific AWS implementations for each."
+    },
+    {
+      "type": "callout",
+      "calloutType": "warning",
+      "title": "Production Reality Check",
+      "content": "Most GenAI failures in production aren't model failures—they're system failures. Token limits hit unexpectedly, rate limits cause cascading timeouts, costs spiral due to retry storms, and users abandon apps waiting for responses. The patterns here address these operational challenges."
+    },
+    {
+      "type": "section",
+      "title": "Pattern 1: Resilient API Integration",
+      "content": "Every interaction with a foundation model is an API call that can fail. Production systems need multiple layers of resilience."
+    },
+    {
+      "type": "subsection",
+      "title": "Circuit Breaker Pattern",
+      "content": "When a model endpoint starts failing, continuing to send requests makes things worse. Circuit breakers prevent cascade failures by \"opening\" the circuit when failures exceed a threshold.\n\n**States:**\n- **Closed**: Normal operation, requests flow through\n- **Open**: Failures exceeded threshold, requests fast-fail\n- **Half-Open**: Testing if service recovered\n\n**AWS Implementation Options:**\n1. **AWS Step Functions** with Choice states and DynamoDB for state tracking\n2. **Lambda with ElastiCache** for distributed circuit state\n3. **AWS App Mesh** for service mesh-level circuit breaking"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "title": "Circuit Breaker with DynamoDB State",
+      "code": "import { DynamoDBClient, UpdateItemCommand, GetItemCommand } from '@aws-sdk/client-dynamodb';\nimport { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';\n\ninterface CircuitState {\n  failures: number;\n  lastFailure: number;\n  state: 'CLOSED' | 'OPEN' | 'HALF_OPEN';\n}\n\nconst FAILURE_THRESHOLD = 5;\nconst RECOVERY_TIMEOUT_MS = 60000; // 1 minute\n\nasync function invokeWithCircuitBreaker(\n  modelId: string,\n  body: string\n): Promise<string> {\n  const ddb = new DynamoDBClient({});\n  const bedrock = new BedrockRuntimeClient({});\n  \n  // Check circuit state\n  const state = await getCircuitState(ddb, modelId);\n  \n  if (state.state === 'OPEN') {\n    // Check if recovery timeout has passed\n    if (Date.now() - state.lastFailure > RECOVERY_TIMEOUT_MS) {\n      await setCircuitState(ddb, modelId, 'HALF_OPEN');\n    } else {\n      throw new Error('Circuit OPEN: Service unavailable');\n    }\n  }\n  \n  try {\n    const response = await bedrock.send(new InvokeModelCommand({\n      modelId,\n      body: body,\n      contentType: 'application/json',\n      accept: 'application/json'\n    }));\n    \n    // Success - reset circuit\n    if (state.state === 'HALF_OPEN' || state.failures > 0) {\n      await resetCircuit(ddb, modelId);\n    }\n    \n    return new TextDecoder().decode(response.body);\n    \n  } catch (error) {\n    await recordFailure(ddb, modelId, state);\n    throw error;\n  }\n}\n\nasync function recordFailure(\n  ddb: DynamoDBClient,\n  modelId: string,\n  currentState: CircuitState\n): Promise<void> {\n  const newFailures = currentState.failures + 1;\n  const newState = newFailures >= FAILURE_THRESHOLD ? 'OPEN' : currentState.state;\n  \n  await ddb.send(new UpdateItemCommand({\n    TableName: 'CircuitBreaker',\n    Key: { pk: { S: `MODEL#${modelId}` } },\n    UpdateExpression: 'SET failures = :f, lastFailure = :t, circuitState = :s',\n    ExpressionAttributeValues: {\n      ':f': { N: String(newFailures) },\n      ':t': { N: String(Date.now()) },\n      ':s': { S: newState }\n    }\n  }));\n}"
+    },
+    {
+      "type": "code",
+      "language": "python",
+      "title": "Circuit Breaker Pattern (Python/boto3)",
+      "code": "import boto3\nimport json\nimport time\nfrom enum import Enum\n\nclass CircuitState(Enum):\n    CLOSED = 'CLOSED'\n    OPEN = 'OPEN'\n    HALF_OPEN = 'HALF_OPEN'\n\nFAILURE_THRESHOLD = 5\nRECOVERY_TIMEOUT_SEC = 60\n\ndef invoke_with_circuit_breaker(model_id: str, body: dict) -> str:\n    dynamodb = boto3.resource('dynamodb')\n    bedrock = boto3.client('bedrock-runtime')\n    table = dynamodb.Table('CircuitBreaker')\n    \n    # Check circuit state\n    status = get_circuit_state(table, model_id)\n    \n    if status['state'] == CircuitState.OPEN.value:\n        if time.time() - status['last_failure'] > RECOVERY_TIMEOUT_SEC:\n            set_circuit_state(table, model_id, CircuitState.HALF_OPEN)\n        else:\n            raise Exception('Circuit OPEN: Service unavailable')\n    \n    try:\n        response = bedrock.invoke_model(\n            modelId=model_id,\n            body=json.dumps(body),\n            contentType='application/json'\n        )\n        \n        # Success - reset circuit\n        if status['state'] == CircuitState.HALF_OPEN.value:\n            reset_circuit(table, model_id)\n        \n        return json.loads(response['body'].read())\n        \n    except Exception as e:\n        record_failure(table, model_id, status)\n        raise"
+    },
+    {
+      "type": "subsection",
+      "title": "Exponential Backoff with Jitter",
+      "content": "Retrying failed requests is essential, but naive retries can create \"retry storms\" that overwhelm both your system and the model endpoint.\n\n**Key Principles:**\n- **Exponential delays**: Each retry waits longer (1s, 2s, 4s, 8s...)\n- **Jitter**: Random variance prevents synchronized retry waves\n- **Maximum retries**: Don't retry forever—fail fast for user experience\n- **Idempotency**: Ensure retries don't duplicate actions"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "title": "Exponential Backoff with Full Jitter",
+      "code": "async function invokeWithRetry<T>(\n  operation: () => Promise<T>,\n  maxRetries: number = 3,\n  baseDelayMs: number = 1000\n): Promise<T> {\n  let lastError: Error;\n  \n  for (let attempt = 0; attempt <= maxRetries; attempt++) {\n    try {\n      return await operation();\n    } catch (error) {\n      lastError = error as Error;\n      \n      // Don't retry non-retryable errors\n      if (!isRetryable(error)) {\n        throw error;\n      }\n      \n      if (attempt < maxRetries) {\n        // Full jitter: random delay between 0 and exponential backoff\n        const exponentialDelay = baseDelayMs * Math.pow(2, attempt);\n        const jitteredDelay = Math.random() * exponentialDelay;\n        \n        console.log(`Attempt ${attempt + 1} failed, retrying in ${jitteredDelay}ms`);\n        await sleep(jitteredDelay);\n      }\n    }\n  }\n  \n  throw lastError!;\n}\n\nfunction isRetryable(error: unknown): boolean {\n  if (error instanceof Error) {\n    // Bedrock rate limiting\n    if (error.name === 'ThrottlingException') return true;\n    // Service unavailable\n    if (error.name === 'ServiceUnavailableException') return true;\n    // Model overloaded\n    if (error.name === 'ModelNotReadyException') return true;\n    // Timeout\n    if (error.name === 'TimeoutError') return true;\n  }\n  return false;\n}\n\nfunction sleep(ms: number): Promise<void> {\n  return new Promise(resolve => setTimeout(resolve, ms));\n}"
+    },
+    {
+      "type": "code",
+      "language": "python",
+      "title": "Exponential Backoff with Jitter (Python)",
+      "code": "import time\nimport random\nfrom typing import Callable, TypeVar\nimport botocore.exceptions\n\nT = TypeVar('T')\n\ndef invoke_with_retry(\n    operation: Callable[[], T],\n    max_retries: int = 3,\n    base_delay_sec: float = 1.0\n) -> T:\n    last_error = None\n    \n    for attempt in range(max_retries + 1):\n        try:\n            return operation()\n        except Exception as e:\n            last_error = e\n            \n            # Don't retry non-retryable errors\n            if not is_retryable(e):\n                raise\n            \n            if attempt < max_retries:\n                # Full jitter: random delay between 0 and exponential backoff\n                exponential_delay = base_delay_sec * (2 ** attempt)\n                jittered_delay = random.random() * exponential_delay\n                \n                print(f'Attempt {attempt + 1} failed, retrying in {jittered_delay:.2f}s')\n                time.sleep(jittered_delay)\n    \n    raise last_error\n\ndef is_retryable(error: Exception) -> bool:\n    \"\"\"Check if error should be retried.\"\"\"\n    retryable_errors = [\n        'ThrottlingException',\n        'ServiceUnavailableException', \n        'ModelNotReadyException',\n        'ReadTimeoutError'\n    ]\n    \n    error_name = type(error).__name__\n    if error_name in retryable_errors:\n        return True\n    \n    # Check for botocore ClientError with retryable codes\n    if hasattr(error, 'response'):\n        code = error.response.get('Error', {}).get('Code', '')\n        return code in retryable_errors\n    \n    return False"
+    },
+    {
+      "type": "subsection",
+      "title": "Model Fallback Chain",
+      "content": "Production systems shouldn't depend on a single model. Implement a fallback chain for resilience:\n\n**Fallback Strategy:**\n1. **Primary**: Claude 3 Sonnet (best quality/cost balance)\n2. **Secondary**: Claude 3 Haiku (faster, cheaper, slightly lower quality)\n3. **Tertiary**: Amazon Titan (different provider entirely)\n4. **Graceful degradation**: Cached response or error message\n\n**Bedrock Cross-Region Inference**: Automatically routes to healthy regions, but you should still implement application-level fallbacks for complete outages."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "title": "Model Fallback Chain",
+      "code": "interface ModelConfig {\n  modelId: string;\n  region?: string;\n  timeout: number;\n  maxTokens: number;\n}\n\nconst FALLBACK_CHAIN: ModelConfig[] = [\n  { modelId: 'anthropic.claude-3-sonnet-20240229-v1:0', timeout: 30000, maxTokens: 4096 },\n  { modelId: 'anthropic.claude-3-haiku-20240307-v1:0', timeout: 15000, maxTokens: 4096 },\n  { modelId: 'amazon.titan-text-express-v1', timeout: 15000, maxTokens: 4096 }\n];\n\nasync function invokeWithFallback(\n  prompt: string,\n  systemPrompt?: string\n): Promise<{ response: string; modelUsed: string }> {\n  const errors: Error[] = [];\n  \n  for (const config of FALLBACK_CHAIN) {\n    try {\n      const response = await invokeModel(prompt, systemPrompt, config);\n      \n      // Log which model was used (important for cost tracking)\n      console.log(`Request served by: ${config.modelId}`);\n      \n      return {\n        response,\n        modelUsed: config.modelId\n      };\n    } catch (error) {\n      console.error(`${config.modelId} failed:`, error);\n      errors.push(error as Error);\n      // Continue to next model in chain\n    }\n  }\n  \n  // All models failed\n  throw new AggregateError(\n    errors,\n    'All models in fallback chain failed'\n  );\n}"
+    },
+    {
+      "type": "section",
+      "title": "Pattern 2: Semantic Caching",
+      "content": "LLM calls are expensive and slow. Caching identical requests is table stakes—semantic caching goes further by recognizing when different prompts have the same intent."
+    },
+    {
+      "type": "subsection",
+      "title": "Why Semantic Caching?",
+      "content": "Traditional caching requires exact matches. But these prompts all ask the same thing:\n- \"What's the weather in NYC?\"\n- \"Tell me the weather in New York City\"\n- \"NYC weather?\"\n\nSemantic caching embeds prompts and finds cached responses for semantically similar queries."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "title": "Semantic Cache with OpenSearch",
+      "code": "import { Client } from '@opensearch-project/opensearch';\nimport { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';\n\nconst SIMILARITY_THRESHOLD = 0.92; // Tune based on your use case\nconst CACHE_TTL_SECONDS = 3600; // 1 hour\n\ninterface CacheEntry {\n  prompt: string;\n  response: string;\n  embedding: number[];\n  timestamp: number;\n  modelId: string;\n}\n\nasync function invokeWithSemanticCache(\n  prompt: string,\n  modelId: string\n): Promise<{ response: string; cached: boolean }> {\n  const bedrock = new BedrockRuntimeClient({});\n  const opensearch = new Client({ node: process.env.OPENSEARCH_ENDPOINT });\n  \n  // Generate embedding for the prompt\n  const promptEmbedding = await generateEmbedding(prompt);\n  \n  // Search for similar cached prompts\n  const searchResult = await opensearch.search({\n    index: 'semantic-cache',\n    body: {\n      query: {\n        script_score: {\n          query: {\n            bool: {\n              must: [\n                { term: { modelId } },\n                { range: { timestamp: { gte: Date.now() - CACHE_TTL_SECONDS * 1000 } } }\n              ]\n            }\n          },\n          script: {\n            source: \"cosineSimilarity(params.query_vector, 'embedding') + 1.0\",\n            params: { query_vector: promptEmbedding }\n          }\n        }\n      },\n      size: 1\n    }\n  });\n  \n  const hits = searchResult.body.hits.hits;\n  if (hits.length > 0 && hits[0]._score - 1.0 >= SIMILARITY_THRESHOLD) {\n    // Cache hit!\n    console.log(`Semantic cache hit (similarity: ${hits[0]._score - 1.0})`);\n    return { response: hits[0]._source.response, cached: true };\n  }\n  \n  // Cache miss - invoke model\n  const response = await invokeModel(prompt, modelId);\n  \n  // Cache the result\n  await opensearch.index({\n    index: 'semantic-cache',\n    body: {\n      prompt,\n      response,\n      embedding: promptEmbedding,\n      timestamp: Date.now(),\n      modelId\n    }\n  });\n  \n  return { response, cached: false };\n}\n\nasync function generateEmbedding(text: string): Promise<number[]> {\n  const bedrock = new BedrockRuntimeClient({});\n  \n  const response = await bedrock.send(new InvokeModelCommand({\n    modelId: 'amazon.titan-embed-text-v2:0',\n    body: JSON.stringify({ inputText: text }),\n    contentType: 'application/json'\n  }));\n  \n  const result = JSON.parse(new TextDecoder().decode(response.body));\n  return result.embedding;\n}"
+    },
+    {
+      "type": "callout",
+      "calloutType": "exam",
+      "title": "Caching Strategies on the Exam",
+      "content": "Know the tradeoffs:\n- **Exact caching** (ElastiCache): Simple, fast, but low hit rate\n- **Semantic caching**: Higher hit rate, but adds embedding latency\n- **Prompt caching** (Bedrock feature): Caches common prompt prefixes, reduces costs for repeated system prompts\n- **Edge caching** (CloudFront): For truly static content only\n\nExam questions often test cache invalidation scenarios and TTL strategies."
+    },
+    {
+      "type": "section",
+      "title": "Pattern 3: Token Budget Management",
+      "content": "Token costs can spiral out of control without proper guardrails. Production systems need token budget management at multiple levels."
+    },
+    {
+      "type": "subsection",
+      "title": "Request-Level Token Budgets",
+      "content": "Estimate tokens before sending requests to avoid surprises and manage costs."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "title": "Token Budget Enforcement",
+      "code": "// Simple token estimator (actual tokenization varies by model)\nfunction estimateTokens(text: string): number {\n  // Rough heuristic: ~4 characters per token for English\n  // Use tiktoken or model-specific tokenizer for accuracy\n  return Math.ceil(text.length / 4);\n}\n\ninterface TokenBudget {\n  maxInputTokens: number;\n  maxOutputTokens: number;\n  reservedTokens: number; // For system prompts, formatting\n}\n\nfunction enforceTokenBudget(\n  userPrompt: string,\n  systemPrompt: string,\n  context: string,\n  budget: TokenBudget\n): { prompt: string; context: string; outputTokens: number } {\n  const systemTokens = estimateTokens(systemPrompt);\n  const userTokens = estimateTokens(userPrompt);\n  const reservedTokens = budget.reservedTokens;\n  \n  // Calculate available tokens for context\n  const availableForContext = budget.maxInputTokens \n    - systemTokens \n    - userTokens \n    - reservedTokens;\n  \n  if (availableForContext < 0) {\n    throw new Error('Prompt exceeds token budget even without context');\n  }\n  \n  // Truncate context if needed\n  let truncatedContext = context;\n  let contextTokens = estimateTokens(context);\n  \n  if (contextTokens > availableForContext) {\n    // Smart truncation: prefer recent/relevant content\n    truncatedContext = truncateToTokens(context, availableForContext);\n    console.warn(`Context truncated from ${contextTokens} to ${availableForContext} tokens`);\n  }\n  \n  // Calculate safe output token limit\n  const totalInputTokens = systemTokens + userTokens + estimateTokens(truncatedContext);\n  const safeOutputTokens = Math.min(\n    budget.maxOutputTokens,\n    budget.maxInputTokens - totalInputTokens // Some models share input/output limit\n  );\n  \n  return {\n    prompt: userPrompt,\n    context: truncatedContext,\n    outputTokens: safeOutputTokens\n  };\n}\n\nfunction truncateToTokens(text: string, maxTokens: number): string {\n  const estimated = estimateTokens(text);\n  if (estimated <= maxTokens) return text;\n  \n  // Truncate from the middle to preserve start and end\n  const ratio = maxTokens / estimated;\n  const targetLength = Math.floor(text.length * ratio);\n  const halfLength = Math.floor(targetLength / 2);\n  \n  return text.slice(0, halfLength) + '\\n[...truncated...]\\n' + text.slice(-halfLength);\n}"
+    },
+    {
+      "type": "subsection",
+      "title": "User-Level Budget Quotas",
+      "content": "Prevent individual users or tenants from exhausting your token budget."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "title": "Per-User Token Quotas with DynamoDB",
+      "code": "interface UserQuota {\n  dailyTokenLimit: number;\n  monthlyTokenLimit: number;\n}\n\nconst DEFAULT_QUOTAS: Record<string, UserQuota> = {\n  free: { dailyTokenLimit: 10000, monthlyTokenLimit: 100000 },\n  pro: { dailyTokenLimit: 100000, monthlyTokenLimit: 1000000 },\n  enterprise: { dailyTokenLimit: 1000000, monthlyTokenLimit: 10000000 }\n};\n\nasync function checkAndConsumeQuota(\n  userId: string,\n  tier: string,\n  tokensToConsume: number\n): Promise<{ allowed: boolean; remaining: number }> {\n  const ddb = new DynamoDBClient({});\n  const quota = DEFAULT_QUOTAS[tier] || DEFAULT_QUOTAS.free;\n  \n  const today = new Date().toISOString().split('T')[0];\n  const month = today.slice(0, 7);\n  \n  try {\n    // Atomic increment with condition\n    const result = await ddb.send(new UpdateItemCommand({\n      TableName: 'UserQuotas',\n      Key: { \n        pk: { S: `USER#${userId}` },\n        sk: { S: `QUOTA#${today}` }\n      },\n      UpdateExpression: 'ADD dailyTokens :tokens SET #month = if_not_exists(#month, :zero) + :tokens',\n      ConditionExpression: 'attribute_not_exists(dailyTokens) OR dailyTokens < :dailyLimit',\n      ExpressionAttributeNames: {\n        '#month': `monthlyTokens_${month}`\n      },\n      ExpressionAttributeValues: {\n        ':tokens': { N: String(tokensToConsume) },\n        ':zero': { N: '0' },\n        ':dailyLimit': { N: String(quota.dailyTokenLimit) }\n      },\n      ReturnValues: 'ALL_NEW'\n    }));\n    \n    const newDaily = parseInt(result.Attributes?.dailyTokens?.N || '0');\n    \n    return {\n      allowed: true,\n      remaining: quota.dailyTokenLimit - newDaily\n    };\n    \n  } catch (error) {\n    if ((error as Error).name === 'ConditionalCheckFailedException') {\n      return { allowed: false, remaining: 0 };\n    }\n    throw error;\n  }\n}"
+    },
+    {
+      "type": "section",
+      "title": "Pattern 4: Streaming for User Experience",
+      "content": "Users perceive streaming responses as significantly faster, even when total time is similar. Production apps should always stream long-form responses."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "title": "Streaming with Bedrock InvokeModelWithResponseStream",
+      "code": "import { \n  BedrockRuntimeClient, \n  InvokeModelWithResponseStreamCommand \n} from '@aws-sdk/client-bedrock-runtime';\n\nasync function* streamResponse(\n  prompt: string,\n  modelId: string = 'anthropic.claude-3-sonnet-20240229-v1:0'\n): AsyncGenerator<string, void, unknown> {\n  const client = new BedrockRuntimeClient({});\n  \n  const command = new InvokeModelWithResponseStreamCommand({\n    modelId,\n    body: JSON.stringify({\n      anthropic_version: 'bedrock-2023-05-31',\n      max_tokens: 4096,\n      messages: [{ role: 'user', content: prompt }]\n    }),\n    contentType: 'application/json'\n  });\n  \n  const response = await client.send(command);\n  \n  if (response.body) {\n    for await (const event of response.body) {\n      if (event.chunk?.bytes) {\n        const chunk = JSON.parse(new TextDecoder().decode(event.chunk.bytes));\n        \n        if (chunk.type === 'content_block_delta') {\n          yield chunk.delta.text;\n        }\n        \n        // Handle stop conditions\n        if (chunk.type === 'message_stop') {\n          return;\n        }\n      }\n    }\n  }\n}\n\n// Usage in an API route\nexport async function GET(request: Request) {\n  const { prompt } = await request.json();\n  \n  const encoder = new TextEncoder();\n  const stream = new ReadableStream({\n    async start(controller) {\n      try {\n        for await (const chunk of streamResponse(prompt)) {\n          // Format as Server-Sent Events\n          controller.enqueue(\n            encoder.encode(`data: ${JSON.stringify({ text: chunk })}\\n\\n`)\n          );\n        }\n        controller.enqueue(encoder.encode('data: [DONE]\\n\\n'));\n        controller.close();\n      } catch (error) {\n        controller.enqueue(\n          encoder.encode(`data: ${JSON.stringify({ error: 'Stream failed' })}\\n\\n`)\n        );\n        controller.close();\n      }\n    }\n  });\n  \n  return new Response(stream, {\n    headers: {\n      'Content-Type': 'text/event-stream',\n      'Cache-Control': 'no-cache',\n      'Connection': 'keep-alive'\n    }\n  });\n}"
+    },
+    {
+      "type": "section",
+      "title": "Pattern 5: Observability Stack",
+      "content": "You can't improve what you can't measure. Production GenAI systems need comprehensive observability across three pillars: metrics, logs, and traces."
+    },
+    {
+      "type": "subsection",
+      "title": "Key Metrics for GenAI",
+      "content": "**Operational Metrics:**\n- Request latency (p50, p95, p99)\n- Error rates by type\n- Token consumption rates\n- Cache hit ratios\n- Model endpoint availability\n\n**Quality Metrics:**\n- User feedback scores\n- Hallucination detection rates\n- Guardrail intervention frequency\n- Context relevance scores (for RAG)\n\n**Cost Metrics:**\n- Token cost per request\n- Cost per user/tenant\n- Cost by model\n- Cost trend forecasting"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "title": "CloudWatch Metrics for GenAI",
+      "code": "import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';\n\ninterface GenAIMetrics {\n  requestId: string;\n  modelId: string;\n  userId?: string;\n  inputTokens: number;\n  outputTokens: number;\n  latencyMs: number;\n  cached: boolean;\n  guardrailTriggered: boolean;\n  errorType?: string;\n}\n\nasync function recordMetrics(metrics: GenAIMetrics): Promise<void> {\n  const cloudwatch = new CloudWatchClient({});\n  const timestamp = new Date();\n  \n  const dimensions = [\n    { Name: 'ModelId', Value: metrics.modelId },\n    { Name: 'Application', Value: process.env.APP_NAME || 'genai-app' }\n  ];\n  \n  const metricData = [\n    // Latency\n    {\n      MetricName: 'RequestLatency',\n      Dimensions: dimensions,\n      Value: metrics.latencyMs,\n      Unit: 'Milliseconds',\n      Timestamp: timestamp\n    },\n    // Token usage\n    {\n      MetricName: 'InputTokens',\n      Dimensions: dimensions,\n      Value: metrics.inputTokens,\n      Unit: 'Count',\n      Timestamp: timestamp\n    },\n    {\n      MetricName: 'OutputTokens',\n      Dimensions: dimensions,\n      Value: metrics.outputTokens,\n      Unit: 'Count',\n      Timestamp: timestamp\n    },\n    // Cost estimation (approximate)\n    {\n      MetricName: 'EstimatedCost',\n      Dimensions: dimensions,\n      Value: estimateCost(metrics.modelId, metrics.inputTokens, metrics.outputTokens),\n      Unit: 'None', // USD in cents\n      Timestamp: timestamp\n    },\n    // Cache effectiveness\n    {\n      MetricName: 'CacheHit',\n      Dimensions: dimensions,\n      Value: metrics.cached ? 1 : 0,\n      Unit: 'Count',\n      Timestamp: timestamp\n    },\n    // Safety\n    {\n      MetricName: 'GuardrailTriggered',\n      Dimensions: dimensions,\n      Value: metrics.guardrailTriggered ? 1 : 0,\n      Unit: 'Count',\n      Timestamp: timestamp\n    }\n  ];\n  \n  // Add error metric if applicable\n  if (metrics.errorType) {\n    metricData.push({\n      MetricName: 'Errors',\n      Dimensions: [...dimensions, { Name: 'ErrorType', Value: metrics.errorType }],\n      Value: 1,\n      Unit: 'Count',\n      Timestamp: timestamp\n    });\n  }\n  \n  await cloudwatch.send(new PutMetricDataCommand({\n    Namespace: 'GenAI/Production',\n    MetricData: metricData\n  }));\n}\n\n// Model pricing (simplified - check current Bedrock pricing)\nfunction estimateCost(modelId: string, inputTokens: number, outputTokens: number): number {\n  const pricing: Record<string, { input: number; output: number }> = {\n    'anthropic.claude-3-sonnet-20240229-v1:0': { input: 0.003, output: 0.015 },\n    'anthropic.claude-3-haiku-20240307-v1:0': { input: 0.00025, output: 0.00125 },\n    'amazon.titan-text-express-v1': { input: 0.0002, output: 0.0006 }\n  };\n  \n  const modelPricing = pricing[modelId] || { input: 0.001, output: 0.002 };\n  // Return cost in cents (multiply by 100)\n  return ((inputTokens / 1000) * modelPricing.input + (outputTokens / 1000) * modelPricing.output) * 100;\n}"
+    },
+    {
+      "type": "subsection",
+      "title": "Distributed Tracing with X-Ray",
+      "content": "X-Ray traces the complete request path, essential for debugging production issues in complex GenAI workflows."
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "title": "X-Ray Tracing for GenAI Workflows",
+      "code": "import * as AWSXRay from 'aws-xray-sdk';\nimport { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';\n\n// Instrument the Bedrock client\nconst bedrock = AWSXRay.captureAWSv3Client(\n  new BedrockRuntimeClient({})\n);\n\nasync function processRAGRequest(query: string): Promise<string> {\n  const segment = AWSXRay.getSegment();\n  \n  // Trace embedding generation\n  const embeddingSubsegment = segment?.addNewSubsegment('GenerateEmbedding');\n  embeddingSubsegment?.addAnnotation('query_length', query.length);\n  \n  try {\n    const embedding = await generateEmbedding(query);\n    embeddingSubsegment?.addMetadata('embedding_dimension', embedding.length);\n    embeddingSubsegment?.close();\n  } catch (error) {\n    embeddingSubsegment?.addError(error as Error);\n    embeddingSubsegment?.close();\n    throw error;\n  }\n  \n  // Trace vector search\n  const searchSubsegment = segment?.addNewSubsegment('VectorSearch');\n  searchSubsegment?.addAnnotation('index', 'knowledge-base');\n  \n  try {\n    const results = await searchVectorStore(embedding);\n    searchSubsegment?.addMetadata('results_count', results.length);\n    searchSubsegment?.addMetadata('top_score', results[0]?.score);\n    searchSubsegment?.close();\n  } catch (error) {\n    searchSubsegment?.addError(error as Error);\n    searchSubsegment?.close();\n    throw error;\n  }\n  \n  // Trace LLM invocation\n  const llmSubsegment = segment?.addNewSubsegment('LLMInvocation');\n  llmSubsegment?.addAnnotation('model', 'claude-3-sonnet');\n  \n  try {\n    const response = await invokeModel(query, context);\n    llmSubsegment?.addMetadata('output_tokens', response.usage.output_tokens);\n    llmSubsegment?.close();\n    return response.content;\n  } catch (error) {\n    llmSubsegment?.addError(error as Error);\n    llmSubsegment?.close();\n    throw error;\n  }\n}"
+    },
+    {
+      "type": "section",
+      "title": "Pattern 6: Graceful Degradation",
+      "content": "When systems fail—and they will—production apps should degrade gracefully rather than crash completely."
+    },
+    {
+      "type": "subsection",
+      "title": "Degradation Levels",
+      "content": "Design multiple fallback levels:\n\n**Level 1: Model Fallback**\n- Primary model unavailable → Use secondary model\n- All models unavailable → Use cached responses\n\n**Level 2: Feature Degradation**\n- RAG unavailable → Direct model response (no context)\n- Streaming unavailable → Batch response\n\n**Level 3: Static Fallback**\n- All AI unavailable → Pre-written responses for common queries\n- Complete failure → Friendly error with estimated recovery time"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "title": "Multi-Level Graceful Degradation",
+      "code": "interface DegradationState {\n  level: 'normal' | 'degraded' | 'minimal' | 'offline';\n  availableFeatures: string[];\n  unavailableFeatures: string[];\n}\n\nasync function handleQueryWithDegradation(\n  query: string\n): Promise<{ response: string; degradationState: DegradationState }> {\n  // Try full-featured response\n  try {\n    const response = await fullRAGResponse(query);\n    return {\n      response,\n      degradationState: {\n        level: 'normal',\n        availableFeatures: ['rag', 'streaming', 'citations'],\n        unavailableFeatures: []\n      }\n    };\n  } catch (ragError) {\n    console.warn('RAG failed, attempting degraded mode:', ragError);\n  }\n  \n  // Try direct model response (no RAG)\n  try {\n    const response = await directModelResponse(query);\n    return {\n      response: response + '\\n\\n*Note: This response was generated without access to the knowledge base.*',\n      degradationState: {\n        level: 'degraded',\n        availableFeatures: ['model_response'],\n        unavailableFeatures: ['rag', 'citations']\n      }\n    };\n  } catch (modelError) {\n    console.warn('Direct model failed, trying cache:', modelError);\n  }\n  \n  // Try cached response for similar queries\n  try {\n    const cachedResponse = await findSimilarCachedResponse(query);\n    if (cachedResponse) {\n      return {\n        response: cachedResponse + '\\n\\n*Note: This is a cached response and may not reflect the latest information.*',\n        degradationState: {\n          level: 'minimal',\n          availableFeatures: ['cached_response'],\n          unavailableFeatures: ['rag', 'model_response', 'citations']\n        }\n      };\n    }\n  } catch (cacheError) {\n    console.warn('Cache lookup failed:', cacheError);\n  }\n  \n  // Complete fallback - static response\n  return {\n    response: generateStaticFallback(query),\n    degradationState: {\n      level: 'offline',\n      availableFeatures: ['static_fallback'],\n      unavailableFeatures: ['rag', 'model_response', 'cached_response', 'citations']\n    }\n  };\n}\n\nfunction generateStaticFallback(query: string): string {\n  // Categorize query and return appropriate static response\n  const category = categorizeQuery(query);\n  \n  const staticResponses: Record<string, string> = {\n    pricing: 'For current pricing information, please visit aws.amazon.com/bedrock/pricing',\n    documentation: 'AWS documentation is available at docs.aws.amazon.com',\n    default: 'We\\'re experiencing technical difficulties. Please try again in a few minutes. If the issue persists, contact support.'\n  };\n  \n  return staticResponses[category] || staticResponses.default;\n}"
+    },
+    {
+      "type": "section",
+      "title": "Pattern 7: Security in Production",
+      "content": "Production GenAI systems face unique security challenges beyond traditional applications."
+    },
+    {
+      "type": "subsection",
+      "title": "Defense in Depth for GenAI",
+      "content": "**Layer 1: Network Security**\n- VPC endpoints for Bedrock (no internet exposure)\n- Security groups limiting access\n- AWS PrivateLink for SaaS integrations\n\n**Layer 2: Identity & Access**\n- IAM roles with least privilege\n- Short-lived credentials (IAM Roles Anywhere for on-prem)\n- Resource-based policies on models\n\n**Layer 3: Input Validation**\n- Input length limits\n- Content type validation\n- Prompt injection detection\n\n**Layer 4: Output Filtering**\n- Bedrock Guardrails for content safety\n- PII detection and redaction\n- Response format validation"
+    },
+    {
+      "type": "code",
+      "language": "typescript",
+      "title": "Input Validation Pipeline",
+      "code": "import { ComprehendClient, DetectPiiEntitiesCommand } from '@aws-sdk/client-comprehend';\nimport { \n  BedrockRuntimeClient, \n  ApplyGuardrailCommand \n} from '@aws-sdk/client-bedrock-runtime';\n\ninterface ValidationResult {\n  valid: boolean;\n  sanitizedInput?: string;\n  rejectionReason?: string;\n  piiDetected?: string[];\n}\n\nasync function validateInput(userInput: string): Promise<ValidationResult> {\n  // Length check\n  if (userInput.length > 10000) {\n    return { valid: false, rejectionReason: 'Input exceeds maximum length' };\n  }\n  \n  if (userInput.length < 2) {\n    return { valid: false, rejectionReason: 'Input too short' };\n  }\n  \n  // Basic injection pattern detection\n  const injectionPatterns = [\n    /ignore\\s+(all\\s+)?previous\\s+instructions/i,\n    /system\\s*:\\s*you\\s+are/i,\n    /\\[\\s*INST\\s*\\]/i,\n    /<\\|im_start\\|>/i\n  ];\n  \n  for (const pattern of injectionPatterns) {\n    if (pattern.test(userInput)) {\n      return { valid: false, rejectionReason: 'Potentially malicious input detected' };\n    }\n  }\n  \n  // PII detection with Comprehend\n  const comprehend = new ComprehendClient({});\n  const piiResult = await comprehend.send(new DetectPiiEntitiesCommand({\n    Text: userInput,\n    LanguageCode: 'en'\n  }));\n  \n  const piiTypes = piiResult.Entities?.map(e => e.Type!) || [];\n  let sanitizedInput = userInput;\n  \n  // Redact sensitive PII (keep names/dates for context)\n  const sensitiveTypes = ['SSN', 'CREDIT_DEBIT_NUMBER', 'BANK_ACCOUNT_NUMBER', 'PIN'];\n  const sensitivePII = piiTypes.filter(t => sensitiveTypes.includes(t));\n  \n  if (sensitivePII.length > 0) {\n    for (const entity of piiResult.Entities || []) {\n      if (sensitiveTypes.includes(entity.Type!)) {\n        const start = entity.BeginOffset!;\n        const end = entity.EndOffset!;\n        sanitizedInput = \n          sanitizedInput.slice(0, start) + \n          '[REDACTED]' + \n          sanitizedInput.slice(end);\n      }\n    }\n  }\n  \n  // Guardrail check\n  const bedrock = new BedrockRuntimeClient({});\n  const guardrailResult = await bedrock.send(new ApplyGuardrailCommand({\n    guardrailIdentifier: process.env.GUARDRAIL_ID,\n    guardrailVersion: 'DRAFT',\n    source: 'INPUT',\n    content: [{ text: { text: sanitizedInput } }]\n  }));\n  \n  if (guardrailResult.action === 'GUARDRAIL_INTERVENED') {\n    return { \n      valid: false, \n      rejectionReason: 'Content policy violation',\n      piiDetected: piiTypes\n    };\n  }\n  \n  return {\n    valid: true,\n    sanitizedInput,\n    piiDetected: piiTypes.length > 0 ? piiTypes : undefined\n  };\n}"
+    },
+    {
+      "type": "section",
+      "title": "Production Deployment Checklist",
+      "content": "Before going to production, verify each category:"
+    },
+    {
+      "type": "table",
+      "headers": ["Category", "Checkpoint", "AWS Service"],
+      "rows": [
+        ["Resilience", "Circuit breakers implemented", "Step Functions / Custom"],
+        ["Resilience", "Retry with exponential backoff", "SDK retry config"],
+        ["Resilience", "Model fallback chain", "Custom routing logic"],
+        ["Performance", "Streaming enabled for long responses", "Bedrock ResponseStream"],
+        ["Performance", "Semantic caching operational", "OpenSearch / ElastiCache"],
+        ["Performance", "Token budgets enforced", "Custom / Bedrock limits"],
+        ["Security", "VPC endpoints configured", "VPC / PrivateLink"],
+        ["Security", "Input validation pipeline", "Comprehend + Guardrails"],
+        ["Security", "Output filtering active", "Guardrails"],
+        ["Security", "PII detection enabled", "Comprehend / Guardrails"],
+        ["Observability", "CloudWatch metrics configured", "CloudWatch"],
+        ["Observability", "X-Ray tracing enabled", "X-Ray"],
+        ["Observability", "Alerting thresholds set", "CloudWatch Alarms"],
+        ["Cost", "Per-user quotas implemented", "DynamoDB + Custom"],
+        ["Cost", "Cost anomaly detection", "Cost Explorer"],
+        ["Cost", "Billing alerts configured", "AWS Budgets"]
+      ]
+    },
+    {
+      "type": "callout",
+      "calloutType": "exam",
+      "title": "Exam Production Scenarios",
+      "content": "Expect scenario questions like:\n- \"An application is experiencing 502 errors during peak load. What should you implement?\" → Caching + rate limiting + circuit breakers\n- \"Users complain about slow responses. What can reduce perceived latency?\" → Streaming\n- \"How can you prevent a single user from consuming all resources?\" → Token quotas + rate limiting\n- \"What's the most cost-effective way to handle similar repeated queries?\" → Semantic caching"
+    },
+    {
+      "type": "section",
+      "title": "Key Takeaways",
+      "content": "**From PoC to Production:**\n1. **Resilience is non-negotiable** - Implement circuit breakers, retries, and fallbacks from day one\n2. **Cache aggressively** - Semantic caching dramatically reduces costs and latency\n3. **Observe everything** - You can't debug production without comprehensive metrics and traces\n4. **Degrade gracefully** - Every feature should have a fallback path\n5. **Secure at every layer** - Network, identity, input, and output security\n6. **Budget defensively** - Token costs can spiral; implement quotas early\n\n**The Production Mindset:**\nPrototypes ask \"Can it work?\" Production asks \"What happens when it fails?\" Build for the failure case and success takes care of itself."
+    }
+  ]
+}

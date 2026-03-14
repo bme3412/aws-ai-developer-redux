@@ -1,0 +1,233 @@
+{
+  "topicSlug": "app-integration-patterns",
+  "domainId": 2,
+  "taskId": "2.5",
+  "overview": {
+    "whyItMatters": "Building GenAI into applications requires more than calling an API. You need UI components, business system integrations, and developer tooling. AWS provides managed services for common integration patterns, from Amplify UI components to Q Developer for code assistance.",
+    "estimatedMinutes": 35
+  },
+  "concepts": [
+    {
+      "id": "ui-integration",
+      "title": "Building GenAI User Interfaces",
+      "content": "User interfaces for GenAI applications have unique requirements: streaming text display, conversation history, confidence indicators, and graceful loading states.\n\n**AWS Amplify:**\nProvides React components and libraries for building AI interfaces. Pre-built chat components handle message rendering, streaming display, and conversation management. Amplify connects directly to Bedrock through Amplify Gen2's AI capabilities.\n\n**Key UI Patterns:**\n- **Streaming text**: Display tokens as they arrive, not all at once\n- **Typing indicators**: Show when the model is processing\n- **Conversation history**: Maintain and display multi-turn context\n- **Source citations**: Link to retrieved documents in RAG applications\n- **Confidence indicators**: Show uncertainty for high-stakes outputs\n- **Regenerate options**: Let users request alternative responses\n\n**Prompt Flows No-Code:**\nBedrock Prompt Flows enables non-developers to build AI workflows visually. Business users can create, test, and deploy prompt chains without writing code. This accelerates experimentation and reduces developer bottleneck.\n\n**OpenAPI Integration:**\nGenerate OpenAPI specs for your GenAI APIs. These specs drive SDK generation, documentation, and type-safe client libraries. Consistent API contracts between frontend and backend.",
+      "keyPoints": [
+        "Amplify provides pre-built AI UI components",
+        "Streaming display is essential for good UX",
+        "Prompt Flows enables no-code AI workflow building",
+        "OpenAPI specs enable consistent API contracts"
+      ]
+    },
+    {
+      "id": "business-systems",
+      "title": "Integrating with Business Systems",
+      "content": "GenAI adds intelligence to business processes: CRM enrichment, document processing, knowledge management, and workflow automation.\n\n**Amazon Q Business:**\nEnterprise knowledge assistant. Connects to 40+ data sources (SharePoint, Confluence, Salesforce, S3, databases). Employees ask questions; Q Business retrieves answers from corporate knowledge. No custom RAG pipeline needed.\n\n```\n┌─────────────────────────────────────────────────────────────────────┐\n│                    Amazon Q Business Architecture                    │\n├─────────────────────────────────────────────────────────────────────┤\n│                                                                      │\n│   Data Sources                    Q Business                         │\n│   ────────────                    ──────────                         │\n│   ┌──────────┐                                                       │\n│   │SharePoint│──┐                                                    │\n│   └──────────┘  │   ┌─────────────────────────────────────────┐     │\n│   ┌──────────┐  │   │                                         │     │\n│   │Confluence│──┼──▶│  Document        Index &      Answer   │     │\n│   └──────────┘  │   │  Ingestion  ──▶  Embedding ──▶ Engine  │     │\n│   ┌──────────┐  │   │                                         │     │\n│   │    S3    │──┼──▶│  (Chunking,       (Vector     (GenAI   │     │\n│   └──────────┘  │   │   Parsing)         Store)      + RAG)  │     │\n│   ┌──────────┐  │   │                                         │     │\n│   │Salesforce│──┘   └────────────────────────┬────────────────┘     │\n│   └──────────┘                               │                       │\n│                                              ▼                       │\n│                                    ┌─────────────────┐              │\n│                                    │   Web Portal    │              │\n│                                    │   or Slack/     │              │\n│                                    │   Teams Plugin  │              │\n│                                    └─────────────────┘              │\n│                                              │                       │\n│                                              ▼                       │\n│                                       Employees                      │\n│                                                                      │\n│   Benefits:                                                         │\n│   • No custom RAG pipeline to build                                 │\n│   • 40+ data source connectors                                      │\n│   • Built-in access controls (respects source permissions)         │\n│   • Web portal, Slack, Teams integrations                          │\n└─────────────────────────────────────────────────────────────────────┘\n```\n\nQ Business handles: data source connectors, document chunking, indexing, retrieval, and response generation. You configure data sources and access controls; it handles the rest.\n\n**Bedrock Data Automation:**\nAutomates document-heavy workflows. Extract data from invoices, contracts, forms. Process and route based on content. Integrates with Step Functions for workflow orchestration.\n\n**CRM Enhancement:**\nAdd GenAI to customer workflows. Summarize customer history before calls. Draft response emails. Analyze sentiment. Lambda functions call Bedrock from CRM triggers (new case created, email received).\n\n**Document Processing:**\nExtract, classify, and route documents. Textract for OCR, Comprehend for classification, Bedrock for summarization and analysis. Step Functions orchestrates multi-step document workflows.",
+      "keyPoints": [
+        "Q Business: Managed enterprise knowledge assistant",
+        "Bedrock Data Automation: Document workflow automation",
+        "Lambda triggers from business systems invoke Bedrock",
+        "Step Functions orchestrates document processing pipelines"
+      ],
+      "examTip": "'Enterprise knowledge,' 'internal documentation,' or 'employee questions' -> Amazon Q Business."
+    },
+    {
+      "id": "developer-tools",
+      "title": "Developer Productivity with GenAI",
+      "content": "GenAI isn't just for end users. Developers benefit from AI-assisted coding, debugging, and documentation.\n\n**Amazon Q Developer:**\nAI coding assistant integrated into IDEs. Provides:\n- **Code generation**: Describe what you want; get working code\n- **Code refactoring**: Select code and ask for improvements\n- **Bug fixing**: Explain errors, get suggested fixes\n- **Documentation**: Generate docstrings and README content\n- **API assistance**: Get help with AWS SDK usage\n- **Test generation**: Create unit tests for functions\n\nQ Developer understands your codebase context. It reads your files, understands patterns, and generates code that fits your project style.\n\n**Error Pattern Recognition:**\nQ Developer recognizes common error patterns and suggests fixes. CloudWatch errors, stack traces, and log messages can be analyzed to identify root causes and solutions.\n\n**Security Scanning:**\nQ Developer scans code for security vulnerabilities. Identifies potential issues and suggests remediation. Integrates with CI/CD for automated security checks.",
+      "keyPoints": [
+        "Q Developer: AI coding assistant in IDEs",
+        "Code generation, refactoring, testing, documentation",
+        "Error pattern recognition from logs and traces",
+        "Security scanning integrated with development workflow"
+      ]
+    },
+    {
+      "id": "advanced-orchestration",
+      "title": "Advanced Application Patterns",
+      "content": "Complex applications combine multiple AI capabilities into sophisticated workflows.\n\n**Strands + Agent Squad:**\nOrchestrate multiple agents for complex tasks. Each agent specializes: one handles customer questions, another manages inventory, a third processes orders. Agent Squad coordinates them, routing tasks and aggregating results.\n\n**Prompt Chaining:**\nSequence prompts for complex tasks. Extract entities -> classify intent -> generate response -> validate output. Each step focuses on one job, making debugging and improvement easier.\n\nPrompt Flows provides visual prompt chaining. Step Functions handles complex chains with error handling, branching, and retry logic.\n\n**Workflow Patterns:**\n- **Sequential**: Each step depends on the previous\n- **Parallel**: Independent steps run simultaneously\n- **Conditional**: Branch based on intermediate results\n- **Loop**: Iterate until quality threshold is met\n- **Human-in-the-loop**: Pause for approval at decision points",
+      "keyPoints": [
+        "Agent Squad orchestrates specialized agents",
+        "Prompt chaining breaks complex tasks into steps",
+        "Prompt Flows for visual orchestration, Step Functions for complex logic",
+        "Patterns: sequential, parallel, conditional, loop, HITL"
+      ]
+    },
+    {
+      "id": "troubleshooting-integration",
+      "title": "Troubleshooting GenAI Applications",
+      "content": "GenAI applications have unique failure modes that require specialized debugging approaches.\n\n**CloudWatch Logs Insights:**\nQuery logs to understand GenAI behavior. Search for specific prompts, filter by response quality, aggregate error patterns. Write queries like: 'Show me all requests where response_time > 10s and user_rating < 3'.\n\n**X-Ray Tracing:**\nVisualize request flow through your GenAI pipeline. See time spent in each component: API Gateway, Lambda, Bedrock, Knowledge Base retrieval, post-processing. Identify bottlenecks and slow components.\n\n**Q Developer Error Recognition:**\nPaste error messages into Q Developer. It recognizes common patterns and suggests fixes. Particularly useful for AWS SDK errors and Bedrock-specific issues.\n\n**Common Issues:**\n- Token limit exceeded: Prompt too long, truncate or summarize\n- Rate limited: Implement backoff, increase quotas, add caching\n- Low quality outputs: Review prompts, add examples, adjust parameters\n- Slow responses: Check model choice, optimize prompts, add streaming\n- Retrieval misses: Review chunking strategy, embedding model, search config",
+      "keyPoints": [
+        "CloudWatch Logs Insights: Query and analyze GenAI logs",
+        "X-Ray: Visualize request flow and identify bottlenecks",
+        "Q Developer: Recognize errors and suggest fixes",
+        "Common issues: tokens, rate limits, quality, latency, retrieval"
+      ]
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "2.5.1",
+      "explanation": "API interfaces for GenAI need careful design for token limits, streaming, and retry behavior. API Gateway provides throttling to prevent cost overruns, request validation to reject invalid inputs, and caching for repeated queries.\n\nToken limit management is critical. Track input and output tokens per request. Set maximum response lengths to control costs. Return meaningful errors when limits are exceeded rather than failing silently.\n\nRetry strategies differ for GenAI. Idempotency matters: retrying the same prompt might give different results. Consider whether retry is appropriate or whether returning an error is better.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon API Gateway",
+          "whenToUse": "API layer for GenAI with throttling, validation, caching.",
+          "examKeywords": ["API", "throttling", "token limit", "streaming"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.5.2",
+      "explanation": "UI development with Amplify accelerates GenAI application building. Amplify Gen2 includes AI components that connect to Bedrock. Build chat interfaces, document analyzers, and content generators with pre-built components.\n\nOpenAPI specifications define your GenAI API contract. Generate client SDKs automatically. Maintain type safety between frontend and backend. Document API behavior for consumers.\n\nPrompt Flows provides no-code workflow building for non-developers. Business users can create and test AI workflows visually, reducing developer bottleneck for simple automation.",
+      "awsServices": [
+        {
+          "serviceName": "AWS Amplify",
+          "whenToUse": "Pre-built UI components for AI applications. Rapid frontend development.",
+          "examKeywords": ["UI", "components", "frontend", "Amplify"]
+        },
+        {
+          "serviceName": "Amazon Bedrock Prompt Flows",
+          "whenToUse": "No-code AI workflow building for business users.",
+          "examKeywords": ["no-code", "visual", "workflow", "non-developer"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.5.3",
+      "explanation": "Business system integration adds GenAI to existing workflows. Q Business provides managed enterprise search and knowledge assistance. Connect data sources; employees ask questions in natural language.\n\nBedrock Data Automation handles document-centric workflows. Extract, transform, and route documents based on content. Integrates with Step Functions for orchestration.\n\nLambda functions connect business systems to Bedrock. CRM triggers invoke Lambda; Lambda calls Bedrock; results flow back to the business system.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Q Business",
+          "whenToUse": "Enterprise knowledge assistant with pre-built connectors.",
+          "examKeywords": ["enterprise", "knowledge", "internal docs", "employee questions"]
+        },
+        {
+          "serviceName": "Amazon Bedrock Data Automation",
+          "whenToUse": "Document processing and workflow automation.",
+          "examKeywords": ["document", "automation", "extract", "workflow"]
+        },
+        {
+          "serviceName": "AWS Step Functions",
+          "whenToUse": "Orchestrate document processing and business workflows.",
+          "examKeywords": ["orchestrate", "workflow", "document processing"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.5.4",
+      "explanation": "Q Developer boosts developer productivity with AI-assisted coding. Code generation from natural language descriptions. Refactoring suggestions for existing code. Test generation for functions. Documentation generation.\n\nQ Developer understands AWS deeply. Get help with SDK usage, service configurations, and IAM policies. It suggests best practices specific to AWS services.\n\nError pattern recognition helps with debugging. Paste stack traces or error messages; Q Developer suggests root causes and fixes.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Q Developer",
+          "whenToUse": "AI coding assistant for code generation, refactoring, debugging.",
+          "examKeywords": ["code generation", "developer", "IDE", "refactor", "debugging"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.5.5",
+      "explanation": "Advanced applications orchestrate multiple AI capabilities. Strands Agents SDK plus Agent Squad enable multi-agent systems where specialized agents collaborate. Each agent handles specific tasks; orchestration coordinates them.\n\nPrompt chaining sequences multiple FM calls. Output of one prompt feeds the next. This modularity improves quality and debuggability compared to monolithic prompts.\n\nPatterns include sequential, parallel, conditional, and loop structures. Step Functions or Prompt Flows implements these patterns with appropriate error handling.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock Agents",
+          "whenToUse": "Build autonomous agents that use tools and make decisions.",
+          "examKeywords": ["agent", "autonomous", "multi-agent"]
+        },
+        {
+          "serviceName": "AWS Step Functions",
+          "whenToUse": "Complex orchestration with error handling and state management.",
+          "examKeywords": ["orchestration", "workflow", "chaining"]
+        },
+        {
+          "serviceName": "Amazon Bedrock Prompt Flows",
+          "whenToUse": "Visual prompt chain building and testing.",
+          "examKeywords": ["prompt chain", "visual", "flow"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.5.6",
+      "explanation": "Troubleshooting GenAI applications requires understanding both traditional distributed systems debugging and GenAI-specific issues.\n\nCloudWatch Logs Insights enables powerful log queries. Search prompts, filter by quality metrics, aggregate patterns. Essential for understanding how your GenAI application behaves in production.\n\nX-Ray traces requests end-to-end. See latency breakdown across components. Identify whether slowness is in retrieval, model inference, or post-processing.\n\nQ Developer recognizes error patterns. It can analyze stack traces and log messages to suggest fixes, particularly for AWS SDK and Bedrock errors.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon CloudWatch",
+          "whenToUse": "Logs Insights for GenAI behavior analysis. Metrics for monitoring.",
+          "examKeywords": ["logs", "monitoring", "query", "analysis"]
+        },
+        {
+          "serviceName": "AWS X-Ray",
+          "whenToUse": "Distributed tracing for latency and error debugging.",
+          "examKeywords": ["tracing", "latency", "debug", "bottleneck"]
+        },
+        {
+          "serviceName": "Amazon Q Developer",
+          "whenToUse": "Error pattern recognition and fix suggestions.",
+          "examKeywords": ["error", "debug", "fix", "suggestion"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "Enterprise Knowledge Solutions",
+      "services": ["Amazon Q Business", "Bedrock Knowledge Bases", "Custom RAG"],
+      "criteria": [
+        {
+          "criterion": "Setup effort",
+          "values": {
+            "Amazon Q Business": "Low - connect data sources, configure access",
+            "Bedrock Knowledge Bases": "Medium - configure chunking, embedding, vector store",
+            "Custom RAG": "High - build full pipeline"
+          }
+        },
+        {
+          "criterion": "Customization",
+          "values": {
+            "Amazon Q Business": "Limited - managed experience",
+            "Bedrock Knowledge Bases": "Moderate - configure retrieval and generation",
+            "Custom RAG": "Full control over every component"
+          }
+        },
+        {
+          "criterion": "Best for",
+          "values": {
+            "Amazon Q Business": "Enterprise internal knowledge with minimal setup",
+            "Bedrock Knowledge Bases": "RAG in custom applications",
+            "Custom RAG": "Unique requirements, maximum control"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "enterprise knowledge assistant",
+      "approach": "Q Business for managed enterprise search across internal data sources. Minimal setup, pre-built connectors, managed infrastructure.",
+      "keywords": ["enterprise", "internal knowledge", "employee questions", "documentation"]
+    },
+    {
+      "questionPattern": "developer productivity or code assistance",
+      "approach": "Q Developer for AI coding assistance. Code generation, refactoring, debugging, security scanning.",
+      "keywords": ["developer", "code", "IDE", "productivity", "coding assistant"]
+    },
+    {
+      "questionPattern": "troubleshooting GenAI applications",
+      "approach": "CloudWatch Logs Insights for log analysis. X-Ray for distributed tracing. Q Developer for error pattern recognition.",
+      "keywords": ["troubleshoot", "debug", "logs", "trace", "error"]
+    }
+  ],
+  "keyTakeaways": [
+    "Amplify provides pre-built AI UI components for rapid development",
+    "Q Business is the managed enterprise knowledge assistant (minimal setup)",
+    "Q Developer assists developers with code generation, debugging, and security",
+    "Prompt Flows enables no-code AI workflow building for non-developers",
+    "CloudWatch Logs Insights + X-Ray = GenAI observability and debugging"
+  ],
+  "commonMistakes": [
+    "Building custom RAG when Q Business would suffice",
+    "Not using streaming for user-facing AI interfaces",
+    "Manual debugging instead of using X-Ray and Logs Insights",
+    "Over-engineering simple workflows that Prompt Flows could handle",
+    "Ignoring Q Developer for AWS-specific coding assistance"
+  ]
+}

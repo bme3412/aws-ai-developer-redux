@@ -1,0 +1,280 @@
+{
+  "topicSlug": "agentic-ai",
+  "domainId": 2,
+  "taskId": "2.1",
+  "overview": {
+    "whyItMatters": "Agentic AI represents the next evolution of GenAI applications. Instead of simple request-response patterns, agents can autonomously plan, use tools, and take multi-step actions to complete complex tasks. This is where AI becomes genuinely useful for real-world business problems that require reasoning, tool use, and decision-making.",
+    "estimatedMinutes": 40
+  },
+  "concepts": [
+    {
+      "id": "agentic-foundations",
+      "title": "What Makes AI 'Agentic'",
+      "content": "Traditional AI applications are reactive: user asks, model responds. Agentic AI is proactive and autonomous. An agent can break down complex goals into subtasks, decide which tools to use, execute actions, observe results, and iterate until the goal is achieved.\n\n**Key characteristics of agentic systems:**\n- **Autonomy**: Agents make decisions without step-by-step human guidance\n- **Tool use**: Agents call external functions (APIs, databases, search) to gather information or take actions\n- **Planning**: Agents decompose complex tasks into manageable steps\n- **Reasoning**: Agents evaluate results and adjust their approach\n- **Memory**: Agents maintain context across multiple interactions\n\n**Strands Agents SDK** is AWS's framework for building production agents. It provides the scaffolding for agent loops, tool definitions, memory management, and orchestration. Think of it as the 'Rails' for building AI agents.\n\n**AWS Agent Squad** enables multi-agent systems where specialized agents collaborate. One agent might handle customer queries, another manages inventory, a third processes payments. They coordinate to solve problems no single agent could handle alone.",
+      "keyPoints": [
+        "Agents autonomously plan, execute, and iterate to achieve goals",
+        "Tool use transforms agents from chatbots into action-takers",
+        "Strands Agents SDK provides the framework for production agents",
+        "Agent Squad enables multi-agent collaboration"
+      ],
+      "examTip": "'Autonomous,' 'multi-step,' or 'tool use' in a question often points to Bedrock Agents or Strands."
+    },
+    {
+      "id": "react-pattern",
+      "title": "The ReAct Pattern: Reasoning + Acting",
+      "content": "ReAct (Reasoning + Acting) is the fundamental pattern behind most effective agents. The agent alternates between thinking about what to do and actually doing it, creating a loop that continues until the task is complete.\n\n```\n┌─────────────────────────────────────────────────────────────┐\n│                      ReAct Agent Loop                        │\n├─────────────────────────────────────────────────────────────┤\n│                                                              │\n│    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐ │\n│    │   THOUGHT    │───▶│    ACTION    │───▶│ OBSERVATION  │ │\n│    │              │    │              │    │              │ │\n│    │ \"I need to   │    │ Call tool:   │    │ Tool returns │ │\n│    │  look up     │    │ getOrder()   │    │ {status: OK} │ │\n│    │  the order\" │    │              │    │              │ │\n│    └──────────────┘    └──────────────┘    └──────────────┘ │\n│           ▲                                       │         │\n│           │                                       │         │\n│           └───────────────────────────────────────┘         │\n│                    Loop until task complete                  │\n│                                                              │\n│    Exit: Task done | Max iterations | Error escalation      │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**The ReAct loop:**\n1. **Thought**: Agent reasons about the current state and what action to take next\n2. **Action**: Agent calls a tool or takes an action\n3. **Observation**: Agent receives the result of the action\n4. **Repeat**: Agent uses the observation to inform its next thought\n\n**Example**: User asks 'What's the status of order #12345 and when will it arrive?'\n- Thought: I need to look up order #12345 in the order system\n- Action: Call getOrderStatus(orderId: '12345')\n- Observation: Order shipped, tracking: ABC123\n- Thought: Now I need to get delivery estimate from tracking\n- Action: Call getTrackingInfo(trackingId: 'ABC123')\n- Observation: Estimated delivery: March 15\n- Thought: I have all the information needed\n- Action: Respond to user with order status and delivery date\n\nHere's how Bedrock Agents implements this with tools defined via the Converse API:\n\n```typescript\nimport { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';\n\n// Define available tools\nconst tools = [{\n  toolSpec: {\n    name: 'getOrderStatus',\n    description: 'Look up an order by ID and return its current status',\n    inputSchema: {\n      json: {\n        type: 'object',\n        properties: {\n          orderId: { type: 'string', description: 'The order ID to look up' }\n        },\n        required: ['orderId']\n      }\n    }\n  }\n}];\n\n// Agent loop\nlet messages = [{ role: 'user', content: [{ text: userQuery }] }];\n\nwhile (true) {\n  const response = await client.send(new ConverseCommand({\n    modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',\n    messages,\n    toolConfig: { tools }\n  }));\n  \n  if (response.stopReason === 'tool_use') {\n    // Agent wants to call a tool\n    const toolUse = response.output.message.content.find(c => c.toolUse);\n    const result = await executeToolCall(toolUse.toolUse);\n    \n    // Add tool result and continue loop\n    messages.push(response.output.message);\n    messages.push({ role: 'user', content: [{ toolResult: { toolUseId: toolUse.toolUse.toolUseId, content: [{ json: result }] } }] });\n  } else {\n    // Agent is done - return final response\n    return response.output.message.content[0].text;\n  }\n}\n```\n\n**Python (boto3) equivalent:**\n\n```python\nimport boto3\nimport json\n\nclient = boto3.client('bedrock-runtime')\n\n# Define tools\ntools = [{\n    'toolSpec': {\n        'name': 'getOrderStatus',\n        'description': 'Look up an order by ID',\n        'inputSchema': {\n            'json': {\n                'type': 'object',\n                'properties': {\n                    'orderId': {'type': 'string', 'description': 'Order ID'}\n                },\n                'required': ['orderId']\n            }\n        }\n    }\n}]\n\nmessages = [{'role': 'user', 'content': [{'text': user_query}]}]\n\nwhile True:\n    response = client.converse(\n        modelId='anthropic.claude-3-sonnet-20240229-v1:0',\n        messages=messages,\n        toolConfig={'tools': tools}\n    )\n    \n    if response['stopReason'] == 'tool_use':\n        # Find tool call and execute\n        tool_use = next(c['toolUse'] for c in response['output']['message']['content'] \n                       if 'toolUse' in c)\n        result = execute_tool_call(tool_use)\n        \n        # Add result and continue\n        messages.append(response['output']['message'])\n        messages.append({\n            'role': 'user',\n            'content': [{'toolResult': {\n                'toolUseId': tool_use['toolUseId'],\n                'content': [{'json': result}]\n            }}]\n        })\n    else:\n        # Done - return response\n        return response['output']['message']['content'][0]['text']\n```\n\n**AWS Step Functions** is ideal for implementing ReAct patterns. Each state can represent a thought/action cycle, with transitions based on observations. Step Functions provides built-in error handling, retries, and timeout management essential for production agents.",
+      "keyPoints": [
+        "ReAct alternates: Thought -> Action -> Observation -> Repeat",
+        "Chain-of-thought reasoning improves decision quality",
+        "Step Functions implements ReAct with state machines",
+        "The loop continues until the agent determines the task is complete"
+      ]
+    },
+    {
+      "id": "mcp-protocol",
+      "title": "Model Context Protocol (MCP)",
+      "content": "MCP is a standardized protocol for connecting AI agents to external tools and data sources. Think of it as a universal adapter that lets any AI system talk to any tool using a common language.\n\n**Why MCP matters:**\n- **Standardization**: Tools built for MCP work with any MCP-compatible agent\n- **Ecosystem**: Growing library of pre-built MCP servers for common services\n- **Portability**: Switch between AI providers without rewriting tool integrations\n\n**MCP Architecture:**\n\n```\n┌─────────────────────────────────────────────────────────────────────┐\n│                    Model Context Protocol (MCP)                     │\n├─────────────────────────────────────────────────────────────────────┤\n│                                                                      │\n│  ┌─────────────────┐      ┌─────────────────┐      ┌──────────────┐ │\n│  │   AI Agent      │      │   MCP Client    │      │  MCP Server  │ │\n│  │                 │      │                 │      │              │ │\n│  │  Bedrock Agent  │─────▶│  SDK / Library  │─────▶│   Lambda     │ │\n│  │  or Custom      │      │                 │      │   or ECS     │ │\n│  └─────────────────┘      └─────────────────┘      └──────────────┘ │\n│                                    │                       │        │\n│                           JSON-RPC Protocol          Tool Execution │\n│                           (standardized)             (your logic)   │\n│                                                                      │\n│  Benefits:                                                           │\n│  • Any agent → Any tool (portability)                               │\n│  • Growing ecosystem of pre-built servers                           │\n│  • Switch AI providers without rewriting tools                      │\n└─────────────────────────────────────────────────────────────────────┘\n```\n\n- **MCP Client**: The agent runtime that calls tools (Bedrock Agents, custom agents)\n- **MCP Server**: Service that exposes tools and data sources\n- **Protocol**: JSON-RPC-based communication with defined message types\n\nHere's a simple Lambda function implementing an MCP tool:\n\n```typescript\n// Lambda handler for an MCP-style tool\nexport async function handler(event: {\n  tool: string;\n  parameters: Record<string, unknown>;\n}) {\n  switch (event.tool) {\n    case 'getWeather':\n      const { city } = event.parameters as { city: string };\n      // Call weather API\n      const weather = await fetchWeatherAPI(city);\n      return {\n        success: true,\n        result: {\n          temperature: weather.temp,\n          conditions: weather.description,\n          city\n        }\n      };\n    \n    case 'searchDatabase':\n      const { query } = event.parameters as { query: string };\n      const results = await searchDB(query);\n      return { success: true, result: results };\n    \n    default:\n      return { success: false, error: `Unknown tool: ${event.tool}` };\n  }\n}\n```\n\n**Python Lambda MCP tool:**\n\n```python\nimport json\n\ndef handler(event, context):\n    tool = event.get('tool')\n    params = event.get('parameters', {})\n    \n    if tool == 'getWeather':\n        city = params.get('city')\n        weather = fetch_weather_api(city)\n        return {\n            'success': True,\n            'result': {\n                'temperature': weather['temp'],\n                'conditions': weather['description'],\n                'city': city\n            }\n        }\n    \n    elif tool == 'searchDatabase':\n        query = params.get('query')\n        results = search_db(query)\n        return {'success': True, 'result': results}\n    \n    return {'success': False, 'error': f'Unknown tool: {tool}'}\n```\n\n**AWS Implementation Options:**\n- **Lambda MCP Servers**: Stateless, serverless, pay-per-use. Ideal for simple tools like API calls, database queries, or calculations. Lambda's 15-minute timeout is sufficient for most tool operations.\n- **ECS MCP Servers**: For complex, stateful MCP servers needing persistent connections, large memory, or long-running operations. Run containerized MCP servers with full control over resources.\n\nMCP is becoming the standard for agent tool interfaces. Understanding it is essential for building interoperable, maintainable agent systems.",
+      "keyPoints": [
+        "MCP standardizes agent-tool communication",
+        "Lambda for stateless MCP servers, ECS for complex/stateful servers",
+        "Protocol enables tool portability across AI providers",
+        "Growing ecosystem of pre-built MCP servers"
+      ],
+      "examTip": "Question mentions 'standardized tool interface' or 'portable agent tools' -> MCP is likely the answer."
+    },
+    {
+      "id": "agent-safety",
+      "title": "Agent Safety and Guardrails",
+      "content": "Autonomous agents introduce unique risks. An agent that can take actions can also take wrong or harmful actions. Production agents require robust safety mechanisms.\n\n**Safety Layers:**\n\n**1. IAM Resource Boundaries**: Limit what tools an agent can call and what resources it can access. Principle of least privilege is critical. An order-lookup agent shouldn't have access to delete-order functions.\n\n**2. Step Functions Stopping Conditions**: Define maximum iterations, timeouts, and circuit breakers. An agent stuck in a loop shouldn't run forever, accumulating costs or taking repeated actions.\n\n**3. Human-in-the-Loop (HITL)**: For sensitive actions (refunds over $1000, deleting data, sending external communications), route to human approval. Step Functions integrates with API Gateway for approval workflows.\n\n**4. Action Validation**: Before executing tool calls, validate parameters. Is the order ID format correct? Is the refund amount reasonable? Lambda functions can implement business-rule validation.\n\n**5. Bedrock Guardrails**: Apply content filtering to agent inputs and outputs. Prevent prompt injection attempts from manipulating agent behavior.\n\n**Circuit Breakers**: When agents encounter repeated failures, they should fail gracefully rather than retry indefinitely. Step Functions provides native circuit breaker patterns with exponential backoff.",
+      "keyPoints": [
+        "IAM boundaries: Limit agent tool access to only what's needed",
+        "Step Functions: Timeouts, max iterations, circuit breakers",
+        "Human-in-the-loop for sensitive actions via approval workflows",
+        "Validate tool parameters before execution"
+      ]
+    }
+  ],
+  "skillExplanations": [
+    {
+      "skillId": "2.1.1",
+      "explanation": "Strands Agents SDK provides the framework for building autonomous AI systems. It handles the agent loop, tool management, memory, and orchestration so you can focus on defining agent behavior and tools.\n\nAWS Agent Squad extends this to multi-agent scenarios. Define specialized agents (customer service, inventory, billing) and orchestration rules for how they collaborate. One agent might delegate subtasks to others or aggregate results from multiple specialists.\n\nFor tool interactions, MCP provides the standardized interface. Define your tools as MCP servers, and any MCP-compatible agent can use them. This separation of concerns (agent logic vs tool implementation) is key for maintainable systems.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock Agents",
+          "whenToUse": "Managed agent runtime with built-in tool calling. Start here for most agent use cases.",
+          "examKeywords": ["agent", "autonomous", "tool calling", "action groups"]
+        },
+        {
+          "serviceName": "AWS Lambda",
+          "whenToUse": "Implement agent tools and action handlers. Also for stateless MCP servers.",
+          "examKeywords": ["tool", "action", "function", "MCP server"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.1.2",
+      "explanation": "ReAct patterns in Step Functions translate the thought-action-observation loop into a state machine. Each state represents a step in the agent's reasoning process.\n\nChain-of-thought prompting enhances reasoning quality. Instead of asking the agent 'What should I do?', prompt it with 'Think step by step about what information you need and what actions would help achieve the goal.' This produces more reliable decision-making.\n\nStep Functions' native features map perfectly to agent needs: parallel states for concurrent tool calls, choice states for conditional logic, wait states for human approval, and error handling for graceful degradation.",
+      "awsServices": [
+        {
+          "serviceName": "AWS Step Functions",
+          "whenToUse": "Orchestrate ReAct loops, manage agent state, implement circuit breakers and timeouts.",
+          "examKeywords": ["orchestrate", "ReAct", "state machine", "reasoning loop"]
+        },
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "FM inference for reasoning steps. Chain-of-thought prompting for decision quality.",
+          "examKeywords": ["reasoning", "chain-of-thought", "thinking"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.1.3",
+      "explanation": "Agent safety requires defense in depth. IAM policies define the outer boundary: what AWS resources and APIs the agent can access. Even if the agent is manipulated, it cannot exceed its IAM permissions.\n\nStep Functions provides operational safety: timeouts prevent runaway agents, iteration limits prevent infinite loops, and error handling routes failures to recovery paths rather than crashing.\n\nCircuit breakers stop cascading failures. If a tool consistently fails, the agent should stop calling it and either use alternatives or gracefully degrade. Step Functions implements this with retry policies and catch blocks.",
+      "awsServices": [
+        {
+          "serviceName": "AWS IAM",
+          "whenToUse": "Define resource boundaries for agent actions. Least privilege for tool access.",
+          "examKeywords": ["permission", "boundary", "least privilege", "access control"]
+        },
+        {
+          "serviceName": "AWS Step Functions",
+          "whenToUse": "Timeouts, iteration limits, circuit breakers, error handling.",
+          "examKeywords": ["timeout", "circuit breaker", "retry", "error handling"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.1.4",
+      "explanation": "Multi-model coordination uses different FMs for different tasks. A small, fast model might handle classification ('Is this a question or complaint?'), while a larger model handles complex reasoning ('Draft a resolution for this complaint').\n\nModel selection can be dynamic based on task complexity, cost constraints, or latency requirements. Step Functions orchestrates this selection, routing to appropriate models based on classification results.\n\nModel ensembles combine outputs from multiple models. For high-stakes decisions, query multiple models and aggregate results (majority vote, confidence weighting, or a meta-model that synthesizes responses).",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock",
+          "whenToUse": "Access multiple FMs (Claude, Titan, Llama, Mistral) for different task types.",
+          "examKeywords": ["multi-model", "model selection", "ensemble"]
+        },
+        {
+          "serviceName": "AWS Step Functions",
+          "whenToUse": "Orchestrate model selection logic and ensemble aggregation.",
+          "examKeywords": ["orchestrate", "routing", "selection"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.1.5",
+      "explanation": "Human-in-the-loop (HITL) is essential for sensitive agent actions. Not every action should be autonomous. Refunds over a threshold, external communications, data modifications, and irreversible actions often require human approval.\n\nStep Functions enables HITL with callback patterns. The workflow pauses at an approval state, sends notification (via SNS, API Gateway callback URL), and waits for human response. Upon approval, the workflow continues; on rejection, it routes to an alternative path.\n\nFeedback collection improves agents over time. Capture human corrections, ratings, and edits. This data feeds into prompt improvements, fine-tuning datasets, and evaluation benchmarks.",
+      "awsServices": [
+        {
+          "serviceName": "AWS Step Functions",
+          "whenToUse": "Implement approval workflows with wait-for-callback patterns.",
+          "examKeywords": ["approval", "human-in-the-loop", "review", "callback"]
+        },
+        {
+          "serviceName": "Amazon API Gateway",
+          "whenToUse": "Expose callback endpoints for approval responses and feedback submission.",
+          "examKeywords": ["callback", "webhook", "feedback"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.1.6",
+      "explanation": "Tool integrations define what agents can do. Well-designed tools have clear interfaces, predictable behavior, and robust error handling.\n\nStandardized function definitions use OpenAPI or JSON Schema to describe tool inputs, outputs, and behavior. This enables automatic documentation, validation, and client generation.\n\nError handling in tools should return structured errors that agents can reason about. Instead of failing silently, return error codes and descriptions that help the agent decide whether to retry, try an alternative, or escalate to human review.",
+      "awsServices": [
+        {
+          "serviceName": "Amazon Bedrock Agents",
+          "whenToUse": "Define action groups with OpenAPI schemas for tool interfaces.",
+          "examKeywords": ["action group", "tool", "function definition"]
+        },
+        {
+          "serviceName": "AWS Lambda",
+          "whenToUse": "Implement tool logic with proper error handling and validation.",
+          "examKeywords": ["tool implementation", "action handler"]
+        }
+      ]
+    },
+    {
+      "skillId": "2.1.7",
+      "explanation": "MCP servers expose tools and data sources to agents through a standardized protocol. The choice between Lambda and ECS depends on the server's requirements.\n\nLambda MCP servers are ideal for stateless operations: API calls, database queries, calculations, simple data transformations. They scale automatically, require no infrastructure management, and cost nothing when idle.\n\nECS MCP servers handle complex scenarios: persistent connections to external systems, large memory requirements, long-running operations exceeding Lambda's 15-minute limit, or stateful sessions. Run containerized MCP servers with full control over resources and networking.",
+      "awsServices": [
+        {
+          "serviceName": "AWS Lambda",
+          "whenToUse": "Stateless MCP servers for API calls, queries, and simple operations.",
+          "examKeywords": ["stateless", "serverless", "MCP", "simple tool"]
+        },
+        {
+          "serviceName": "Amazon ECS",
+          "whenToUse": "Complex MCP servers needing persistent state, connections, or long-running operations.",
+          "examKeywords": ["stateful", "complex MCP", "persistent", "container"]
+        }
+      ]
+    }
+  ],
+  "serviceComparisons": [
+    {
+      "title": "Agent Implementation Approaches",
+      "services": ["Bedrock Agents", "Strands SDK", "Step Functions"],
+      "criteria": [
+        {
+          "criterion": "Setup complexity",
+          "values": {
+            "Bedrock Agents": "Low - managed service, console or IaC",
+            "Strands SDK": "Medium - code-based, more flexibility",
+            "Step Functions": "Medium - state machine definition"
+          }
+        },
+        {
+          "criterion": "Customization",
+          "values": {
+            "Bedrock Agents": "Limited - predefined patterns",
+            "Strands SDK": "High - full control over agent logic",
+            "Step Functions": "High - custom state transitions"
+          }
+        },
+        {
+          "criterion": "Multi-agent",
+          "values": {
+            "Bedrock Agents": "Agent Squad for orchestration",
+            "Strands SDK": "Build custom multi-agent systems",
+            "Step Functions": "Parallel states, nested workflows"
+          }
+        },
+        {
+          "criterion": "Best for",
+          "values": {
+            "Bedrock Agents": "Quick start, standard use cases",
+            "Strands SDK": "Custom agent behaviors, complex logic",
+            "Step Functions": "Durable workflows, human-in-loop"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Agent Tool Hosting Options",
+      "services": ["AWS Lambda", "Amazon ECS", "Amazon EC2"],
+      "criteria": [
+        {
+          "criterion": "Statefulness",
+          "values": {
+            "AWS Lambda": "Stateless (state in external stores)",
+            "Amazon ECS": "Can be stateful with persistent containers",
+            "Amazon EC2": "Fully stateful with persistent instances"
+          }
+        },
+        {
+          "criterion": "Scaling",
+          "values": {
+            "AWS Lambda": "Automatic, instant scaling to 1000s of concurrent",
+            "Amazon ECS": "Auto-scaling with some lag, container warm-up",
+            "Amazon EC2": "Manual or auto-scaling, slowest to scale"
+          }
+        },
+        {
+          "criterion": "Max execution time",
+          "values": {
+            "AWS Lambda": "15 minutes",
+            "Amazon ECS": "Unlimited",
+            "Amazon EC2": "Unlimited"
+          }
+        },
+        {
+          "criterion": "Best for",
+          "values": {
+            "AWS Lambda": "Simple tools, API calls, short operations",
+            "Amazon ECS": "Complex tools, persistent connections, MCP servers",
+            "Amazon EC2": "Legacy integrations, GPU workloads"
+          }
+        }
+      ]
+    }
+  ],
+  "examStrategies": [
+    {
+      "questionPattern": "autonomous task completion or multi-step reasoning",
+      "approach": "Look for Bedrock Agents or Step Functions with ReAct patterns. If the scenario requires tool use and decision-making, agents are the answer. If it's just model invocation without autonomy, it's not an agent question.",
+      "keywords": ["autonomous", "multi-step", "tool use", "reasoning", "agent"]
+    },
+    {
+      "questionPattern": "tool integration or standardized interface",
+      "approach": "MCP for standardized, portable tool interfaces. Bedrock Agents action groups for AWS-native tool calling. Lambda for tool implementation regardless of interface choice.",
+      "keywords": ["tool interface", "standardized", "MCP", "portable", "action group"]
+    },
+    {
+      "questionPattern": "agent safety or preventing harmful actions",
+      "approach": "Defense in depth: IAM for resource boundaries, Step Functions for timeouts/circuit breakers, human-in-the-loop for sensitive actions. Don't rely on any single control.",
+      "keywords": ["safety", "prevent", "guardrail", "boundary", "approval"]
+    }
+  ],
+  "keyTakeaways": [
+    "Agents are autonomous: they plan, use tools, reason, and iterate to achieve goals",
+    "ReAct pattern (Thought -> Action -> Observation -> Repeat) is foundational for agents",
+    "MCP standardizes tool interfaces for portability across AI systems",
+    "Lambda for stateless tools, ECS for complex/stateful MCP servers",
+    "Agent safety requires IAM boundaries, timeouts, circuit breakers, and human-in-the-loop"
+  ],
+  "commonMistakes": [
+    "Building agents when simple prompt engineering would suffice",
+    "Giving agents broader IAM permissions than needed",
+    "No timeout or iteration limits on agent loops",
+    "Skipping human-in-the-loop for sensitive actions",
+    "Implementing custom tool protocols instead of using MCP"
+  ]
+}
