@@ -1,9 +1,51 @@
 'use client';
 
 import React, { Suspense, lazy } from 'react';
+import { Highlight, themes } from 'prism-react-renderer';
 
 // Lazy load MermaidDiagram to avoid SSR issues
 const MermaidDiagram = lazy(() => import('@/components/learn/MermaidDiagram'));
+
+/**
+ * Syntax-highlighted code block component
+ */
+function SyntaxHighlightedCode({ code, language }: { code: string; language: string }) {
+  // Map common language names
+  const langMap: Record<string, string> = {
+    'js': 'javascript',
+    'ts': 'typescript',
+    'py': 'python',
+    'sh': 'bash',
+    'shell': 'bash',
+    'json': 'json',
+    '': 'javascript', // default
+  };
+
+  const normalizedLang = langMap[language] || language || 'javascript';
+
+  return (
+    <Highlight theme={themes.nightOwl} code={code} language={normalizedLang as any}>
+      {({ style, tokens, getLineProps, getTokenProps }) => (
+        <pre
+          className="text-sm rounded-lg overflow-x-auto my-4 font-mono leading-relaxed"
+          style={{
+            ...style,
+            padding: '1rem',
+            margin: '1rem 0',
+          }}
+        >
+          {tokens.map((line, i) => (
+            <div key={i} {...getLineProps({ line })}>
+              {line.map((token, key) => (
+                <span key={key} {...getTokenProps({ token })} />
+              ))}
+            </div>
+          ))}
+        </pre>
+      )}
+    </Highlight>
+  );
+}
 
 /**
  * Parse basic markdown syntax and return React elements
@@ -38,20 +80,7 @@ export function parseMarkdown(text: string): React.ReactNode {
         );
       }
 
-      return (
-        <pre
-          key={index}
-          className="text-sm rounded-lg overflow-x-auto my-4 font-mono leading-relaxed"
-          style={{
-            padding: '1rem',
-            backgroundColor: '#111827',
-            color: '#f3f4f6',
-            whiteSpace: 'pre',
-          }}
-        >
-          <code style={{ whiteSpace: 'pre', display: 'block' }}>{code}</code>
-        </pre>
-      );
+      return <SyntaxHighlightedCode key={index} code={code} language={lang} />;
     }
     return parseInlineMarkdown(segment, index);
   });
@@ -87,7 +116,7 @@ export function parseInlineMarkdown(text: string, keyPrefix: number | string = 0
     } else if (match[5]) {
       // `code`
       parts.push(
-        <code key={`${keyPrefix}-c-${matchIndex}`} className="px-1.5 py-0.5 bg-gray-100 text-gray-800 text-sm rounded font-mono">
+        <code key={`${keyPrefix}-c-${matchIndex}`} className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-sm rounded font-mono">
           {match[6]}
         </code>
       );
@@ -118,80 +147,47 @@ export function MarkdownText({ children, className = '' }: { children: string; c
 }
 
 /**
- * Parse a text block that may contain lists (both newline-separated and inline)
- * Returns an array of React elements (paragraphs and lists)
+ * Parse text into flowing paragraphs (no bullet lists)
+ * Handles numbered lists by converting them to flowing prose
  */
-function parseTextWithLists(text: string, keyPrefix: string | number): React.ReactNode[] {
+function parseTextAsProse(text: string, keyPrefix: string | number): React.ReactNode[] {
   const elements: React.ReactNode[] = [];
 
-  // First, normalize inline lists to newline format
-  // Pattern: "text: - item1 - item2" becomes "text:\n- item1\n- item2"
-  let normalized = text.replace(/:\s*-\s+/g, ':\n- ');
-  normalized = normalized.replace(/([^-\n])\s+-\s+/g, '$1\n- ');
+  // Remove list markers and convert to flowing text
+  // Pattern: "1. item 2. item" or "- item - item" becomes flowing prose
+  let normalized = text
+    // Convert numbered inline lists to sentences
+    .replace(/(\d+)\.\s+/g, '')
+    // Convert bullet lists to sentences
+    .replace(/\s*-\s+/g, ' ')
+    .replace(/\s*\*\s+/g, ' ')
+    // Clean up multiple spaces
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 
-  // Split into lines
-  const lines = normalized.split('\n');
-  let currentParagraph: string[] = [];
-  let currentList: string[] = [];
-  let elementIndex = 0;
+  // Split by double newlines into paragraphs
+  const paragraphs = normalized.split(/\n\n+/).filter(p => p.trim().length > 0);
 
-  const flushParagraph = () => {
-    if (currentParagraph.length > 0) {
-      const text = currentParagraph.join(' ').trim();
-      if (text) {
-        elements.push(
-          <p key={`${keyPrefix}-p-${elementIndex++}`} className="mb-3">
-            {parseInlineMarkdown(text, `${keyPrefix}-${elementIndex}`)}
-          </p>
-        );
-      }
-      currentParagraph = [];
-    }
-  };
+  paragraphs.forEach((para, pIndex) => {
+    // Further split by single newlines and join with spaces for flow
+    const flowingText = para.split(/\n/).map(s => s.trim()).join(' ');
 
-  const flushList = () => {
-    if (currentList.length > 0) {
+    if (flowingText) {
       elements.push(
-        <ul key={`${keyPrefix}-ul-${elementIndex++}`} className="list-disc list-inside mb-3 space-y-1 ml-2">
-          {currentList.map((item, i) => (
-            <li key={i} className="text-gray-700">
-              {parseInlineMarkdown(item, `${keyPrefix}-li-${i}`)}
-            </li>
-          ))}
-        </ul>
+        <p key={`${keyPrefix}-p-${pIndex}`} className="mb-4 text-gray-700 leading-relaxed">
+          {parseInlineMarkdown(flowingText, `${keyPrefix}-${pIndex}`)}
+        </p>
       );
-      currentList = [];
     }
-  };
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    // Check if line is a list item
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      flushParagraph();
-      currentList.push(trimmed.substring(2));
-    } else if (trimmed === '') {
-      // Empty line - flush both
-      flushParagraph();
-      flushList();
-    } else {
-      // Regular text
-      flushList();
-      currentParagraph.push(trimmed);
-    }
-  }
-
-  // Flush remaining content
-  flushParagraph();
-  flushList();
+  });
 
   return elements;
 }
 
 /**
  * Component for paragraph content with full markdown support
- * Handles code blocks, mermaid diagrams, and lists as block-level elements
+ * Handles code blocks, mermaid diagrams as block-level elements
+ * Renders text as flowing prose (no bullet lists)
  */
 export function MarkdownParagraph({ children, className = '' }: { children: string; className?: string }) {
   // First, split by code blocks to handle them separately
@@ -222,27 +218,14 @@ export function MarkdownParagraph({ children, className = '' }: { children: stri
             );
           }
 
-          // Regular code block
-          return (
-            <pre
-              key={index}
-              className="text-sm rounded-lg overflow-x-auto my-4 font-mono leading-relaxed"
-              style={{
-                padding: '1rem',
-                backgroundColor: '#111827',
-                color: '#f3f4f6',
-                whiteSpace: 'pre',
-              }}
-            >
-              <code style={{ whiteSpace: 'pre', display: 'block' }}>{code}</code>
-            </pre>
-          );
+          // Syntax-highlighted code block
+          return <SyntaxHighlightedCode key={index} code={code} language={lang} />;
         }
 
-        // Parse text content with list support
+        // Parse text content as flowing prose
         return (
           <React.Fragment key={index}>
-            {parseTextWithLists(segment, index)}
+            {parseTextAsProse(segment, index)}
           </React.Fragment>
         );
       })}
