@@ -39,8 +39,17 @@ export function parseMarkdown(text: string): React.ReactNode {
       }
 
       return (
-        <pre key={index} className="p-4 bg-gray-900 text-gray-100 text-sm rounded-lg overflow-x-auto my-4 whitespace-pre font-mono leading-relaxed">
-          <code className="whitespace-pre">{code}</code>
+        <pre
+          key={index}
+          className="text-sm rounded-lg overflow-x-auto my-4 font-mono leading-relaxed"
+          style={{
+            padding: '1rem',
+            backgroundColor: '#111827',
+            color: '#f3f4f6',
+            whiteSpace: 'pre',
+          }}
+        >
+          <code style={{ whiteSpace: 'pre', display: 'block' }}>{code}</code>
         </pre>
       );
     }
@@ -143,8 +152,17 @@ export function MarkdownParagraph({ children, className = '' }: { children: stri
 
           // Regular code block
           return (
-            <pre key={index} className="p-4 bg-gray-900 text-gray-100 text-sm rounded-lg overflow-x-auto my-4 whitespace-pre font-mono leading-relaxed">
-              <code className="whitespace-pre">{code}</code>
+            <pre
+              key={index}
+              className="text-sm rounded-lg overflow-x-auto my-4 font-mono leading-relaxed"
+              style={{
+                padding: '1rem',
+                backgroundColor: '#111827',
+                color: '#f3f4f6',
+                whiteSpace: 'pre',
+              }}
+            >
+              <code style={{ whiteSpace: 'pre', display: 'block' }}>{code}</code>
             </pre>
           );
         }
