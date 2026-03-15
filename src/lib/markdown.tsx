@@ -154,24 +154,17 @@ export function MarkdownText({ children, className = '' }: { children: string; c
 function parseTextAsProse(text: string, keyPrefix: string | number): React.ReactNode[] {
   const elements: React.ReactNode[] = [];
 
-  // Remove list markers and convert to flowing text
-  // Pattern: "1. item 2. item" or "- item - item" becomes flowing prose
-  let normalized = text
-    // Convert numbered inline lists to sentences
-    .replace(/(\d+)\.\s+/g, '')
-    // Convert bullet lists to sentences
-    .replace(/\s*-\s+/g, ' ')
-    .replace(/\s*\*\s+/g, ' ')
-    // Clean up multiple spaces
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-
-  // Split by double newlines into paragraphs
-  const paragraphs = normalized.split(/\n\n+/).filter(p => p.trim().length > 0);
+  // First, split by double newlines into paragraphs (preserve structure!)
+  const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 0);
 
   paragraphs.forEach((para, pIndex) => {
-    // Further split by single newlines and join with spaces for flow
-    const flowingText = para.split(/\n/).map(s => s.trim()).join(' ');
+    // Join single newlines with spaces for flow, clean up extra spaces
+    const flowingText = para
+      .split(/\n/)
+      .map(s => s.trim())
+      .join(' ')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim();
 
     if (flowingText) {
       elements.push(

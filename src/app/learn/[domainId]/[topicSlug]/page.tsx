@@ -20,7 +20,6 @@ import {
   FlaskConical,
   CheckCircle,
   Lightbulb,
-  Target,
   Loader2,
 } from 'lucide-react';
 
@@ -169,14 +168,10 @@ export default function TopicPage() {
           {/* Exam Question Strategies */}
           {content.examStrategies.length > 0 && (
             <section>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Target className="w-6 h-6 text-purple-600" />
-                Exam Question Strategies
-              </h2>
-              <p className="text-gray-600 mb-4">
-                Recognize these question patterns and apply the corresponding approach:
-              </p>
-              <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
+                Exam Question Patterns
+              </h3>
+              <div className="space-y-4">
                 {content.examStrategies.map((strategy, index) => (
                   <ExamStrategy key={index} strategy={strategy} />
                 ))}

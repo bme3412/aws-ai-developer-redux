@@ -1,4 +1,3 @@
-import { CheckCircle, AlertTriangle } from 'lucide-react';
 import { MarkdownText } from '@/lib/markdown';
 
 interface KeyTakeawaysProps {
@@ -8,17 +7,16 @@ interface KeyTakeawaysProps {
 
 export default function KeyTakeaways({ takeaways, commonMistakes }: KeyTakeawaysProps) {
   return (
-    <div className="grid md:grid-cols-2 gap-4">
+    <div className="space-y-6">
       {/* Key Takeaways */}
-      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-        <h3 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
-          <CheckCircle className="w-5 h-5" />
+      <div>
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
           Key Takeaways
         </h3>
         <ul className="space-y-2">
           {takeaways.map((point, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-              <span className="text-green-500 mt-1">✓</span>
+            <li key={i} className="flex items-start gap-3 text-gray-700">
+              <span className="text-gray-400 font-mono text-sm mt-0.5">{i + 1}.</span>
               <MarkdownText>{point}</MarkdownText>
             </li>
           ))}
@@ -26,15 +24,14 @@ export default function KeyTakeaways({ takeaways, commonMistakes }: KeyTakeaways
       </div>
 
       {/* Common Mistakes */}
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-        <h3 className="font-semibold text-red-800 mb-3 flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5" />
+      <div>
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
           Common Mistakes
         </h3>
         <ul className="space-y-2">
           {commonMistakes.map((mistake, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-              <span className="text-red-500 mt-1">✗</span>
+            <li key={i} className="flex items-start gap-3 text-gray-700">
+              <span className="text-gray-400 mt-1.5">—</span>
               <MarkdownText>{mistake}</MarkdownText>
             </li>
           ))}
