@@ -93,8 +93,9 @@ export function parseInlineMarkdown(text: string, keyPrefix: number | string = 0
   if (!text) return null;
 
   // Regex to match **bold**, *italic*, and `code`
+  // Using [^*]+ instead of .+? to prevent asterisks inside from breaking parsing
   // Order matters: ** before * to handle bold first
-  const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`([^`]+)`)/g;
+  const regex = /(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(`([^`]+)`)/g;
 
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
