@@ -73,6 +73,63 @@ Need text extraction. **Amazon Textract** is your OCR powerhouse with multiple A
 
 Textract preserves document structure that simple OCR loses—critical for maintaining context in RAG systems.
 
+### Textract Deep Dive: FeatureTypes
+
+When calling **AnalyzeDocument**, you specify which features to extract through the `FeatureTypes` parameter. Understanding these is exam-critical:
+
+**TABLES**
+Extracts tabular data with row/column structure preserved. Perfect for financial statements, specification sheets, and any document with grid layouts. The response includes `TABLE`, `CELL`, and relationship data showing which cells belong to which tables.
+
+**FORMS**
+Extracts key-value pairs from form-like documents. "Name: John Smith" becomes `{key: "Name", value: "John Smith"}`. Essential for applications, questionnaires, and structured documents. Returns `KEY_VALUE_SET` blocks with relationships.
+
+**SIGNATURES**
+Detects the presence and location of signatures. Useful for contract processing—verify a document was signed before processing. Returns bounding box coordinates for each signature found.
+
+**QUERIES**
+Ask specific questions about the document. Instead of extracting everything, ask "What is the invoice total?" and get a direct answer. Reduces post-processing and improves accuracy for targeted extraction.
+
+**LAYOUT**
+Analyzes document structure—titles, headers, paragraphs, lists, page numbers. Critical for preserving semantic structure when chunking documents for RAG. A heading shouldn't be split from its content.
+
+You can combine multiple features in a single call:
+
+```python
+response = textract.analyze_document(
+    Document={'S3Object': {'Bucket': 'my-bucket', 'Name': 'doc.pdf'}},
+    FeatureTypes=['TABLES', 'FORMS', 'SIGNATURES', 'LAYOUT']
+)
+```
+
+### Synchronous vs Asynchronous Textract
+
+**Synchronous APIs** (`DetectDocumentText`, `AnalyzeDocument`) process single-page documents and return immediately. Max file size: **10 MB**. Best for real-time processing of individual pages.
+
+**Asynchronous APIs** (`StartDocumentTextDetection`, `StartDocumentAnalysis`) handle multi-page PDFs up to **3,000 pages** and **500 MB**. You submit a job, and Textract processes it in the background.
+
+The async workflow:
+1. Call `StartDocumentAnalysis` → receive a `JobId`
+2. Poll `GetDocumentAnalysis` with the `JobId`, or set up SNS notification
+3. When complete, retrieve results page by page using `NextToken` pagination
+
+```python
+# Start async job
+start_response = textract.start_document_analysis(
+    DocumentLocation={'S3Object': {'Bucket': 'my-bucket', 'Name': 'large-doc.pdf'}},
+    FeatureTypes=['TABLES', 'FORMS'],
+    NotificationChannel={
+        'SNSTopicArn': 'arn:aws:sns:...:textract-complete',
+        'RoleArn': 'arn:aws:iam::...:role/TextractRole'
+    }
+)
+job_id = start_response['JobId']
+
+# Later, retrieve results
+get_response = textract.get_document_analysis(JobId=job_id)
+```
+
+**Exam tip**: Multi-page documents require async APIs. If you see "500-page PDF" in a question, the answer involves `Start*` APIs and job polling.
+
 ### Audio
 
 Becomes text through **Amazon Transcribe**.
@@ -151,6 +208,99 @@ Use this info to:
 - Route requests (is this a complaint?)
 - Filter responses (is sentiment negative?)
 - Add context to prompts (what product are they discussing?)
+
+### Comprehend Deep Dive: Custom Models
+
+Out-of-the-box Comprehend recognizes standard entities (PERSON, ORGANIZATION, DATE, etc.), but your domain likely has specific entities it doesn't know—product codes, medical terms, internal project names. That's where **custom models** come in.
+
+**Custom Entity Recognition**
+
+Train Comprehend to find your specific entity types. The workflow:
+
+1. **Prepare training data**: Create an annotations file mapping text spans to your entity types
+
+```csv
+File,Line,Begin Offset,End Offset,Type
+document1.txt,0,15,25,PRODUCT_CODE
+document1.txt,0,45,60,CUSTOMER_ID
+```
+
+Or use **entity lists**—simpler, just list examples of each entity type:
+
+```csv
+Text,Type
+ABC-1234,PRODUCT_CODE
+XYZ-5678,PRODUCT_CODE
+CUST-001,CUSTOMER_ID
+```
+
+2. **Train the model**: Comprehend handles the ML infrastructure
+
+```python
+response = comprehend.create_entity_recognizer(
+    RecognizerName='product-entity-recognizer',
+    DataAccessRoleArn='arn:aws:iam::...:role/ComprehendRole',
+    InputDataConfig={
+        'EntityTypes': [
+            {'Type': 'PRODUCT_CODE'},
+            {'Type': 'CUSTOMER_ID'}
+        ],
+        'Documents': {'S3Uri': 's3://bucket/docs/'},
+        'EntityList': {'S3Uri': 's3://bucket/entities.csv'}
+    },
+    LanguageCode='en'
+)
+```
+
+3. **Create an endpoint** for real-time inference, or run batch jobs for async processing
+
+Training takes hours; plan accordingly. Once trained, custom recognizers work just like built-in ones but find YOUR entities.
+
+**Custom Classification**
+
+Categorize documents into your own taxonomy—support ticket types, document categories, content topics.
+
+The workflow:
+
+1. **Prepare labeled data**: CSV or augmented manifest format
+
+```csv
+CLASS,TEXT
+billing_issue,"I was charged twice for my subscription"
+technical_problem,"The app crashes when I click the settings button"
+feature_request,"It would be great if you added dark mode"
+```
+
+2. **Train the classifier**:
+
+```python
+response = comprehend.create_document_classifier(
+    DocumentClassifierName='support-ticket-classifier',
+    DataAccessRoleArn='arn:aws:iam::...:role/ComprehendRole',
+    InputDataConfig={
+        'S3Uri': 's3://bucket/training-data.csv'
+    },
+    LanguageCode='en',
+    Mode='MULTI_CLASS'  # or 'MULTI_LABEL' for multiple categories per document
+)
+```
+
+3. **Deploy and use**: Create an endpoint for real-time, or use batch jobs
+
+**MULTI_CLASS** vs **MULTI_LABEL**:
+- **MULTI_CLASS**: Document belongs to exactly one category
+- **MULTI_LABEL**: Document can belong to multiple categories (e.g., a ticket about "billing" AND "cancellation")
+
+**When to Use Custom Comprehend vs FM**
+
+| Use Case | Comprehend Custom | Foundation Model |
+|----------|-------------------|------------------|
+| High-volume classification | ✓ Cheaper at scale | ✗ Expensive per call |
+| Domain-specific entities | ✓ After training | ✓ Zero-shot with prompting |
+| Latency-critical | ✓ Faster inference | ✗ Slower response |
+| Changing categories | ✗ Requires retraining | ✓ Just update prompt |
+
+For stable, high-volume tasks, train Comprehend. For flexible, evolving needs, use FMs.
 
 ### Text Normalization
 
@@ -263,10 +413,15 @@ The AI can give a useful, personalized response.
 |-----------------|----------|
 | "data quality rules" or "batch validation" | Glue Data Quality |
 | "real-time custom validation" | Lambda |
-| "forms or tables" | Textract AnalyzeDocument |
+| "forms or tables" | Textract AnalyzeDocument with **FORMS** or **TABLES** FeatureTypes |
 | "speaker identification" | Transcribe with diarization |
 | "receipts" | Textract AnalyzeExpense |
 | "entity or sentiment" | Amazon Comprehend |
+| "multi-page PDF" or "large documents" | Textract **async APIs** (StartDocumentAnalysis) |
+| "domain-specific entities" | Comprehend **Custom Entity Recognition** |
+| "document categorization at scale" | Comprehend **Custom Classification** |
+| "document structure" or "headings" | Textract **LAYOUT** FeatureType |
+| "signature detection" | Textract **SIGNATURES** FeatureType |
 
 ---
 

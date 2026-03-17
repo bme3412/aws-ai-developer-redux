@@ -63,6 +63,101 @@ Let's solve this step by step:
 4. Final count: 90 - 30 = 60 apples
 ```
 
+### Chain-of-Thought Variants
+
+CoT isn't just one technique—there are several variants, each with different trade-offs.
+
+**Zero-Shot CoT**
+
+The simplest form. Just append "Let's think step by step" to your prompt. No examples needed. Works surprisingly well for many reasoning tasks.
+
+```
+Question: If John has 3 times as many apples as Mary, and Mary has 4 apples, how many do they have together?
+
+Let's think step by step.
+```
+
+The model will reason through the steps before giving the final answer.
+
+**Few-Shot CoT**
+
+Provide examples that demonstrate the reasoning process:
+
+```
+Example 1:
+Q: If a train travels 60 mph for 2 hours, how far does it go?
+A: Distance = speed × time. Speed is 60 mph, time is 2 hours.
+   60 × 2 = 120 miles. The answer is 120 miles.
+
+Example 2:
+Q: If a recipe needs 2 cups of flour per batch and you want 3 batches, how much flour?
+A: Total flour = flour per batch × number of batches.
+   2 × 3 = 6 cups. The answer is 6 cups.
+
+Now solve:
+Q: If a car uses 4 gallons per 100 miles and travels 250 miles, how much gas?
+```
+
+Few-shot CoT outperforms zero-shot when the reasoning pattern is complex or domain-specific.
+
+**Self-Consistency**
+
+Generate multiple reasoning chains and take the majority answer. Different reasoning paths might lead to the same correct answer—or reveal which path is flawed.
+
+```
+Path 1: 150 × 0.40 = 60, 150 - 60 = 90, 90 - 30 = 60 ✓
+Path 2: 150 - (150 × 0.40) - 30 = 150 - 60 - 30 = 60 ✓
+Path 3: 40% = 60, remaining = 90, minus 30 = 60 ✓
+
+Consensus: 60 apples
+```
+
+Self-consistency costs more (multiple API calls) but dramatically improves accuracy on challenging problems.
+
+**Tree of Thoughts**
+
+For the most complex problems, explore multiple reasoning branches at each step, evaluate which are promising, and backtrack when needed. Think of it as depth-first search over reasoning paths.
+
+Overkill for most applications, but powerful for problems like planning, puzzle-solving, and multi-step optimization.
+
+### Temperature and Top-p Explained
+
+These parameters control **randomness** in generation. Understanding them prevents puzzling behavior.
+
+**Temperature**
+
+Controls the probability distribution over next tokens:
+
+| Temperature | Effect | Best For |
+|-------------|--------|----------|
+| 0.0 | Deterministic—always picks highest probability token | Extraction, classification, factual Q&A |
+| 0.3-0.5 | Low randomness—mostly consistent with some variation | General use, summaries |
+| 0.7-0.9 | Medium randomness—more creative outputs | Creative writing, brainstorming |
+| 1.0+ | High randomness—unpredictable, sometimes incoherent | Experimental, rarely useful |
+
+**How it works mathematically**: Temperature divides the log-probabilities before softmax. Higher temperature flattens the distribution (more tokens become likely); lower temperature sharpens it (top tokens dominate).
+
+**Top-p (Nucleus Sampling)**
+
+Instead of considering all tokens, only consider tokens whose cumulative probability exceeds p:
+
+| Top-p | Effect |
+|-------|--------|
+| 0.1 | Very constrained—only the most likely tokens |
+| 0.5 | Moderate—top ~50% cumulative probability |
+| 0.9 | Broad—most tokens except the very unlikely |
+| 1.0 | All tokens considered (temperature alone controls) |
+
+**Using Temperature and Top-p Together**
+
+These interact. Common patterns:
+
+- **Deterministic**: temperature=0, top_p=1.0 (temperature=0 overrides top_p)
+- **Balanced**: temperature=0.7, top_p=0.9 (creative but coherent)
+- **Constrained creative**: temperature=0.9, top_p=0.5 (creative within limits)
+
+**Exam tip**: For tasks requiring **consistent, reproducible output** (extraction, classification), use **temperature=0**. For **creative tasks**, increase temperature.
+
 ### Structured Output
 
 Request specific formats like JSON or XML.
@@ -153,6 +248,79 @@ Each stage uses a focused prompt. This often beats a monolithic prompt trying to
 Visual, no-code orchestration. Design flows graphically, connecting prompts with data transformations and conditional logic.
 
 Perfect for business users or rapid prototyping—build and test pipelines without writing code.
+
+### Prompt Flows Node Types
+
+Understanding the available nodes helps you design effective flows:
+
+**Input Node**
+Entry point for the flow. Defines the input schema your flow accepts.
+
+**Output Node**
+Exit point that defines what the flow returns.
+
+**Prompt Node**
+The core building block. Invokes a foundation model with a prompt. Configure:
+- Model selection
+- Prompt template (with variables from previous nodes)
+- Inference parameters (temperature, max tokens)
+- Guardrails attachment
+
+**Condition Node**
+Branches based on logic. Route to different paths based on:
+- Model output content
+- Confidence scores
+- Classification results
+
+```
+IF sentiment == "negative" THEN escalation_path
+ELSE standard_response_path
+```
+
+**Iterator Node**
+Loops over arrays. If your input is a list of documents, the iterator processes each one and collects results.
+
+**Collector Node**
+Aggregates results from an iterator back into a single output.
+
+**Lambda Node**
+Escape hatch for custom logic. When you need something Prompt Flows can't express visually:
+- Complex transformations
+- External API calls
+- Custom validation
+- Database lookups
+
+**Knowledge Base Node**
+Retrieves from a Knowledge Base. Input is a query; output is retrieved documents. Chain this with a Prompt Node for RAG.
+
+**S3 Storage Node**
+Read from or write to S3. Useful for:
+- Loading context documents
+- Saving intermediate results
+- Archiving outputs
+
+### Building a RAG Flow
+
+A typical RAG pattern in Prompt Flows:
+
+```
+Input → Knowledge Base Node → Prompt Node → Output
+          (retrieve docs)      (generate with context)
+```
+
+The Knowledge Base Node takes the user's question, retrieves relevant chunks, and passes them to the Prompt Node which generates the grounded response.
+
+### When Prompt Flows vs Step Functions
+
+| Criterion | Prompt Flows | Step Functions |
+|-----------|--------------|----------------|
+| Complexity | Simple to moderate chains | Complex orchestration |
+| Error handling | Basic | Sophisticated retries, catch, timeout |
+| Integration | Bedrock-focused | Any AWS service |
+| Visual design | Yes, drag-and-drop | Yes, but more complex |
+| Custom logic | Via Lambda nodes | Native support |
+
+**Use Prompt Flows** for straightforward prompt chains and RAG patterns. **Use Step Functions** when you need sophisticated error handling, parallel execution, or integration with non-Bedrock services.
 
 ### Step Functions
 
@@ -427,6 +595,11 @@ Build retry logic, fallback paths, and graceful degradation. Step Functions exce
 | "audit trail" | S3 + CloudTrail |
 | "orchestrate prompts or chaining" | Prompt Flows (simple) or Step Functions (complex) |
 | "without changing the model" | Prompting techniques |
+| "deterministic output" or "reproducible" | **temperature=0** |
+| "creative writing" | Higher temperature (0.7-0.9) |
+| "multiple reasoning attempts" | **Self-consistency** (majority vote) |
+| "visual, no-code prompt chains" | **Bedrock Prompt Flows** |
+| "RAG in Prompt Flows" | Knowledge Base Node → Prompt Node |
 
 ---
 

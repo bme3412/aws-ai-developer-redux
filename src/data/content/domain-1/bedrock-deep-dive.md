@@ -513,6 +513,188 @@ Process large volumes asynchronously at reduced cost.
 - ~50% cost reduction vs on-demand
 - Not real-time (hours turnaround)
 
+**Batch Inference Deep Dive**
+
+When you have thousands of prompts to process and don't need real-time responses, batch inference is the most cost-effective approach.
+
+**Input Format (JSONL)**
+
+Create a JSONL file where each line is a separate request:
+
+```json
+{"recordId": "1", "modelInput": {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 1024, "messages": [{"role": "user", "content": "Summarize: ..."}]}}
+{"recordId": "2", "modelInput": {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 1024, "messages": [{"role": "user", "content": "Summarize: ..."}]}}
+{"recordId": "3", "modelInput": {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 1024, "messages": [{"role": "user", "content": "Summarize: ..."}]}}
+```
+
+The `recordId` links outputs back to inputs.
+
+**Submitting a Batch Job**
+
+```python
+response = bedrock.create_model_invocation_job(
+    jobName='weekly-summarization-batch',
+    modelId='anthropic.claude-3-haiku-20240307-v1:0',
+    roleArn='arn:aws:iam::123456789012:role/BedrockBatchRole',
+    inputDataConfig={
+        's3InputDataConfig': {
+            's3Uri': 's3://my-bucket/batch-input/requests.jsonl'
+        }
+    },
+    outputDataConfig={
+        's3OutputDataConfig': {
+            's3Uri': 's3://my-bucket/batch-output/'
+        }
+    }
+)
+
+job_arn = response['jobArn']
+```
+
+**Monitoring and Retrieving Results**
+
+```python
+# Check job status
+status = bedrock.get_model_invocation_job(jobIdentifier=job_arn)
+print(status['status'])  # 'InProgress', 'Completed', 'Failed'
+
+# When complete, results appear in S3 output location
+# Output JSONL format:
+# {"recordId": "1", "modelOutput": {"content": [{"text": "Summary: ..."}]}}
+```
+
+**When to Use Batch Inference**
+
+| Use Case | Batch? |
+|----------|--------|
+| Process 50,000 support tickets | ✓ Yes |
+| Generate product descriptions | ✓ Yes |
+| Run monthly compliance reports | ✓ Yes |
+| Real-time chatbot | ✗ No |
+| Interactive code assistant | ✗ No |
+
+**Batch Inference Limits**
+
+- Max file size: 2 GB
+- Max records per file: 100,000
+- Max concurrent jobs: 3 (default, can request increase)
+- Turnaround: Hours, not minutes
+
+---
+
+## Prompt Caching
+
+Prompt caching reduces costs and latency when you reuse the same system prompts or context across requests.
+
+### How Prompt Caching Works
+
+When you send a request, Bedrock processes the entire prompt—system message, context, conversation history. This processing takes time and costs tokens.
+
+With prompt caching enabled, Bedrock stores the processed representation of your **system prompt and any cached context**. Subsequent requests that use the same cached content skip reprocessing.
+
+```
+Request 1: System prompt (1000 tokens) + User message (50 tokens)
+           → Process 1050 tokens, cache system prompt
+
+Request 2: [Cached system prompt] + User message (60 tokens)
+           → Process only 60 tokens (1000 tokens served from cache)
+```
+
+### Cost Savings
+
+Cached tokens have different pricing:
+- **Cache write**: Slightly higher than normal (you pay to populate cache)
+- **Cache read**: Significantly lower (up to 90% savings)
+
+For applications with long, consistent system prompts (multi-page instructions, detailed personas, extensive examples), savings compound quickly.
+
+### What Can Be Cached
+
+- **System prompts**: Instructions, personas, rules
+- **Few-shot examples**: Demonstration inputs/outputs
+- **Document context**: Retrieved documents for RAG (if consistent)
+
+### What Can't Be Cached
+
+- User messages (vary per request)
+- Dynamic content that changes frequently
+- Very short prompts (caching overhead outweighs benefit)
+
+### Enabling Prompt Caching
+
+Prompt caching behavior depends on the model and how you structure requests. The cache key is computed from the content—identical content hits the cache.
+
+**Best Practices**:
+1. Keep your system prompt **stable**—changes invalidate the cache
+2. Put **variable content at the end** of the prompt
+3. Structure prompts as: `[Cacheable system/context] + [Variable user input]`
+4. Monitor cache hit rates in CloudWatch
+
+### TTL and Invalidation
+
+- Cache entries expire after a **time-to-live (TTL)** period
+- Changing any cached content invalidates the entry
+- New requests with identical content repopulate the cache
+
+---
+
+## Custom Model Import
+
+Bring your own models to Bedrock for managed inference.
+
+### What Custom Model Import Does
+
+If you've trained or fine-tuned a model outside Bedrock (on SageMaker, another cloud, or on-premises), you can import it into Bedrock and use it through the same APIs as foundation models.
+
+### Supported Formats
+
+| Format | Description |
+|--------|-------------|
+| **Hugging Face** | Transformers-compatible models |
+| **GGUF** | Quantized models (llama.cpp format) |
+| **SafeTensors** | Secure tensor serialization |
+
+### Import Workflow
+
+1. **Package your model**: Ensure it's in a supported format with all required files (config, tokenizer, weights)
+
+2. **Upload to S3**: Store model artifacts in an S3 bucket Bedrock can access
+
+3. **Create import job**:
+```python
+response = bedrock.create_model_import_job(
+    jobName='my-custom-model-import',
+    importedModelName='my-legal-assistant-v1',
+    roleArn='arn:aws:iam::123456789012:role/BedrockImportRole',
+    modelDataSource={
+        's3DataSource': {
+            's3Uri': 's3://my-bucket/models/legal-assistant/'
+        }
+    }
+)
+```
+
+4. **Wait for validation**: Bedrock validates the model format and compatibility
+
+5. **Deploy on Provisioned Throughput**: Custom models require Provisioned Throughput—no on-demand option
+
+### Requirements and Limitations
+
+- **Provisioned Throughput required**: You must purchase capacity for custom models
+- **Supported architectures**: Primarily Llama-family and compatible architectures
+- **Size limits**: Check current limits for your region
+- **Validation**: Models must pass Bedrock's compatibility checks
+
+### When to Use Custom Import vs Bedrock Fine-Tuning
+
+| Scenario | Custom Import | Bedrock Fine-Tuning |
+|----------|---------------|---------------------|
+| Model trained elsewhere | ✓ | ✗ |
+| Custom architecture | ✓ (if supported) | ✗ |
+| Quick customization | ✗ (more setup) | ✓ |
+| Community models | ✓ | ✗ |
+| Want managed fine-tuning | ✗ | ✓ |
+
 ### Cost Optimization Strategies
 
 **1. Model Selection**
@@ -551,6 +733,11 @@ Simple → Haiku | Complex → Sonnet
 | "managed RAG" or "RAG without building pipeline" | Knowledge Bases |
 | "autonomous" or "tool calling" | Bedrock Agents |
 | "cost optimization" | Model selection, caching, provisioned throughput |
+| "process thousands of documents" | **Batch Inference** (~50% cost savings) |
+| "same system prompt across requests" | **Prompt Caching** (up to 90% savings on cached tokens) |
+| "bring your own model" | **Custom Model Import** + Provisioned Throughput |
+| "JSONL input file" | Batch Inference format |
+| "hours turnaround acceptable" | Batch Inference |
 
 ---
 
@@ -585,3 +772,6 @@ Simple → Haiku | Complex → Sonnet
 | **Using expensive models for simple tasks** | Opus costs 60x more than Haiku. Simple classification or FAQ tasks don't need complex reasoning capabilities. |
 | **Forgetting VPC Endpoints** | Without them, API calls traverse the public internet. For compliance and security, private connectivity may be required. |
 | **Not considering Provisioned Throughput** | On-demand pricing is convenient but expensive at scale. High-volume workloads benefit from capacity commitments. |
+| **Real-time processing when batch would work** | Batch inference costs 50% less. If you can wait hours for results, use batch. |
+| **Ignoring prompt caching for repetitive patterns** | Long system prompts processed repeatedly waste tokens. Caching can save up to 90%. |
+| **Expecting on-demand for custom models** | Custom models require Provisioned Throughput. Budget for capacity commitment. |

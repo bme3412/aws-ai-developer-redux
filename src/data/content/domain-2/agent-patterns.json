@@ -50,10 +50,22 @@
       "keyPoints": [
         "Supervisor pattern: One agent routes to specialists",
         "Pipeline pattern: Sequential agent processing",
+        "Peer-to-peer pattern: Direct agent communication via events",
         "Debate pattern: Multiple perspectives synthesized",
         "Use Step Functions to orchestrate multi-agent flows"
       ],
       "examTip": "'Coordinate multiple agents' or 'specialized agents' → Multi-agent with supervisor or Step Functions orchestration"
+    },
+    {
+      "id": "peer-to-peer-agents",
+      "title": "Peer-to-Peer Agent Collaboration",
+      "content": "While the supervisor pattern centralizes control, peer-to-peer collaboration distributes decision-making across agents. Each agent independently determines when it needs assistance from others, creating emergent coordination rather than prescribed workflows.\n\nIn peer-to-peer systems, agents communicate through a shared message bus or event stream. Amazon EventBridge serves as the coordination layer—agents publish events describing their state, needs, or findings, and other agents subscribe to relevant event types. When an agent encounters a task outside its expertise, it publishes a request; capable agents respond.\n\n```python\nimport boto3\nimport json\n\nevents = boto3.client('events')\n\ndef research_agent_handler(event, context):\n    # Research agent found data requiring financial analysis\n    research_results = perform_research(event['query'])\n    \n    if needs_financial_analysis(research_results):\n        # Request help from peer agents\n        events.put_events(Entries=[{\n            'Source': 'agent.research',\n            'DetailType': 'AnalysisRequest',\n            'Detail': json.dumps({\n                'correlationId': event['correlationId'],\n                'dataType': 'financial',\n                'payload': research_results\n            }),\n            'EventBusName': 'agent-collaboration'\n        }])\n    \n    return research_results\n\ndef finance_agent_handler(event, context):\n    # Finance agent responds to analysis requests\n    detail = json.loads(event['detail'])\n    \n    if detail['dataType'] == 'financial':\n        analysis = perform_financial_analysis(detail['payload'])\n        \n        # Publish results back\n        events.put_events(Entries=[{\n            'Source': 'agent.finance',\n            'DetailType': 'AnalysisComplete',\n            'Detail': json.dumps({\n                'correlationId': detail['correlationId'],\n                'analysis': analysis\n            }),\n            'EventBusName': 'agent-collaboration'\n        }])\n```\n\n**Shared State Coordination:**\n\nAlternatively, agents coordinate through shared state in DynamoDB. Each agent reads and writes to a shared task record, updating progress and findings. Other agents poll for relevant updates or use DynamoDB Streams for real-time notification.\n\n```python\ndynamodb = boto3.resource('dynamodb')\ntable = dynamodb.Table('AgentCollaboration')\n\ndef update_shared_state(task_id, agent_name, findings):\n    table.update_item(\n        Key={'taskId': task_id},\n        UpdateExpression='SET findings.#agent = :data, lastUpdated = :ts',\n        ExpressionAttributeNames={'#agent': agent_name},\n        ExpressionAttributeValues={\n            ':data': findings,\n            ':ts': datetime.now().isoformat()\n        }\n    )\n\ndef check_for_peer_findings(task_id):\n    response = table.get_item(Key={'taskId': task_id})\n    return response.get('Item', {}).get('findings', {})\n```\n\n**Comparison with Supervisor Pattern:**\n\n| Aspect | Supervisor | Peer-to-Peer |\n|--------|------------|---------------|\n| Coordination | Centralized | Distributed |\n| Single point of failure | Yes (supervisor) | No |\n| Debugging complexity | Lower | Higher |\n| Latency | Higher (supervisor overhead) | Can be lower |\n| Best for | Defined workflows | Exploratory tasks |\n\n**When Peer-to-Peer Excels:**\n- Research tasks where agents discover needs dynamically\n- Creative collaboration where multiple perspectives emerge organically\n- Resilient systems where supervisor failure would halt all work\n- Scalable architectures where adding agents doesn't bottleneck the supervisor",
+      "keyPoints": [
+        "EventBridge enables event-driven peer collaboration",
+        "DynamoDB Streams enable shared-state coordination",
+        "No single point of failure unlike supervisor pattern",
+        "Better for exploratory, emergent workflows"
+      ]
     },
     {
       "id": "agent-memory",
@@ -196,7 +208,8 @@
     "ReAct pattern: Reason → Act → Observe → Repeat",
     "Action Groups define tools via OpenAPI + Lambda",
     "Session IDs maintain conversation context",
-    "Multi-agent patterns for complex problems",
+    "Multi-agent: Supervisor for control, peer-to-peer for resilience",
+    "EventBridge enables peer-to-peer agent collaboration",
     "Safety: Guardrails + IAM + human-in-the-loop + limits"
   ],
   "commonMistakes": [

@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getDomains } from '@/lib/domains';
+import { getDomains, getDomain } from '@/lib/domains';
 import { getDomainQuestions, getAllQuestions, shuffleQuestions } from '@/lib/content';
 import { addReviewScore } from '@/lib/progress';
 import { Question } from '@/types/review';
@@ -14,7 +14,26 @@ import {
   Target,
   Loader2,
   BookOpen,
+  ChevronDown,
+  ChevronRight,
+  Play,
+  FileText,
 } from 'lucide-react';
+
+interface TaskQuestionCount {
+  taskId: string;
+  taskName: string;
+  count: number;
+  articleSlug?: string;
+}
+
+interface DomainQuestionSummary {
+  domainId: number;
+  domainName: string;
+  weight: number;
+  totalQuestions: number;
+  tasks: TaskQuestionCount[];
+}
 
 function ReviewContent() {
   const searchParams = useSearchParams();
@@ -28,6 +47,9 @@ function ReviewContent() {
   const [showResults, setShowResults] = useState<Record<string, boolean>>({});
   const [isComplete, setIsComplete] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  const domain = domainFilter ? getDomain(parseInt(domainFilter)) : null;
+  const task = domain && taskFilter ? domain.tasks.find(t => t.id === taskFilter) : null;
 
   useEffect(() => {
     async function loadQuestions() {
@@ -51,6 +73,9 @@ function ReviewContent() {
           loadedQuestions = shuffleQuestions(loadedQuestions).slice(0, 10);
         } else if (mode === 'full') {
           loadedQuestions = shuffleQuestions(loadedQuestions).slice(0, 65);
+        } else if (mode === 'all') {
+          // Show all questions without shuffling limit
+          loadedQuestions = shuffleQuestions(loadedQuestions);
         } else {
           // Default: shuffle and take up to 20 for practice
           loadedQuestions = shuffleQuestions(loadedQuestions).slice(0, 20);
@@ -123,7 +148,9 @@ function ReviewContent() {
         <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-gray-800 mb-2">No Questions Available</h2>
         <p className="text-gray-600 mb-4">
-          {domainFilter
+          {taskFilter
+            ? `No questions found for Task ${taskFilter}. Questions are being added.`
+            : domainFilter
             ? `No questions found for Domain ${domainFilter}. Questions are being added.`
             : 'No questions available. Try selecting a specific domain.'}
         </p>
@@ -154,7 +181,7 @@ function ReviewContent() {
         </p>
 
         {percentage >= 70 ? (
-          <p className="text-green-600 mb-8">Great job! You're on track for this section.</p>
+          <p className="text-green-600 mb-8">Great job! You&apos;re on track for this section.</p>
         ) : (
           <p className="text-amber-600 mb-8">Review the explanations and try again to improve your score.</p>
         )}
@@ -168,11 +195,11 @@ function ReviewContent() {
             Try Again
           </button>
           <Link
-            href="/dashboard"
+            href="/review"
             className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors"
           >
             <Target className="w-5 h-5" />
-            Dashboard
+            Back to Topics
           </Link>
         </div>
 
@@ -208,6 +235,32 @@ function ReviewContent() {
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
+      {/* Context Header */}
+      {(domainFilter || taskFilter) && (
+        <div className="mb-6 flex items-center gap-2 text-sm">
+          <Link href="/review" className="text-blue-600 hover:text-blue-500">
+            All Topics
+          </Link>
+          {domainFilter && (
+            <>
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+              <Link
+                href={`/review?domain=${domainFilter}`}
+                className={taskFilter ? "text-blue-600 hover:text-blue-500" : "text-gray-700"}
+              >
+                Domain {domainFilter}
+              </Link>
+            </>
+          )}
+          {taskFilter && task && (
+            <>
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+              <span className="text-gray-700">Task {taskFilter}: {task.name}</span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Progress Bar */}
       <div className="mb-6">
         <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
@@ -257,93 +310,192 @@ function ReviewContent() {
   );
 }
 
+function DomainSection({ summary, isExpanded, onToggle }: {
+  summary: DomainQuestionSummary;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      {/* Domain Header */}
+      <button
+        onClick={onToggle}
+        className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 flex items-center justify-between transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          {isExpanded ? (
+            <ChevronDown className="w-5 h-5 text-gray-500" />
+          ) : (
+            <ChevronRight className="w-5 h-5 text-gray-500" />
+          )}
+          <div className="text-left">
+            <h3 className="font-semibold text-gray-900">
+              Domain {summary.domainId}: {summary.domainName}
+            </h3>
+          </div>
+        </div>
+        <Link
+          href={`/review?domain=${summary.domainId}&mode=all`}
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          <Play className="w-4 h-4" />
+          Practice All
+        </Link>
+      </button>
+
+      {/* Task List */}
+      {isExpanded && (
+        <div className="divide-y divide-gray-100">
+          {summary.tasks.map((task) => (
+            <div
+              key={task.taskId}
+              className="px-4 py-3 flex items-center justify-between hover:bg-gray-50"
+            >
+              <div className="flex items-center gap-3">
+                <span className="w-12 text-sm font-medium text-gray-500">
+                  {task.taskId}
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{task.taskName}</p>
+                  <p className="text-xs text-gray-500">{task.count} questions</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {task.articleSlug && (
+                  <Link
+                    href={`/learn/${summary.domainId}/${task.articleSlug}`}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
+                  >
+                    <FileText className="w-3 h-3" />
+                    Read
+                  </Link>
+                )}
+                <Link
+                  href={`/review?domain=${summary.domainId}&task=${task.taskId}&mode=all`}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white text-xs font-medium rounded-lg transition-colors"
+                >
+                  <Play className="w-3 h-3" />
+                  Practice
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReviewPage() {
   const domains = getDomains();
+  const [questionSummaries, setQuestionSummaries] = useState<DomainQuestionSummary[]>([]);
+  const [expandedDomains, setExpandedDomains] = useState<Set<number>>(new Set([1]));
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadSummaries() {
+      const summaries: DomainQuestionSummary[] = [];
+
+      for (const domain of domains) {
+        try {
+          const questions = await getDomainQuestions(domain.id);
+
+          // Count questions per task
+          const taskCounts: Record<string, number> = {};
+          questions.forEach(q => {
+            taskCounts[q.task] = (taskCounts[q.task] || 0) + 1;
+          });
+
+          const tasks: TaskQuestionCount[] = domain.tasks.map(t => ({
+            taskId: t.id,
+            taskName: t.name,
+            count: taskCounts[t.id] || 0,
+            articleSlug: t.articleSlug,
+          }));
+
+          summaries.push({
+            domainId: domain.id,
+            domainName: domain.name,
+            weight: domain.weight,
+            totalQuestions: questions.length,
+            tasks,
+          });
+        } catch {
+          summaries.push({
+            domainId: domain.id,
+            domainName: domain.name,
+            weight: domain.weight,
+            totalQuestions: 0,
+            tasks: [],
+          });
+        }
+      }
+
+      setQuestionSummaries(summaries);
+      setIsLoading(false);
+    }
+
+    loadSummaries();
+  }, [domains]);
+
+  const toggleDomain = (domainId: number) => {
+    setExpandedDomains(prev => {
+      const next = new Set(prev);
+      if (next.has(domainId)) {
+        next.delete(domainId);
+      } else {
+        next.add(domainId);
+      }
+      return next;
+    });
+  };
+
+  const totalQuestions = questionSummaries.reduce((sum, s) => sum + s.totalQuestions, 0);
 
   return (
     <div className="min-h-screen">
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             <ClipboardCheck className="w-8 h-8 text-green-500" />
             Practice Questions
           </h1>
           <p className="text-gray-600 mt-2">
-            Exam-style scenario questions with detailed explanations and answer strategies.
+            {totalQuestions} exam-style questions organized by domain and task.
           </p>
         </div>
 
-        {/* Quick Start Options */}
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
-          <Link
-            href="/review?mode=quick"
-            className="p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all"
-          >
-            <h3 className="font-semibold text-gray-900 mb-1">Quick Review</h3>
-            <p className="text-sm text-gray-600">10 random questions • ~15 min</p>
-          </Link>
-          <Link
-            href="/review?mode=full"
-            className="p-4 bg-blue-50 rounded-lg border border-blue-200 hover:border-blue-300 hover:shadow-sm transition-all"
-          >
-            <h3 className="font-semibold text-blue-700 mb-1">Full Practice Exam</h3>
-            <p className="text-sm text-gray-600">65 questions • ~170 min</p>
-          </Link>
-          <Link
-            href="/review?domain=1"
-            className="p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all"
-          >
-            <h3 className="font-semibold text-gray-900 mb-1">Domain 1 Focus</h3>
-            <p className="text-sm text-gray-600">FM Integration • 31% of exam</p>
-          </Link>
-        </div>
-
-        {/* Domain Filters */}
+        {/* Domain Sections */}
         <div className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">By Domain</h2>
-          <div className="grid md:grid-cols-5 gap-3">
-            {domains.map(domain => (
-              <Link
-                key={domain.id}
-                href={`/review?domain=${domain.id}`}
-                className={`p-3 bg-white rounded-lg border hover:border-gray-400 transition-colors text-center ${
-                  domain.id === 1 ? 'border-blue-300 ring-1 ring-blue-100' : 'border-gray-200'
-                }`}
-              >
-                <div className="text-lg font-bold text-gray-800">D{domain.id}</div>
-                <div className="text-xs text-gray-500">{domain.weight}%</div>
-                {domain.id === 1 && (
-                  <div className="text-xs text-blue-600 mt-1">45 questions</div>
-                )}
-              </Link>
-            ))}
-          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">By Domain & Task</h2>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {questionSummaries.map((summary) => (
+                <DomainSection
+                  key={summary.domainId}
+                  summary={summary}
+                  isExpanded={expandedDomains.has(summary.domainId)}
+                  onToggle={() => toggleDomain(summary.domainId)}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Question Strategies Info */}
-        <div className="mb-8 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-          <h3 className="font-semibold text-purple-800 mb-2">Exam Question Strategies</h3>
-          <p className="text-sm text-gray-700 mb-3">
-            Each question includes a strategy reveal after you answer, teaching you how to parse verbose scenarios and identify key phrases.
-          </p>
-          <div className="grid md:grid-cols-2 gap-3 text-sm">
-            <div className="flex items-start gap-2">
-              <span className="text-purple-500">•</span>
-              <span className="text-gray-600">Look for key adjectives: &quot;MOST cost-efficient&quot;, &quot;simplest&quot;</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-purple-500">•</span>
-              <span className="text-gray-600">Extract requirements from scenarios as a checklist</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-purple-500">•</span>
-              <span className="text-gray-600">Use elimination: if an option fails one requirement, remove it</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-purple-500">•</span>
-              <span className="text-gray-600">Know default service patterns for common keywords</span>
-            </div>
-          </div>
+        {/* Tips */}
+        <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+          <h3 className="font-semibold text-purple-800 mb-2">Study Tips</h3>
+          <ul className="text-sm text-gray-700 space-y-1">
+            <li>• Read the article first, then practice questions for that task</li>
+            <li>• Questions show which article section they test (after answering)</li>
+            <li>• Focus on Domain 1 (31%) and Domain 2 (26%) for best ROI</li>
+          </ul>
         </div>
       </div>
 

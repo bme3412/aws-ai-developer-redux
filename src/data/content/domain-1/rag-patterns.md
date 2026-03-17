@@ -39,6 +39,53 @@ Fine-tuning bakes knowledge into the model's weights. RAG keeps knowledge extern
 
 ---
 
+## Understanding Hallucination
+
+Hallucination isn't random—it follows patterns. Understanding why models hallucinate helps you prevent it.
+
+### Types of Hallucination
+
+| Type | Description | Example |
+|------|-------------|---------|
+| **Factual** | Confidently stating false facts | "The Eiffel Tower is 500 meters tall" (it's 330m) |
+| **Fabricated citations** | Inventing sources that don't exist | Citing a paper that was never written |
+| **Intrinsic** | Contradicting the provided context | Context says "refunds within 30 days", response says "14 days" |
+| **Extrinsic** | Adding information not in context | Making up features not mentioned in product docs |
+
+### Why Hallucination Happens
+
+1. **Training objective**: Models are trained to predict likely next tokens, not to be accurate. Plausible-sounding text scores well even if false.
+
+2. **No uncertainty calibration**: Models can't reliably express "I don't know." They'll generate something.
+
+3. **Context overwhelm**: When provided too much context, models may miss relevant parts or blend information incorrectly.
+
+4. **Prompt encouragement**: If the prompt implies there IS an answer, the model will find one—even if it has to make it up.
+
+### Detecting Hallucination
+
+RAG-specific metrics can flag likely hallucinations:
+
+**Faithfulness/Groundedness**: Does every claim in the response have support in the retrieved context? Low faithfulness = high hallucination risk.
+
+**Self-consistency**: Ask the same question multiple times. If answers vary significantly, the model is likely uncertain/hallucinating.
+
+**Entailment checking**: Use an NLI (Natural Language Inference) model to verify if the context actually entails the response.
+
+### Preventing Hallucination
+
+1. **Better retrieval**: If you retrieve irrelevant docs, the model will either ignore them (and hallucinate) or misuse them. Fix retrieval first.
+
+2. **Explicit instructions**: "Only answer based on the provided context. If the answer isn't there, say 'I don't have information about that.'"
+
+3. **Citation requirements**: "Cite the specific document and section for each claim." This forces the model to ground responses.
+
+4. **Shorter context**: Paradoxically, less context can improve accuracy. Only include highly relevant chunks.
+
+5. **Lower temperature**: More deterministic generation reduces creative interpolation.
+
+---
+
 ## How RAG Works
 
 RAG has three steps. Two happen before your user ever asks a question, one happens at runtime.
@@ -439,6 +486,139 @@ else:
 
 **Best for**: Large organizations with distinct knowledge domains.
 
+### Multi-Hop Reasoning in RAG
+
+Some questions can't be answered with a single retrieval. They require finding information, reasoning about it, and then finding more information based on that reasoning.
+
+**Example**: "What products does the CEO's previous company make?"
+
+This requires:
+1. Find who the CEO is
+2. Find their previous company
+3. Find what that company makes
+
+Single-shot retrieval fails—you need multiple hops.
+
+**Approaches**:
+
+**Query Decomposition**: Break complex questions into sub-questions, retrieve for each, combine:
+
+```python
+def multi_hop_rag(complex_query):
+    # Use FM to decompose
+    sub_queries = fm_decompose(complex_query)
+    # ["Who is the CEO?", "What company did they work at before?", "What does that company make?"]
+
+    results = []
+    for sub_q in sub_queries:
+        context = retrieve(sub_q)
+        partial_answer = generate(sub_q, context)
+        results.append(partial_answer)
+        # Feed partial answer into next retrieval
+
+    return synthesize(results)
+```
+
+**Iterative Retrieval**: Let the agent decide when it needs more information:
+
+```python
+def iterative_rag(query, max_hops=3):
+    context = []
+    for hop in range(max_hops):
+        response = generate_with_tools(query, context)
+
+        if response.needs_more_info:
+            new_context = retrieve(response.next_query)
+            context.extend(new_context)
+        else:
+            return response.answer
+```
+
+**Agentic RAG**: Full agent pattern where the model reasons, retrieves, and iterates autonomously. Use Bedrock Agents for this.
+
+**When multi-hop matters**:
+- Questions about relationships ("Who does X's manager report to?")
+- Comparisons requiring multiple lookups
+- Questions with implicit prerequisites
+
+---
+
+## Knowledge Base Management
+
+Managing your Knowledge Base is as important as designing the retrieval logic.
+
+### Data Source Sync Modes
+
+**On-Demand Sync**: You trigger syncs manually or via API. Best for:
+- Development environments
+- Infrequent document updates
+- When you need precise control over when documents are indexed
+
+```python
+response = bedrock_agent.start_ingestion_job(
+    knowledgeBaseId='KB_ID',
+    dataSourceId='DS_ID'
+)
+```
+
+**Scheduled Sync**: Automatic syncs at configured intervals (hourly, daily, weekly). Best for:
+- Production environments with regular document updates
+- When documents change on predictable schedules
+- Set-and-forget management
+
+### Incremental vs Full Sync
+
+**Incremental**: Only processes new or modified documents. Faster and cheaper. The default behavior.
+
+**Full resync**: Reprocesses all documents. Required when:
+- You change chunking strategy (can't change in place—must create new data source)
+- Embeddings need regeneration (model version change)
+- You suspect sync corruption
+
+### Monitoring Sync Health
+
+Track these CloudWatch metrics:
+- `IngestionJobsSucceeded` / `IngestionJobsFailed`
+- `DocumentsIngested`
+- `IngestionJobDuration`
+
+Set alarms for failed syncs—stale knowledge bases serve outdated information.
+
+### Citation and Attribution
+
+Production RAG needs to show users where answers come from. This builds trust and enables verification.
+
+**Bedrock Knowledge Base citations** are returned automatically with RetrieveAndGenerate:
+
+```python
+response = bedrock_agent.retrieve_and_generate(...)
+
+# Access citations
+for citation in response['citations']:
+    print(f"Source: {citation['retrievedReferences'][0]['location']['s3Location']['uri']}")
+    print(f"Content: {citation['generatedResponsePart']['textResponsePart']['text']}")
+```
+
+**Custom attribution** for retrieve-then-generate patterns:
+
+```python
+# In your prompt
+prompt = f"""
+Based on the following documents, answer the question. Cite each claim with [Doc X].
+
+Documents:
+[Doc 1] {doc1_content}
+[Doc 2] {doc2_content}
+
+Question: {user_question}
+"""
+```
+
+**Why citation matters**:
+- Users can verify accuracy
+- Reduces perceived hallucination risk
+- Required in many compliance contexts (legal, medical, financial)
+
 ---
 
 ## Evaluating and Debugging RAG
@@ -518,6 +698,11 @@ Run this after any change to chunking, embeddings, or retrieval logic.
 | "Semantic search" | Embeddings + vector similarity |
 | "Vector database for production" | OpenSearch Service |
 | "Simple RAG setup" | Knowledge Bases managed store |
+| "response contradicts context" | **Intrinsic hallucination**—check faithfulness metric |
+| "verify response is grounded" | **Faithfulness/groundedness** evaluation |
+| "complex question requiring multiple lookups" | **Multi-hop RAG** or query decomposition |
+| "show sources to users" | **Citations** from RetrieveAndGenerate |
+| "keep knowledge base updated" | **Scheduled sync** vs on-demand |
 
 ---
 

@@ -24,6 +24,9 @@ export interface Question {
 
   services: string[];
   examTip?: string;
+
+  // Article reference for article-specific questions
+  articleReference?: string;
 }
 
 export interface QuestionParseStrategy {

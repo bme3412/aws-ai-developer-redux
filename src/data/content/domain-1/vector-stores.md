@@ -34,6 +34,97 @@ The phrase "automobile repair" ends up near "car mechanic" in this space—not b
 
 It might not find the mathematically *perfect* matches, but it finds very close matches in milliseconds instead of seconds. That trade-off is worth it.
 
+### How HNSW Actually Works
+
+Understanding the algorithm helps you tune it properly and choose the right index type.
+
+HNSW builds a multi-layer graph:
+
+```
+Layer 2:  A -------- B              (sparse, long-range connections)
+          |          |
+Layer 1:  A --- C -- B --- D        (medium connections)
+          |    |    |    |
+Layer 0:  A-E-C-F-B-G-D-H           (dense, all vectors)
+```
+
+**Search Process**:
+1. Start at the top layer with few nodes and long-range connections
+2. Navigate greedily toward the query vector
+3. Drop to the next layer when you can't get closer
+4. At the bottom layer, explore the local neighborhood
+5. Return the k nearest neighbors found
+
+This hierarchical approach means you don't scan every vector. For a million vectors, you might visit only a few thousand nodes to find excellent matches.
+
+**Key Parameters**:
+
+| Parameter | Effect | Trade-off |
+|-----------|--------|-----------|
+| **M** (connections per node) | Higher = more accurate, slower build | Memory vs quality |
+| **ef_construction** | Build-time search depth | Build speed vs index quality |
+| **ef_search** | Query-time search depth | Query speed vs accuracy |
+
+In OpenSearch, you configure these in the index mapping:
+
+```json
+{
+  "settings": {
+    "index.knn": true,
+    "index.knn.algo_param.ef_search": 100
+  },
+  "mappings": {
+    "properties": {
+      "embedding": {
+        "type": "knn_vector",
+        "dimension": 1024,
+        "method": {
+          "name": "hnsw",
+          "space_type": "cosinesimil",
+          "engine": "nmslib",
+          "parameters": {
+            "ef_construction": 256,
+            "m": 16
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### HNSW vs IVF: Choosing the Right Algorithm
+
+**IVF** (Inverted File Index) is an alternative to HNSW with different trade-offs:
+
+| Aspect | HNSW | IVF |
+|--------|------|-----|
+| Query speed | Faster | Slower |
+| Index build time | Slower | Faster |
+| Memory usage | Higher | Lower |
+| Update performance | Better | Worse (requires retraining) |
+| Best for | Real-time queries | Large, static datasets |
+
+**When to use HNSW** (the default choice):
+- Production RAG with real-time queries
+- Frequently updated document collections
+- When query latency matters most
+
+**When to consider IVF**:
+- Very large datasets (billions of vectors)
+- Memory-constrained environments
+- Mostly static datasets that rarely update
+
+Aurora pgvector supports both `ivfflat` and `hnsw` indexes:
+
+```sql
+-- IVF index (faster to build, more memory-efficient)
+CREATE INDEX ON documents USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- HNSW index (faster queries, better for updates)
+CREATE INDEX ON documents USING hnsw (embedding vector_cosine_ops);
+```
+
 ### k-NN
 
 **k-Nearest Neighbors** is the algorithm doing the matching—find the k documents most similar to the query.
@@ -70,6 +161,47 @@ OpenSearch gives you:
 - Fine control over sharding
 
 Use OpenSearch when Bedrock KB's features aren't enough or when you're dealing with billions of vectors.
+
+### OpenSearch Serverless: Collection Types
+
+If you want OpenSearch without managing clusters, **OpenSearch Serverless** is the answer. But you need to choose the right **collection type**—and this is exam-critical:
+
+**SEARCH Collection**
+- Traditional full-text and keyword search
+- Uses standard OpenSearch indexes
+- NOT optimized for vector search
+- Best for: Log analytics, traditional search applications
+
+**VECTORSEARCH Collection**
+- Optimized specifically for k-NN vector operations
+- HNSW algorithm with tuned settings
+- Required for RAG and semantic search
+- Best for: Embeddings, similarity search, Knowledge Bases
+
+**TIMESERIES Collection**
+- Optimized for time-stamped data
+- Best for: Logs, metrics, observability data
+
+**The critical exam point**: If you see "semantic search" or "RAG" with OpenSearch Serverless, the answer is **VECTORSEARCH** collection type. Using a SEARCH collection for embeddings works but performs poorly.
+
+```python
+# Creating a vector search collection
+response = aoss_client.create_collection(
+    name='my-rag-vectors',
+    type='VECTORSEARCH',  # Critical!
+    description='Vector store for RAG application'
+)
+```
+
+**Capacity Management**
+
+OpenSearch Serverless uses **OCUs** (OpenSearch Compute Units):
+- **Indexing OCUs**: Scale with data ingestion rate
+- **Search OCUs**: Scale with query load
+
+Minimum: 2 OCUs (1 indexing + 1 search). It scales automatically based on workload, but you pay for what you provision.
+
+For Bedrock Knowledge Bases with OpenSearch Serverless, AWS manages the collection and OCU scaling automatically.
 
 ### Aurora pgvector (What's in the Garage)
 
@@ -357,6 +489,10 @@ Build observability from the start.
 | "existing PostgreSQL infrastructure" | Aurora pgvector |
 | "production RAG" or "complex documents" | Hierarchical chunking |
 | "cost-conscious" or "simple docs" | Fixed-size chunking |
+| "OpenSearch Serverless" + "semantic search" | **VECTORSEARCH** collection type |
+| "tune search accuracy vs speed" | HNSW **ef_search** parameter |
+| "memory-constrained" or "large static dataset" | **IVF** index over HNSW |
+| "real-time updates" to vectors | **HNSW** (IVF requires retraining) |
 
 ---
 

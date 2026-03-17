@@ -158,6 +158,90 @@ Bedrock provides the **Rerank API** with two models:
 
 The reranker is slower but much more accurate—cross-encoders see query AND document together, catching relevance signals that separate embeddings miss.
 
+### Rerank API Deep Dive
+
+Understanding how to use the Rerank API is exam-critical and practically essential.
+
+**Why Reranking Works Better Than Embeddings Alone**
+
+Bi-encoders (like Titan Embeddings) encode query and document **separately**. They can't see both at once, so they miss subtle relevance signals. A document might be highly relevant because of how a specific phrase relates to the query—but that relationship isn't captured in isolated embeddings.
+
+Cross-encoders (rerankers) process query AND document **together**. They see the full context and can identify relevance that embeddings miss.
+
+**The Cost-Speed-Accuracy Trade-off**
+
+| Approach | Speed | Cost | Accuracy |
+|----------|-------|------|----------|
+| Embedding similarity only | Fastest | Cheapest | Good |
+| Embedding + Rerank top-20 | Slower | Medium | Better |
+| Embedding + Rerank top-50 | Slowest | Higher | Best |
+
+Retrieve broadly with fast/cheap embeddings, then rerank a smaller set with the expensive/accurate cross-encoder.
+
+**Using the Rerank API**
+
+```python
+import boto3
+
+bedrock = boto3.client('bedrock-runtime')
+
+response = bedrock.rerank(
+    modelId='cohere.rerank-v3-5:0',  # or 'amazon.rerank-v1:0'
+    query='What is the maximum file size for Textract?',
+    documents=[
+        {'textContent': {'text': 'Textract supports files up to 10 MB for sync APIs...'}},
+        {'textContent': {'text': 'The async APIs handle documents up to 500 MB...'}},
+        {'textContent': {'text': 'Textract is an OCR service from AWS...'}},
+        # ... more candidate documents
+    ],
+    topN=5  # Return only the top 5 after reranking
+)
+
+# Response includes ranked documents with relevance scores
+for result in response['results']:
+    print(f"Rank {result['index']}: Score {result['relevanceScore']}")
+    print(f"Text: {result['document']['textContent']['text'][:100]}...")
+```
+
+**Amazon Rerank vs Cohere Rerank**
+
+| Aspect | Amazon Rerank 1.0 | Cohere Rerank 3.5 |
+|--------|-------------------|-------------------|
+| Accuracy | Good | Slightly better on benchmarks |
+| Speed | Faster | Comparable |
+| Max documents | 100 per request | 100 per request |
+| Languages | English-focused | Multilingual (100+ languages) |
+| Cost | Lower | Higher |
+
+**When to choose**:
+- **Amazon Rerank**: English content, cost-sensitive, slightly lower latency
+- **Cohere Rerank**: Multilingual content, maximum accuracy needed
+
+**Reranking in Knowledge Base Retrieval**
+
+Bedrock Knowledge Bases support built-in reranking:
+
+```python
+response = bedrock_agent.retrieve(
+    knowledgeBaseId='KB_ID',
+    retrievalQuery={'text': 'What is the refund policy?'},
+    retrievalConfiguration={
+        'vectorSearchConfiguration': {
+            'numberOfResults': 10,
+            'overrideSearchType': 'HYBRID',
+            'rerankingConfiguration': {
+                'type': 'BEDROCK_RERANKING_MODEL',
+                'modelConfiguration': {
+                    'modelArn': 'arn:aws:bedrock:us-east-1::foundation-model/cohere.rerank-v3-5:0'
+                }
+            }
+        }
+    }
+)
+```
+
+This retrieves using hybrid search, then reranks the results—all in one API call.
+
 ### MMR (Maximal Marginal Relevance)
 
 Solves the redundancy problem.
@@ -296,11 +380,81 @@ Test different values with your actual queries.
 
 ### Hybrid Search Fusion
 
-Combines vector and keyword scores. OpenSearch's neural plugin lets you tune weights:
-- Emphasize keywords for precise technical queries
-- Emphasize semantics for conceptual questions
+Combines vector and keyword scores. But how do you combine scores from different systems with different scales?
 
-Bedrock KB's HYBRID mode does this automatically.
+**The Fusion Problem**
+
+Vector similarity might return scores from 0.0-1.0 (cosine similarity), while BM25 keyword scores might range from 0-15. You can't just add them—the keyword scores would dominate.
+
+**Reciprocal Rank Fusion (RRF)**
+
+The most common solution. Instead of using raw scores, use **ranks**:
+
+```
+RRF_score = Σ 1/(k + rank_i)
+```
+
+Where `k` is a constant (typically 60) and `rank_i` is the document's position in each result list.
+
+A document ranked #1 in both lists gets:
+- From vector: 1/(60+1) = 0.0164
+- From keyword: 1/(60+1) = 0.0164
+- Combined: 0.0328
+
+A document ranked #1 in one list and #10 in another:
+- From list 1: 1/(60+1) = 0.0164
+- From list 2: 1/(60+10) = 0.0143
+- Combined: 0.0307
+
+RRF naturally handles different score scales and rewards documents that rank well in multiple lists.
+
+**Weighted Combination**
+
+Alternatively, normalize scores to [0,1] then apply weights:
+
+```python
+def hybrid_score(doc, alpha=0.7):
+    # Normalize both scores to 0-1
+    vector_normalized = normalize(doc.vector_score)
+    keyword_normalized = normalize(doc.keyword_score)
+
+    # Weighted combination
+    return alpha * vector_normalized + (1 - alpha) * keyword_normalized
+```
+
+- `alpha = 1.0`: Pure semantic search
+- `alpha = 0.0`: Pure keyword search
+- `alpha = 0.7`: Common default—emphasize semantics but include keywords
+
+**When to Weight Toward Keywords**
+
+- Searching for exact identifiers (error codes, product SKUs)
+- Technical documentation with precise terminology
+- When users expect exact phrase matching
+
+**When to Weight Toward Semantics**
+
+- Conceptual questions ("how does X work?")
+- Natural language queries from non-experts
+- When terminology varies across documents
+
+**Bedrock KB HYBRID Mode**
+
+In Bedrock Knowledge Bases, HYBRID mode handles fusion automatically. You can influence the balance with metadata filtering and search configuration, but the core fusion algorithm is managed.
+
+```python
+response = bedrock_agent.retrieve(
+    knowledgeBaseId='KB_ID',
+    retrievalQuery={'text': 'error code E-1042'},
+    retrievalConfiguration={
+        'vectorSearchConfiguration': {
+            'overrideSearchType': 'HYBRID'  # Enables both vector and keyword
+        }
+    }
+)
+```
+
+For most production RAG applications, **HYBRID mode is the default choice**. Pure semantic search misses exact matches; pure keyword search misses conceptual relevance.
 
 ### Cross-Encoder Reranking
 
@@ -366,6 +520,10 @@ The FM invokes Lambda via tool calling, Lambda performs the retrieval, returns r
 | "context preservation" or "parent-child" | Hierarchical chunking |
 | "simplest approach" | Fixed-size with Bedrock KB defaults |
 | "precision" or "relevance" | Rerank API |
+| "multilingual retrieval" | **Cohere Rerank** (100+ languages) |
+| "exact identifiers" or "error codes" | Hybrid search weighted toward **keywords** |
+| "combining search results" | **Reciprocal Rank Fusion (RRF)** |
+| "retrieve broadly, rerank narrowly" | Embedding search top-N → Rerank to top-K |
 
 ---
 

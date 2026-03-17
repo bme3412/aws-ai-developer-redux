@@ -188,6 +188,109 @@ GenAI costs scale with usage in ways that can surprise teams accustomed to fixed
 
 ---
 
+## Network Architecture and Private Connectivity
+
+By default, when your Lambda function or EC2 instance calls the Bedrock API, the traffic travels over the **public internet**. It's encrypted with TLS, so the content is protected, but the request leaves your VPC, traverses the internet, and enters AWS's public API endpoints. For many workloads, this is fine. For regulated industries, sensitive data, or security-conscious organizations, it's not acceptable.
+
+### VPC Endpoints for Bedrock
+
+**Interface VPC Endpoints** (powered by **AWS PrivateLink**) keep traffic entirely within the AWS network. When you create an interface endpoint for Bedrock in your VPC, AWS provisions elastic network interfaces (ENIs) in your specified subnets. Your applications connect to Bedrock through these private IP addresses rather than public endpoints.
+
+The difference matters for several reasons:
+
+1. **No internet gateway required** — Your private subnets can access Bedrock without NAT gateways or internet gateways
+2. **Network isolation** — Traffic never leaves the AWS network, reducing exposure to internet-based threats
+3. **Compliance** — Many security frameworks require private connectivity for sensitive workloads
+4. **Predictable latency** — Eliminating internet hops can reduce latency variability
+
+### Interface Endpoints vs Gateway Endpoints
+
+AWS offers two types of VPC endpoints, and understanding the difference prevents costly mistakes:
+
+**Gateway Endpoints** are free and work only for **S3** and **DynamoDB**. They add entries to your route tables, directing traffic to these services through AWS's network. You can't use gateway endpoints for Bedrock.
+
+**Interface Endpoints** work for most other AWS services, including Bedrock. They create ENIs in your subnets with private IPs. They cost **$0.01/hour per AZ** plus **$0.01/GB** of data processed. For high-volume Bedrock usage, this adds up—but it's usually worth it for security-sensitive workloads.
+
+### PrivateLink Architecture
+
+When you create an interface endpoint for Bedrock, here's what happens:
+
+```
+Your VPC                          AWS Network
+┌─────────────────────────┐      ┌─────────────────────────┐
+│  Lambda/EC2             │      │                         │
+│       │                 │      │    Bedrock Service      │
+│       ▼                 │      │         ▲               │
+│  ENI (10.0.1.x)    ─────┼──────┼─────────┘               │
+│  (Interface Endpoint)   │      │                         │
+└─────────────────────────┘      └─────────────────────────┘
+```
+
+The ENI appears in your VPC with a private IP. DNS resolution can be configured to automatically resolve `bedrock-runtime.us-east-1.amazonaws.com` to this private IP. Your application code doesn't change—it still calls the same endpoint, but traffic routes privately.
+
+### Security Groups for Endpoints
+
+Interface endpoints have security groups. You control which resources in your VPC can access Bedrock by configuring inbound rules. A typical pattern:
+
+- Allow inbound HTTPS (port 443) from your application's security group
+- Deny everything else
+
+This creates an additional layer of access control beyond IAM—even if a compromised resource has valid IAM credentials, it can't reach Bedrock unless it's in an allowed security group.
+
+### Multi-Account Architectures
+
+Large organizations often centralize AI services in a shared account. **Resource Access Manager (RAM)** can share interface endpoints across accounts, or you can use **VPC peering** or **Transit Gateway** to route from spoke accounts to a central endpoint.
+
+The **hub-and-spoke pattern** reduces endpoint costs (one set of endpoints instead of many) and centralizes security controls. The tradeoff is added network complexity and potential single points of failure.
+
+---
+
+## Service Quotas and Capacity Management
+
+Bedrock has quotas that limit how many requests you can make and how much throughput you can consume. Understanding these limits prevents production surprises.
+
+### Types of Quotas
+
+**Requests per minute (RPM)** — How many API calls you can make per minute. Exceeding this returns **ThrottlingException**.
+
+**Tokens per minute (TPM)** — Total tokens (input + output) processed per minute. Models have separate input and output token quotas.
+
+**Model units** — For Provisioned Throughput, you purchase capacity in model units. Each unit provides a specific amount of throughput.
+
+### Default Quotas
+
+Default quotas vary by model and region. For on-demand Claude 3 Sonnet in us-east-1, typical defaults are:
+
+- **RPM**: 100-400 requests/minute (varies)
+- **Input TPM**: 40,000-200,000 tokens/minute
+- **Output TPM**: 40,000-100,000 tokens/minute
+
+These are **starting points**, not hard limits. You can request increases through the **Service Quotas** console or API.
+
+### Quota Management Patterns
+
+**Monitor before you need more**. CloudWatch metrics like `InvocationCount`, `InvocationLatency`, and `ThrottledCount` show how close you are to limits. Set alarms at 80% utilization so you can request increases proactively.
+
+**Request increases before launch**. Quota increases aren't instant—they require AWS review and can take days. Don't wait until you're throttled in production.
+
+**Use multiple models**. If you're hitting quotas on Sonnet, consider routing simpler requests to Haiku, which has separate quotas. This naturally load-balances across capacity pools.
+
+**Implement backoff and retry**. When you hit quotas, requests fail with ThrottlingException. Proper exponential backoff with jitter spreads retries over time instead of hammering the API.
+
+### Cross-Account Quota Considerations
+
+Quotas are per-account, per-region. In multi-account architectures, each account has independent quotas. A central AI services account might need much higher quotas than spoke accounts that route through it.
+
+**Dedicated accounts for AI** sometimes make sense—they isolate quota consumption, simplify cost tracking, and can have specialized IAM policies.
+
+### Provisioned Throughput vs Quotas
+
+Provisioned Throughput isn't about quotas—it's about **guaranteed capacity**. Even if you haven't hit your on-demand quota, during high-demand periods you might experience throttling because shared capacity is constrained. Provisioned Throughput reserves dedicated capacity that's always available.
+
+Think of quotas as **permission to use capacity** and Provisioned Throughput as **reservation of capacity**. You need both: quota allows the request, and capacity processes it.
+
+---
+
 ## Selecting the Right Integration Approach
 
 Architecture decisions should flow from **requirements**, not preferences. Before choosing patterns and services, clarify what you're building and for whom.
@@ -278,6 +381,9 @@ For the exam and for most real-world scenarios, **Bedrock is the default choice*
 | "fine-tuned model" or "custom model" | Requires **Provisioned Throughput** |
 | "high availability" or "resilience" | **Cross-Region Inference** |
 | "cost optimization" | **Model cascading**, **batch inference**, **token monitoring** |
+| "private connectivity" or "no internet" | **Interface VPC Endpoint** with PrivateLink |
+| "throttling" or "rate limits" | **Service Quotas**, request increases proactively |
+| "compliance" or "data residency" | **VPC Endpoints** + **Cross-Region Inference** (respects geography) |
 
 ---
 
@@ -317,3 +423,5 @@ For the exam and for most real-world scenarios, **Bedrock is the default choice*
 | **Teams building prompts independently** | Without centralized **Prompt Management**, quality varies and best practices don't propagate. |
 | **Assuming on-demand is always available** | During high demand, requests may be **throttled**. Consider **Provisioned Throughput** for consistent latency. |
 | **Ignoring the GenAI Lens in design reviews** | The lens captures lessons from many deployments. Skipping it means learning the hard way through incidents. |
+| **Not requesting quota increases before launch** | Quota increases take time for AWS to review. Request proactively, not when you're already throttled. |
+| **Using Gateway Endpoints for Bedrock** | Gateway endpoints only work for S3 and DynamoDB. Bedrock requires **Interface VPC Endpoints**. |

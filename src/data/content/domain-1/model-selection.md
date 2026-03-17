@@ -87,6 +87,141 @@ New models drop constantly. What was best-in-class last month might be outdated 
 
 ---
 
+## Model Evaluation Jobs in Depth
+
+Bedrock Model Evaluation isn't just a feature—it's a systematic approach to comparing models objectively. Understanding how to set up and interpret evaluations is critical for both real projects and the exam.
+
+### Creating a Test Dataset
+
+Your evaluation is only as good as your test data. The format is **JSONL** (JSON Lines)—one JSON object per line:
+
+```json
+{"prompt": "Summarize: The quick brown fox...", "referenceResponse": "A fox jumped over a dog."}
+{"prompt": "Summarize: In 1969, Neil Armstrong...", "referenceResponse": "Armstrong walked on the moon in 1969."}
+{"prompt": "Summarize: The mitochondria is...", "referenceResponse": "Mitochondria produce cellular energy."}
+```
+
+For RAG evaluations, include the retrieved context:
+
+```json
+{"prompt": "What is the refund policy?", "context": "Our refund policy allows returns within 30 days...", "referenceResponse": "Returns are accepted within 30 days."}
+```
+
+**Dataset Requirements**:
+- Minimum 10 examples, recommended 100+
+- Must include `prompt` field
+- `referenceResponse` required for accuracy metrics
+- Upload to S3 before starting evaluation
+
+### Evaluation Types
+
+**Automatic Evaluation**
+
+Uses metrics computed without human involvement:
+
+| Metric | Best For | How It Works |
+|--------|----------|--------------|
+| **ROUGE** | Summarization | Measures n-gram overlap with reference |
+| **BERTScore** | Semantic similarity | Uses embeddings to compare meaning |
+| **F1 Score** | Classification | Precision/recall balance |
+| **Exact Match** | Extraction tasks | Binary—did it match exactly? |
+
+Automatic metrics are fast and cheap but can miss nuance. A response might be correct but phrased differently, scoring poorly on ROUGE.
+
+**Human Evaluation**
+
+Humans rate responses on criteria you define:
+
+- **Likert scales** (1-5): "Rate helpfulness from 1 to 5"
+- **Binary**: "Is this response accurate? Yes/No"
+- **Ranking**: "Which response is better, A or B?"
+- **Thumbs up/down**: Simple preference signal
+
+Human evaluation catches subtleties that metrics miss but is slower and more expensive. Use for high-stakes applications where quality really matters.
+
+**LLM-as-a-Judge**
+
+Use a foundation model to evaluate another model's outputs. You define criteria, and the judge model scores responses.
+
+```json
+{
+  "evaluationCriteria": "Rate the response on accuracy (1-5), helpfulness (1-5), and safety (1-5)."
+}
+```
+
+LLM-as-judge is faster than human evaluation and more nuanced than automatic metrics. The tradeoff: judges can have biases and may favor responses similar to their own style.
+
+### RAG-Specific Metrics
+
+When evaluating RAG systems, standard metrics aren't enough. Bedrock provides RAG-specific metrics:
+
+**Context Relevance**: Are the retrieved documents relevant to the query? High relevance means your retrieval is working.
+
+**Faithfulness (Groundedness)**: Is the response supported by the retrieved context? Low faithfulness indicates hallucination—the model is making things up instead of using the provided documents.
+
+**Answer Relevance**: Does the response actually answer the question? A response might be faithful to context but miss the point.
+
+**Answer Correctness**: Is the response factually correct? Requires reference answers in your dataset.
+
+### Running an Evaluation Job
+
+1. **Create your dataset** in JSONL format and upload to S3
+2. **Configure the evaluation job**:
+   - Select models to evaluate (can compare multiple)
+   - Choose metrics (automatic, human, LLM-as-judge)
+   - Specify the S3 location for results
+3. **Start the job** via console or API
+4. **Review results** in the Bedrock console or download from S3
+
+```typescript
+const response = await bedrockClient.createEvaluationJob({
+  jobName: 'claude-comparison-eval',
+  roleArn: 'arn:aws:iam::123456789012:role/BedrockEvalRole',
+  evaluationConfig: {
+    automated: {
+      datasetMetricConfigs: [{
+        taskType: 'Summarization',
+        metricNames: ['Rouge', 'BertScore']
+      }]
+    }
+  },
+  inferenceConfig: {
+    models: [
+      { modelIdentifier: 'anthropic.claude-3-haiku-20240307-v1:0' },
+      { modelIdentifier: 'anthropic.claude-3-sonnet-20240229-v1:0' }
+    ]
+  },
+  outputDataConfig: {
+    s3Uri: 's3://my-bucket/eval-results/'
+  }
+});
+```
+
+### Interpreting Results
+
+Evaluation jobs produce detailed reports showing:
+
+- **Per-model scores** for each metric
+- **Per-example breakdowns** showing where models succeed or fail
+- **Statistical comparisons** between models
+
+Look for patterns:
+- Does one model consistently fail on certain types of inputs?
+- Is the accuracy difference worth the cost difference?
+- Are failures correlated with input length, complexity, or topic?
+
+### Evaluation Best Practices
+
+**Representative data**: Your test set should mirror real usage. If 80% of production queries are simple and 20% are complex, your test set should reflect that.
+
+**Include edge cases**: Add the weird inputs that break things—very long prompts, unusual formatting, ambiguous questions.
+
+**Version your datasets**: When you improve your test set, keep the old version. You'll want to track performance over time with consistent baselines.
+
+**Automate regular evaluation**: Build evaluation into your CI/CD pipeline. When prompts change or new models release, automatically re-evaluate.
+
+---
+
 ## Dynamic Model Selection Patterns
 
 Smart systems don't hardcode model choices—they adapt.
@@ -235,11 +370,71 @@ Models fail. Regions go down. Latency spikes. Your app needs to handle it.
 
 ### Cross-Region Inference
 
-The easy button for regional resilience.
+The easy button for regional resilience—and one of the most exam-relevant topics for high availability.
 
-Enable it, and Bedrock automatically routes requests to available regions when your primary region has issues. Use an **inference profile ARN** instead of a model ID. Bedrock handles the routing transparently.
+Cross-Region Inference automatically routes requests to available regions when your primary region has capacity constraints or issues. Instead of specifying a model ID, you use an **inference profile ARN**.
 
-**Important**: Cross-Region Inference routes to regions within the same geographic area (US regions route to other US regions).
+**How Inference Profiles Work**
+
+An inference profile abstracts the model from the region. Here's the ARN format:
+
+```
+arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-3-sonnet-20240229-v1:0
+```
+
+Notice the **`us.`** prefix on the model identifier—this indicates a US-based profile that can route across US regions. When you invoke with this ARN instead of a model ID, Bedrock:
+
+1. Checks capacity in your specified region
+2. If constrained, routes to another region in the same geography
+3. Returns the response transparently—your code doesn't know the difference
+
+**Geographic Data Residency**
+
+Cross-Region Inference respects compliance boundaries:
+
+| Your Region | Routes To |
+|-------------|-----------|
+| US regions (us-east-1, us-west-2, etc.) | Other US regions only |
+| EU regions (eu-west-1, eu-central-1, etc.) | Other EU regions only |
+| AP regions | Other AP regions only |
+
+Data never leaves its geographic area. This is critical for **GDPR**, **data sovereignty**, and compliance requirements.
+
+**When Cross-Region Inference Helps**
+
+- **Capacity constraints**: High demand in one region
+- **Regional outages**: Service disruptions in your primary region
+- **Latency optimization**: Can route to the region with best current performance
+
+**When It Doesn't Help**
+
+Cross-Region Inference doesn't change:
+- **Model quotas** (still per-account, per-region)
+- **Pricing** (same cost regardless of actual region)
+- **Model availability** (model must be available in target regions)
+
+**Using Inference Profiles in Code**
+
+```typescript
+// Instead of this (model ID):
+const response = await client.invokeModel({
+  modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
+  body: payload
+});
+
+// Use this (inference profile ARN):
+const response = await client.invokeModel({
+  modelId: 'arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-3-sonnet-20240229-v1:0',
+  body: payload
+});
+```
+
+**System-Defined vs Application Inference Profiles**
+
+- **System-defined profiles**: AWS-managed, automatically route across regions. Use the `us.`, `eu.`, or `ap.` prefix.
+- **Application inference profiles**: You create these to customize routing behavior or associate with specific configurations.
+
+For the exam, remember: **inference profile ARN = Cross-Region Inference = automatic regional failover**.
 
 ### Circuit Breakers
 
@@ -310,10 +505,14 @@ Minimizes risk:
 |-----------------|----------|
 | "MOST cost-effective" | Start small. Classification, extraction, simple summarization → cheap models. Consider cascading. |
 | "change models without deployment" | AWS AppConfig (or Parameter Store for simpler cases) |
-| "high availability or resilience" | Cross-Region Inference for Bedrock failover |
+| "high availability or resilience" | Cross-Region Inference with **inference profile ARN** |
 | "complex reasoning" or "nuanced analysis" | Larger models |
 | "specific format" or "consistent style" | Fine-tuning |
 | "domain knowledge" or "proprietary terminology" | Continued pre-training |
+| "compare models objectively" | Bedrock Model Evaluation with **JSONL test dataset** |
+| "RAG quality" or "hallucination detection" | RAG metrics: **context relevance**, **faithfulness**, **groundedness** |
+| "data residency" or "compliance" | Cross-Region Inference respects geographic boundaries (US→US, EU→EU) |
+| "evaluate at scale" | **LLM-as-a-judge** for faster evaluation than human review |
 
 ---
 

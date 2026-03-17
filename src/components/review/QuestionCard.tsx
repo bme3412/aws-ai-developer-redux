@@ -244,6 +244,17 @@ export default function QuestionCard({
               </div>
             )}
 
+            {/* Article Reference */}
+            {question.articleReference && (
+              <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <span className="text-blue-500 flex-shrink-0 mt-0.5">📖</span>
+                <div>
+                  <span className="text-sm font-semibold text-blue-700">From Reading: </span>
+                  <span className="text-sm text-gray-700">{question.articleReference}</span>
+                </div>
+              </div>
+            )}
+
             {/* Exam Tip */}
             {question.examTip && (
               <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
