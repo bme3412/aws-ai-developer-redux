@@ -498,11 +498,13 @@ Run this after any change to chunking, embeddings, or retrieval logic.
 
 ## Common Mistakes
 
-- **Wrong chunk size** — Too big loses precision, too small loses context
-- **Different embedding models** — Indexing with one, querying with another
-- **No hybrid search** — Semantic alone misses exact keyword matches
-- **Skipping evaluation** — Assuming retrieval "just works"
-- **No golden dataset** — No way to catch regressions
+| Mistake | Why It Matters |
+|---------|----------------|
+| **Wrong chunk size** | Too big and embeddings become semantic mush. Too small and you lose context. Match chunk size to your content structure. |
+| **Mixing embedding models** | If you index with Titan v1 and query with Cohere, vectors won't be comparable. Same model everywhere, always. |
+| **Semantic search only** | Sometimes users search for exact terms. Hybrid search (vector + keyword) catches both semantic similarity and keyword matches. |
+| **Skipping evaluation** | Assuming retrieval "just works" leads to silent failures. Measure precision and recall systematically. |
+| **No golden dataset** | Without regression tests, you won't know when changes break retrieval. Maintain test cases with known answers. |
 
 ---
 
@@ -521,9 +523,20 @@ Run this after any change to chunking, embeddings, or retrieval logic.
 
 ## Key Takeaways
 
-1. **RAG grounds FM responses in your documents** — This is how you stop hallucination
-2. **Chunking is foundational** — Match strategy to document structure, use overlap
-3. **Same embedding model everywhere** — Query and documents must match
-4. **OpenSearch for production** — Knowledge Bases managed for prototyping
-5. **Debug systematically** — Retrieval → Context → Generation
-6. **Test with golden datasets** — Catch regressions before users do
+> **1. RAG stops hallucination.**
+> Instead of making things up, the FM synthesizes answers from your actual documents. Grounded responses cite sources.
+
+> **2. Chunking is foundational.**
+> Match strategy to document structure. Too big loses precision, too small loses context. Use overlap to avoid losing information at boundaries.
+
+> **3. Same embedding model everywhere.**
+> Query and document embeddings MUST use the same model. Different models produce incompatible vector spaces.
+
+> **4. Choose vector store by maturity.**
+> Knowledge Bases managed store for prototyping. OpenSearch Service for production scale. Aurora pgvector if you're already on Aurora.
+
+> **5. Debug systematically.**
+> When answers are wrong: Check retrieval first (right chunks?), then context (answer in chunks?), then generation (FM used context?).
+
+> **6. Test with golden datasets.**
+> Maintain test cases with known answers. Run regression tests after any change to catch quality degradation before users do.

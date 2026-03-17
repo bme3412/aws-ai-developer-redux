@@ -272,18 +272,29 @@ The AI can give a useful, personalized response.
 
 ## Key Takeaways
 
-1. **Validate BEFORE sending to AI**—catch errors early, save money
-2. **Glue Data Quality = batch rules; Lambda = real-time custom logic**
-3. **Comprehend for entities/sentiment**—cheaper than FM calls
-4. **Textract for documents, Transcribe for audio, Bedrock for images**
-5. **Build a formatting layer**—don't repeat JSON construction everywhere
+> **1. Validate before sending to AI.**
+> Catch errors early, save money. The model won't tell you when input is bad—it just produces garbage output.
+
+> **2. Match the service to the task.**
+> Glue Data Quality for batch validation with declarative rules. Lambda for real-time custom logic.
+
+> **3. Use Comprehend for standard NLP.**
+> Entity extraction and sentiment analysis are faster and cheaper than FM calls for these common tasks.
+
+> **4. Choose the right extraction tool.**
+> Textract for documents and OCR, Transcribe for audio, Bedrock's native multimodal for images.
+
+> **5. Centralize formatting logic.**
+> Build a formatting layer instead of constructing JSON throughout your codebase. When APIs change, you fix one place.
 
 ---
 
 ## Common Mistakes
 
-- Skipping validation (AI produces garbage, not errors)
-- Using expensive FMs for tasks Comprehend handles better
-- Forgetting token limits (inputs get truncated or fail)
-- Not base64-encoding images correctly for multimodal
-- Building formatting logic everywhere instead of centralizing
+| Mistake | Why It Matters |
+|---------|----------------|
+| **Skipping validation** | AI produces garbage output, not errors. You won't know until users complain about nonsensical responses. |
+| **Using FMs for standard NLP tasks** | Comprehend handles entity extraction and sentiment faster and cheaper. Reserve FMs for complex reasoning. |
+| **Forgetting token limits** | Inputs get truncated or requests fail outright. Count tokens before sending and handle oversized inputs gracefully. |
+| **Incorrect image encoding** | Multimodal APIs need proper base64 encoding with correct content type headers. Corrupted images fail silently. |
+| **Scattered formatting logic** | JSON construction in ten places means ten places to update when APIs change. Centralize it. |

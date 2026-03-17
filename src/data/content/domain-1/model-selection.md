@@ -319,18 +319,29 @@ Minimizes risk:
 
 ## Key Takeaways
 
-1. **Match model size to task complexity**—big models for simple tasks waste money
-2. **Bedrock Model Evaluations** compares models objectively with YOUR data
-3. **AppConfig** enables model switching without code deployment
-4. **Cross-Region Inference** provides automatic failover—easy high availability
-5. **Try prompt engineering before fine-tuning**—it's free to iterate
+> **1. Match model size to task complexity.**
+> Big models for simple tasks waste money. Classification, extraction, and simple Q&A don't need Opus-level reasoning.
+
+> **2. Test with YOUR data.**
+> Bedrock Model Evaluations compares models objectively using your actual use cases, not generic benchmarks.
+
+> **3. Use configuration, not code.**
+> AWS AppConfig enables model switching without deployment. Gradual rollouts, automatic rollback, environment-specific configs.
+
+> **4. Cross-Region Inference is free resilience.**
+> Use inference profile ARNs instead of model IDs and get automatic failover without architectural complexity.
+
+> **5. Prompt engineering before fine-tuning.**
+> Many "I need to fine-tune" situations are actually "I need better prompts." Prompts are free to iterate; fine-tuning costs time and money.
 
 ---
 
 ## Common Mistakes
 
-- Defaulting to the biggest model without checking if smaller works
-- Fine-tuning when better prompts would solve the problem
-- Single-region deployment for critical apps (no failover)
-- Hardcoding model IDs instead of using configuration
-- No fallback plan when models are unavailable
+| Mistake | Why It Matters |
+|---------|----------------|
+| **Defaulting to the biggest model** | Haiku handles most classification and extraction tasks. Using Opus costs 60x more for no benefit. |
+| **Fine-tuning before exhausting prompt options** | Fine-tuning takes weeks and costs thousands. Better prompts often solve the problem for free. |
+| **Single-region deployment** | When that region has issues, your app goes down. Cross-Region Inference is a simple configuration change. |
+| **Hardcoding model IDs** | You'll need to redeploy every time you want to switch models. Configuration lets you switch instantly. |
+| **No fallback plan** | Models fail, regions go down. Without graceful degradation, your users see errors instead of reduced functionality. |

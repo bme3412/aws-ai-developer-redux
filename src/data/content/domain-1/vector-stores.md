@@ -362,19 +362,32 @@ Build observability from the start.
 
 ## Key Takeaways
 
-1. **Bedrock KB is the simplest path to RAG**—handles parsing, chunking, embedding, and sync
-2. **OpenSearch for hybrid search, advanced filtering, and scale**—use when you need these
-3. **Aurora pgvector for existing PostgreSQL workloads**—not as a default choice
-4. **Chunking strategy directly impacts retrieval quality**—test different sizes
-5. **Plan metadata schema before ingestion**—adding fields later means re-processing everything
-6. **Chunking strategy CANNOT be changed after data source creation**
+> **1. Bedrock KB is the starting point.**
+> Handles parsing, chunking, embedding, and sync automatically. Most RAG projects don't need more than this.
+
+> **2. OpenSearch for genuine requirements.**
+> Hybrid search, advanced boolean filtering, billion-vector scale. Use when you actually need these features, not "just in case."
+
+> **3. Aurora pgvector if you're already there.**
+> Adding vectors to existing PostgreSQL is simpler than introducing a new database. But don't choose it as a default.
+
+> **4. Chunking strategy matters enormously.**
+> Hierarchical + hybrid search + reranking is the production default. Test different sizes with your actual content and queries.
+
+> **5. Plan metadata schema upfront.**
+> Adding fields later means re-processing all documents. Design filters before bulk ingestion.
+
+> **6. Chunking is permanent per data source.**
+> You cannot change chunking strategy after creating a data source. Choose wisely or prepare to re-ingest everything.
 
 ---
 
 ## Common Mistakes
 
-- Choosing OpenSearch when Bedrock KB would suffice (unnecessary complexity)
-- Forgetting that Bedrock KB handles chunking automatically
-- Not using hybrid search when both keywords and semantics matter
-- Using DynamoDB for vector search (it's for metadata, not vectors)
-- Skipping metadata planning and re-processing documents later
+| Mistake | Why It Matters |
+|---------|----------------|
+| **Choosing OpenSearch "just in case"** | Like buying a sports car for grocery runs. You're paying for complexity you don't need. Start with Bedrock KB. |
+| **Reimplementing what Bedrock KB does** | The service handles parsing, chunking, embedding, and sync. Building this yourself wastes time. |
+| **Vector search only** | When users search for exact terms like error code 'E-1042', pure semantic search fails. Enable hybrid mode. |
+| **DynamoDB for vectors** | DynamoDB is for metadata, not vector similarity search. Use a proper vector store. |
+| **No metadata planning** | Adding filter fields after ingestion means re-processing all documents. Design the schema before bulk loading. |

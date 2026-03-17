@@ -432,18 +432,29 @@ Build retry logic, fallback paths, and graceful degradation. Step Functions exce
 
 ## Key Takeaways
 
-1. **Zero-shot for simple tasks; few-shot for format; chain-of-thought for reasoning**
-2. **Chain-of-thought ('think step by step') dramatically improves complex reasoning**
-3. **Bedrock Prompt Management provides centralized governance with versioning**
-4. **Prompt Flows for visual orchestration; Step Functions for complex production**
-5. **Always validate outputs**—don't trust FM responses without checking
+> **1. Match technique to task.**
+> Zero-shot for simple tasks where the model already knows what to do. Few-shot when format or style is hard to describe in words. Chain-of-thought for complex reasoning.
+
+> **2. Chain-of-thought doubles accuracy.**
+> Just adding "Let's think through this step by step" dramatically improves performance on math, logic, and multi-step analysis.
+
+> **3. Centralize prompt management.**
+> Bedrock Prompt Management provides version control, audit trails, and governance. Prompts buried in application code become impossible to track.
+
+> **4. Choose the right orchestration tool.**
+> Prompt Flows for visual, no-code prototyping. Step Functions when you need sophisticated branching, parallel execution, and error handling.
+
+> **5. Always validate outputs.**
+> FM responses are probabilistic. Check structure, verify business rules, filter content before delivering to users.
 
 ---
 
 ## Common Mistakes
 
-- Fine-tuning when prompt engineering would solve the problem at zero cost
-- Not using few-shot examples when format consistency is required
-- Skipping output validation in production pipelines
-- Storing prompts in application code instead of managed services
-- Building monolithic prompts when chaining simpler prompts would work better
+| Mistake | Why It Matters |
+|---------|----------------|
+| **Fine-tuning before exhausting prompt options** | Fine-tuning costs time and money. Prompt engineering is free to iterate and often solves the problem. |
+| **Skipping few-shot examples** | When format consistency is required, showing examples beats describing format in words. Include both positive and negative examples. |
+| **No output validation** | FM responses are probabilistic. Without validation, malformed or inappropriate content reaches users. |
+| **Prompts scattered in application code** | Impossible to track versions, audit changes, or maintain governance. Centralize in Prompt Management. |
+| **Monolithic prompts for complex tasks** | Chaining simpler, focused prompts often beats a single prompt trying to do everything at once. |

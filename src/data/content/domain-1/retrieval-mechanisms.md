@@ -371,18 +371,29 @@ The FM invokes Lambda via tool calling, Lambda performs the retrieval, returns r
 
 ## Key Takeaways
 
-1. **Chunking strategy directly impacts retrieval**—test different sizes with your content
-2. **Titan Embeddings V2** is the default; evaluate alternatives on your specific domain
-3. **Hybrid search (keyword + vector)** beats pure vector for most production RAG
-4. **Reranking improves precision** significantly but adds latency—use for high-stakes
-5. **Query optimization** (expansion, decomposition, HyDE) bridges the query-document gap
+> **1. Chunking is where RAG succeeds or fails.**
+> Test different sizes with your content. Too big dilutes relevance, too small loses context. Hierarchical chunking gives you both.
+
+> **2. Titan Embeddings V2 is the default.**
+> Flexible dimensions (256/512/1024) let you trade accuracy for cost. Evaluate on YOUR domain—general benchmarks don't predict domain-specific performance.
+
+> **3. Hybrid search is the production default.**
+> Combining keyword (BM25) with vector similarity catches both exact matches and semantic relevance. Enable HYBRID mode in Bedrock KB.
+
+> **4. Reranking is the precision lever.**
+> Retrieve broadly (top-20), rerank narrowly (top-5). Cross-encoders catch relevance signals that separate embeddings miss. Worth the latency for high-stakes queries.
+
+> **5. Optimize queries, not just retrieval.**
+> Query expansion, decomposition, HyDE, and reformulation bridge the gap between messy user input and clean document text.
 
 ---
 
 ## Common Mistakes
 
-- Using only vector search when hybrid would produce better results
-- Chunks too large (diluted relevance) or too small (lost context)
-- Not evaluating embedding models on domain-specific test queries
-- Skipping query preprocessing for user-facing applications
-- Assuming retrieval is "good enough" without measuring recall
+| Mistake | Why It Matters |
+|---------|----------------|
+| **Vector search only** | Pure semantic search misses exact keyword matches. Error code 'E-1042' might retrieve general "error" docs instead of the specific match. |
+| **Wrong chunk size** | Too large and embeddings become semantic mush. Too small and context is lost. Test with your actual content and queries. |
+| **Skipping domain evaluation** | An embedding model crushing general benchmarks might struggle with your medical/legal/technical terminology. Evaluate with YOUR data. |
+| **No query preprocessing** | Users type messy queries with typos and ambiguity. Query expansion and reformulation dramatically improve retrieval quality. |
+| **Assuming retrieval works** | Without measuring recall@k on test queries, you're flying blind. Silent retrieval failures cause wrong answers downstream. |

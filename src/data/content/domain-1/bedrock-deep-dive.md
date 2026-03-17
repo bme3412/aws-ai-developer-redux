@@ -556,19 +556,32 @@ Simple → Haiku | Complex → Sonnet
 
 ## Key Takeaways
 
-1. **Bedrock is a managed API layer**—no infrastructure in your account
-2. **InvokeModel for sync, InvokeModelWithResponseStream for streaming**
-3. **Knowledge Bases provide managed RAG** with chunking, embedding, and retrieval
-4. **Agents enable autonomous tool calling** with ReAct pattern
-5. **Guardrails filter content, block topics, and protect PII**
-6. **Model selection**: Haiku (cheap/fast) → Sonnet (balanced) → Opus (best reasoning)
+> **1. Bedrock is a managed API layer.**
+> No infrastructure in your account. AWS handles scaling, availability, and model hosting entirely.
+
+> **2. Choose the right invocation pattern.**
+> InvokeModel for sync responses, InvokeModelWithResponseStream for streaming. Streaming is essential for chatbots and long outputs.
+
+> **3. Knowledge Bases provide managed RAG.**
+> Handle chunking, embedding generation, vector storage, and retrieval automatically. Use RetrieveAndGenerate for simple cases.
+
+> **4. Agents enable autonomous tool calling.**
+> The ReAct pattern (Reason → Act → Observe → Repeat) lets agents break down complex tasks and call external tools.
+
+> **5. Guardrails are essential for production.**
+> Filter harmful content, block sensitive topics, and protect PII. Apply to both inputs and outputs.
+
+> **6. Model selection is a cost lever.**
+> Haiku (cheap/fast) → Sonnet (balanced) → Opus (best reasoning). Match model capability to task complexity.
 
 ---
 
 ## Common Mistakes
 
-- Using InvokeModel instead of streaming for long responses (poor UX)
-- Not enabling Guardrails for user-facing applications
-- Using expensive models (Opus) for simple tasks that Haiku handles
-- Forgetting VPC Endpoints when private connectivity is required
-- Not considering Provisioned Throughput for sustained high-volume workloads
+| Mistake | Why It Matters |
+|---------|----------------|
+| **Using InvokeModel instead of streaming for long responses** | Users see nothing until the full response completes. Streaming provides immediate feedback and better perceived latency. |
+| **Not enabling Guardrails for user-facing applications** | Without guardrails, the model may generate harmful, off-topic, or PII-revealing content. Defense in depth is critical. |
+| **Using expensive models for simple tasks** | Opus costs 60x more than Haiku. Simple classification or FAQ tasks don't need complex reasoning capabilities. |
+| **Forgetting VPC Endpoints** | Without them, API calls traverse the public internet. For compliance and security, private connectivity may be required. |
+| **Not considering Provisioned Throughput** | On-demand pricing is convenient but expensive at scale. High-volume workloads benefit from capacity commitments. |
