@@ -309,7 +309,7 @@
           "Bedrock multimodal = images, not audio",
           "Rekognition = visual analysis"
         ],
-        "decisionFramework": "Audio → Text = Amazon Transcribe. Text → Audio = Amazon Polly."
+        "decisionFramework": "Audio \u2192 Text = Amazon Transcribe. Text \u2192 Audio = Amazon Polly."
       },
       "services": [
         "Amazon Transcribe",
@@ -349,11 +349,11 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "Amazon Bedrock Knowledge Bases with managed vector store provides the fastest path to production RAG. It handles chunking, embedding, indexing, and S3 synchronization automatically. The team doesn't need search infrastructure experience—they just point it at S3.",
+      "explanation": "Amazon Bedrock Knowledge Bases with managed vector store provides the fastest path to production RAG. It handles chunking, embedding, indexing, and S3 synchronization automatically. The team doesn't need search infrastructure experience\u2014they just point it at S3.",
       "incorrectExplanations": {
         "a": "Aurora pgvector requires database administration, custom ETL pipelines for sync, and embedding infrastructure.",
-        "b": "Self-managed Elasticsearch has the highest operational burden—cluster management, scaling, and custom pipelines.",
-        "d": "OpenSearch requires cluster management, index configuration, and custom Lambda functions for sync—significant operational overhead."
+        "b": "Self-managed Elasticsearch has the highest operational burden\u2014cluster management, scaling, and custom pipelines.",
+        "d": "OpenSearch requires cluster management, index configuration, and custom Lambda functions for sync\u2014significant operational overhead."
       },
       "parseStrategy": {
         "keyPhrase": "minimal operational burden",
@@ -412,10 +412,10 @@
         "keyPhrase": "hybrid search and sharding",
         "eliminationHints": [
           "DynamoDB = not a vector store",
-          "Basic hybrid needs ≠ advanced control",
+          "Basic hybrid needs \u2260 advanced control",
           "Look for explicit hybrid + sharding capabilities"
         ],
-        "decisionFramework": "Advanced search features (sharding, ranking control, multi-index) → OpenSearch. Simple managed → Bedrock KB."
+        "decisionFramework": "Advanced search features (sharding, ranking control, multi-index) \u2192 OpenSearch. Simple managed \u2192 Bedrock KB."
       },
       "services": [
         "Amazon OpenSearch Service"
@@ -511,7 +511,7 @@
       "incorrectExplanations": {
         "b": "Increasing top-k returns more results but doesn't address why relevant results aren't being found in the first place.",
         "c": "Metadata tags help with filtering categories but don't address semantic similarity between different terms for the same concept.",
-        "d": "Smaller chunks don't solve terminology mismatch—the issue is matching semantically similar but lexically different terms."
+        "d": "Smaller chunks don't solve terminology mismatch\u2014the issue is matching semantically similar but lexically different terms."
       },
       "parseStrategy": {
         "keyPhrase": "terminology mismatch",
@@ -520,13 +520,13 @@
           "Smaller chunks = different problem",
           "Metadata = filtering, not similarity"
         ],
-        "decisionFramework": "Terminology/semantic mismatch → hybrid search or semantic search. Combines lexical and conceptual matching."
+        "decisionFramework": "Terminology/semantic mismatch \u2192 hybrid search or semantic search. Combines lexical and conceptual matching."
       },
       "services": [
         "Amazon OpenSearch Service",
         "Amazon Bedrock"
       ],
-      "examTip": "Hybrid search addresses the vocabulary mismatch problem—users and documents use different words for same concepts."
+      "examTip": "Hybrid search addresses the vocabulary mismatch problem\u2014users and documents use different words for same concepts."
     },
     {
       "id": "d1-q11",
@@ -564,7 +564,7 @@
       "incorrectExplanations": {
         "a": "S3 versioning stores files but doesn't provide prompt-specific features like templates, guardrail integration, or FM-aware versioning.",
         "b": "Parameter Store can store text but lacks prompt-specific features like templates, guardrail integration, and prompt testing capabilities.",
-        "d": "DynamoDB would require building custom prompt management features—no native guardrail integration or template support."
+        "d": "DynamoDB would require building custom prompt management features\u2014no native guardrail integration or template support."
       },
       "parseStrategy": {
         "keyPhrase": "centralized prompt management",
@@ -626,7 +626,7 @@
           "Fewer tokens = potential truncation",
           "Few-shot = format, not reasoning"
         ],
-        "decisionFramework": "Complex reasoning tasks → chain-of-thought. Ask the model to 'think step by step.'"
+        "decisionFramework": "Complex reasoning tasks \u2192 chain-of-thought. Ask the model to 'think step by step.'"
       },
       "services": [
         "Amazon Bedrock"
@@ -665,10 +665,10 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "Amazon Bedrock Prompt Flows provides a visual, no-code interface for building multi-step prompt workflows. You can chain prompts, add conditional branching, and connect to data sources—all without writing orchestration code. It's purpose-built for prompt chaining scenarios.",
+      "explanation": "Amazon Bedrock Prompt Flows provides a visual, no-code interface for building multi-step prompt workflows. You can chain prompts, add conditional branching, and connect to data sources\u2014all without writing orchestration code. It's purpose-built for prompt chaining scenarios.",
       "incorrectExplanations": {
         "a": "Glue workflows are for ETL data processing, not prompt orchestration, and require Python scripting.",
-        "b": "Step Functions requires defining state machines and Lambda functions—this is code, not no-code orchestration.",
+        "b": "Step Functions requires defining state machines and Lambda functions\u2014this is code, not no-code orchestration.",
         "d": "EventBridge is for event-driven architectures, not sequential prompt orchestration with data flow between steps."
       },
       "parseStrategy": {
@@ -678,7 +678,7 @@
           "EventBridge = events, not orchestration",
           "Glue = ETL, not prompts"
         ],
-        "decisionFramework": "Prompt chaining with no-code → Bedrock Prompt Flows. Complex with code → Step Functions."
+        "decisionFramework": "Prompt chaining with no-code \u2192 Bedrock Prompt Flows. Complex with code \u2192 Step Functions."
       },
       "services": [
         "Amazon Bedrock Prompt Flows"
@@ -719,7 +719,7 @@
       ],
       "explanation": "Fine-tuning with input/output examples teaches the model the exact output format required. This is the most effective approach for consistent formatting because the model learns from examples of correct format, not just instructions. It requires less data than continued pre-training and directly addresses format consistency.",
       "incorrectExplanations": {
-        "a": "Continued pre-training adds domain knowledge but doesn't specifically address output format consistency—that's a behavior, not knowledge.",
+        "a": "Continued pre-training adds domain knowledge but doesn't specifically address output format consistency\u2014that's a behavior, not knowledge.",
         "b": "Post-processing adds latency and complexity. It treats symptoms rather than fixing the root cause of format inconsistency.",
         "d": "Larger models don't guarantee better format adherence. The issue is behavior training, not capability."
       },
@@ -730,7 +730,7 @@
           "Larger model = not a format solution",
           "Post-processing = workaround, not fix"
         ],
-        "decisionFramework": "Format/style consistency → fine-tuning with examples. Domain knowledge → continued pre-training."
+        "decisionFramework": "Format/style consistency \u2192 fine-tuning with examples. Domain knowledge \u2192 continued pre-training."
       },
       "services": [
         "Amazon Bedrock"
@@ -773,7 +773,7 @@
       "incorrectExplanations": {
         "a": "Few-shot examples would need to cover too many variations of informal language to be practical.",
         "b": "While larger models may handle varied inputs better, this doesn't address the root cause and significantly increases costs.",
-        "c": "Higher temperature increases randomness in outputs—it doesn't help the model understand messy inputs better."
+        "c": "Higher temperature increases randomness in outputs\u2014it doesn't help the model understand messy inputs better."
       },
       "parseStrategy": {
         "keyPhrase": "improve FM response quality",
@@ -834,7 +834,7 @@
           "Post-filtering = wasteful",
           "Pre-filtering with metadata is optimal"
         ],
-        "decisionFramework": "Access control in RAG → metadata tags + filter during retrieval. Pre-filter, don't post-filter."
+        "decisionFramework": "Access control in RAG \u2192 metadata tags + filter during retrieval. Pre-filter, don't post-filter."
       },
       "services": [
         "Amazon Bedrock Knowledge Bases",
@@ -877,17 +877,17 @@
       "explanation": "Cohere Embed Multilingual is designed to place semantically similar content close in vector space regardless of language. A query in Spanish can match documents in French if they cover the same topic. This eliminates the need for translation or separate language indexes.",
       "incorrectExplanations": {
         "a": "Translating all content to English loses nuance and adds latency and cost. Cross-language models are a better solution.",
-        "b": "Separate indexes don't enable cross-language retrieval—a Spanish query wouldn't find relevant English documents.",
+        "b": "Separate indexes don't enable cross-language retrieval\u2014a Spanish query wouldn't find relevant English documents.",
         "c": "Dimension count doesn't address multilingual capability. A high-dimension English-only model won't help with cross-language retrieval."
       },
       "parseStrategy": {
         "keyPhrase": "multilingual",
         "eliminationHints": [
-          "Dimension ≠ language support",
+          "Dimension \u2260 language support",
           "Translation = added complexity",
           "Separate indexes = no cross-language retrieval"
         ],
-        "decisionFramework": "Multilingual RAG → multilingual embedding model. Cross-language similarity without translation."
+        "decisionFramework": "Multilingual RAG \u2192 multilingual embedding model. Cross-language similarity without translation."
       },
       "services": [
         "Amazon Bedrock"
@@ -928,18 +928,18 @@
       ],
       "explanation": "Query decomposition breaks complex multi-topic questions into focused sub-queries. For this example: one query about EV environmental impact, one about hydrogen fuel cells, with facets for manufacturing, usage, and disposal. Each sub-query retrieves relevant documents, and results are aggregated for comprehensive coverage.",
       "incorrectExplanations": {
-        "a": "Higher top-k returns more results but doesn't ensure coverage of all topics—you might get many documents about EVs and none about hydrogen.",
+        "a": "Higher top-k returns more results but doesn't ensure coverage of all topics\u2014you might get many documents about EVs and none about hydrogen.",
         "b": "Hybrid search improves matching but doesn't address the multi-topic nature of the query.",
         "c": "Query expansion adds related terms but doesn't decompose the multi-faceted question into searchable components."
       },
       "parseStrategy": {
         "keyPhrase": "complex multi-topic questions",
         "eliminationHints": [
-          "More results ≠ better topic coverage",
+          "More results \u2260 better topic coverage",
           "Query expansion = single expanded query",
           "Hybrid = matching, not decomposition"
         ],
-        "decisionFramework": "Multi-part questions → query decomposition. Break into sub-queries, aggregate results."
+        "decisionFramework": "Multi-part questions \u2192 query decomposition. Break into sub-queries, aggregate results."
       },
       "services": [
         "AWS Step Functions",
@@ -992,7 +992,7 @@
           "Fixed sliding window loses context",
           "Need persistent, retrievable storage"
         ],
-        "decisionFramework": "Conversation history → DynamoDB for storage. Include relevant context in prompts."
+        "decisionFramework": "Conversation history \u2192 DynamoDB for storage. Include relevant context in prompts."
       },
       "services": [
         "Amazon DynamoDB"
@@ -1033,7 +1033,7 @@
       ],
       "explanation": "A golden dataset provides consistent, automated quality measurement. Run the same test inputs regularly, compare outputs to expected baselines using similarity metrics or LLM-as-judge evaluations, and alert when quality degrades. This detects regression before users complain.",
       "incorrectExplanations": {
-        "a": "Latency and error rates don't measure output quality—a fast, error-free response can still be low quality.",
+        "a": "Latency and error rates don't measure output quality\u2014a fast, error-free response can still be low quality.",
         "b": "Manual reviews don't scale and introduce subjective variation. They can't detect regression quickly enough.",
         "c": "User feedback is lagging indicator and subject to bias. Golden datasets provide proactive, objective measurement."
       },
@@ -1041,10 +1041,10 @@
         "keyPhrase": "continuous monitoring for quality regression",
         "eliminationHints": [
           "Manual reviews = don't scale",
-          "Latency/errors ≠ quality",
+          "Latency/errors \u2260 quality",
           "User feedback = lagging indicator"
         ],
-        "decisionFramework": "Quality monitoring → golden dataset + automated comparison. Proactive, objective, continuous."
+        "decisionFramework": "Quality monitoring \u2192 golden dataset + automated comparison. Proactive, objective, continuous."
       },
       "services": [
         "Amazon CloudWatch",
@@ -1089,12 +1089,12 @@
       "explanation": "The GenAI Lens provides AI-specific guidance for Well-Architected reviews, establishing architectural standards. Shared CloudFormation templates embed these standards into deployable infrastructure, making compliance automatic. Together they provide guidance and enforcement.",
       "incorrectExplanations": {
         "a": "Manual code reviews are valuable but don't scale and don't provide proactive enforcement of standards.",
-        "c": "Mandating the same model doesn't establish architectural standards—different use cases may legitimately need different models."
+        "c": "Mandating the same model doesn't establish architectural standards\u2014different use cases may legitimately need different models."
       },
       "parseStrategy": {
         "keyPhrase": "establish and enforce standards",
         "eliminationHints": [
-          "Same model ≠ architectural standard",
+          "Same model \u2260 architectural standard",
           "Config rules = configuration, not architecture",
           "Manual reviews don't scale"
         ],
@@ -1142,17 +1142,17 @@
       ],
       "explanation": "Exponential backoff with jitter handles transient failures (rate limits, temporary errors) by spreading retry attempts. Cross-Region Inference handles regional outages by automatically routing to available regions. Together they address both failure modes mentioned in the scenario.",
       "incorrectExplanations": {
-        "a": "Synchronous vs async invocation doesn't affect availability—both can implement retry logic.",
+        "a": "Synchronous vs async invocation doesn't affect availability\u2014both can implement retry logic.",
         "b": "Caching all responses indefinitely would return stale data and doesn't address the availability of new requests."
       },
       "parseStrategy": {
         "keyPhrase": "transient failures and regional outages",
         "eliminationHints": [
-          "Same-region redundancy ≠ regional resilience",
+          "Same-region redundancy \u2260 regional resilience",
           "Sync vs async unrelated to availability",
           "Caching = stale data issue"
         ],
-        "decisionFramework": "Transient failures → retry with backoff. Regional outages → Cross-Region Inference."
+        "decisionFramework": "Transient failures \u2192 retry with backoff. Regional outages \u2192 Cross-Region Inference."
       },
       "services": [
         "Amazon Bedrock"
@@ -1194,9 +1194,9 @@
       ],
       "explanation": "Amazon Textract provides intelligent document processing including table extraction, form field recognition, and handwriting detection. The extracted content can be formatted as JSON for Bedrock API consumption. This is the appropriate service for structured document understanding.",
       "incorrectExplanations": {
-        "a": "Comprehend analyzes text for entities and sentiment—it doesn't extract text from scanned PDFs or understand document structure.",
+        "a": "Comprehend analyzes text for entities and sentiment\u2014it doesn't extract text from scanned PDFs or understand document structure.",
         "b": "Bedrock multimodal models process images, not entire PDF documents with multiple pages and complex structures.",
-        "d": "Glue is for ETL data processing—it doesn't have OCR or document structure understanding capabilities."
+        "d": "Glue is for ETL data processing\u2014it doesn't have OCR or document structure understanding capabilities."
       },
       "parseStrategy": {
         "keyPhrase": "document understanding",
@@ -1205,7 +1205,7 @@
           "Multimodal = images, not full PDFs",
           "Glue = data ETL, not document processing"
         ],
-        "decisionFramework": "Document extraction (OCR, tables, forms) → Textract. Text analysis → Comprehend."
+        "decisionFramework": "Document extraction (OCR, tables, forms) \u2192 Textract. Text analysis \u2192 Comprehend."
       },
       "services": [
         "Amazon Textract",
@@ -1249,16 +1249,16 @@
       "incorrectExplanations": {
         "a": "Hourly scheduled jobs don't meet the 15-minute requirement and may sync when nothing has changed (wasteful).",
         "b": "Manual triggering doesn't minimize manual intervention as required by the scenario.",
-        "d": "DataSync is for file transfer between storage systems—it doesn't update knowledge base vectors."
+        "d": "DataSync is for file transfer between storage systems\u2014it doesn't update knowledge base vectors."
       },
       "parseStrategy": {
         "keyPhrase": "automated near-real-time",
         "eliminationHints": [
-          "Hourly ≠ 15-minute requirement",
+          "Hourly \u2260 15-minute requirement",
           "DataSync = file transfer, not KB sync",
           "Manual = doesn't meet automation requirement"
         ],
-        "decisionFramework": "Event-driven sync → S3 events + Lambda + KB StartIngestionJob."
+        "decisionFramework": "Event-driven sync \u2192 S3 events + Lambda + KB StartIngestionJob."
       },
       "services": [
         "Amazon S3",
@@ -1302,8 +1302,8 @@
       ],
       "explanation": "Maximal Marginal Relevance (MMR) selects results that are both relevant to the query AND different from already-selected results. It explicitly balances relevance and diversity, preventing the clustering of near-duplicate results.",
       "incorrectExplanations": {
-        "a": "Higher dimensions improve precision but don't address the diversity problem—similar items will still cluster together.",
-        "b": "Lowering the threshold includes less relevant results—it doesn't address diversity among top matches.",
+        "a": "Higher dimensions improve precision but don't address the diversity problem\u2014similar items will still cluster together.",
+        "b": "Lowering the threshold includes less relevant results\u2014it doesn't address diversity among top matches.",
         "c": "Reranking optimizes for relevance, not diversity. It would actually reinforce the clustering of similar items."
       },
       "parseStrategy": {
@@ -1313,7 +1313,7 @@
           "Higher dimensions = more precision, not diversity",
           "Reranking = relevance focus"
         ],
-        "decisionFramework": "Result diversity → MMR. It explicitly optimizes for relevance + diversity."
+        "decisionFramework": "Result diversity \u2192 MMR. It explicitly optimizes for relevance + diversity."
       },
       "services": [
         "Amazon OpenSearch Service"
@@ -1354,7 +1354,7 @@
       ],
       "explanation": "AWS CloudTrail logs all API calls including Bedrock Prompt Management operations. It captures who made the call, when, and the parameters. CloudTrail logs stored in S3 with appropriate lifecycle policies provide tamper-evident, long-term retention required for compliance.",
       "incorrectExplanations": {
-        "a": "CloudWatch Logs doesn't automatically capture API calls—CloudTrail is the service for API audit logging.",
+        "a": "CloudWatch Logs doesn't automatically capture API calls\u2014CloudTrail is the service for API audit logging.",
         "c": "Git provides version control but not tamper-proof audit logging or the compliance features of CloudTrail.",
         "d": "Custom DynamoDB logging lacks the built-in integrity features and compliance certifications of CloudTrail."
       },
@@ -1363,9 +1363,9 @@
         "eliminationHints": [
           "Git = version control, not audit logging",
           "Custom logging lacks compliance features",
-          "CloudWatch ≠ API audit (that's CloudTrail)"
+          "CloudWatch \u2260 API audit (that's CloudTrail)"
         ],
-        "decisionFramework": "Audit logging for API calls → CloudTrail. It's designed for compliance requirements."
+        "decisionFramework": "Audit logging for API calls \u2192 CloudTrail. It's designed for compliance requirements."
       },
       "services": [
         "AWS CloudTrail",
@@ -1405,11 +1405,11 @@
       "correctAnswers": [
         "d"
       ],
-      "explanation": "The Amazon Bedrock playground provides immediate access to foundation models without any infrastructure setup. You can paste sample tickets, iterate on prompts, and validate classification accuracy within minutes—ideal for hypothesis testing before investing in production architecture.",
+      "explanation": "The Amazon Bedrock playground provides immediate access to foundation models without any infrastructure setup. You can paste sample tickets, iterate on prompts, and validate classification accuracy within minutes\u2014ideal for hypothesis testing before investing in production architecture.",
       "incorrectExplanations": {
         "a": "Custom model training is overkill for initial validation and takes much longer than testing with existing FMs.",
         "b": "Custom web application adds unnecessary complexity for the goal of quickly testing a hypothesis.",
-        "c": "Full production pipeline is premature for hypothesis validation—it requires significant investment before knowing if the approach works."
+        "c": "Full production pipeline is premature for hypothesis validation\u2014it requires significant investment before knowing if the approach works."
       },
       "parseStrategy": {
         "keyPhrase": "FASTEST way to validate",
@@ -1418,7 +1418,7 @@
           "Custom training = too slow",
           "Custom app = unnecessary complexity"
         ],
-        "decisionFramework": "Hypothesis validation / PoC → Bedrock playground. Zero setup, instant feedback."
+        "decisionFramework": "Hypothesis validation / PoC \u2192 Bedrock playground. Zero setup, instant feedback."
       },
       "services": [
         "Amazon Bedrock"
@@ -1457,20 +1457,20 @@
       "correctAnswers": [
         "a"
       ],
-      "explanation": "Amazon Bedrock Model Evaluations allows you to run systematic evaluations across multiple models using your custom test dataset. You define evaluation criteria, run automated tests, and get quantitative metrics (precision, recall, F1) for comparison—exactly what this scenario requires.",
+      "explanation": "Amazon Bedrock Model Evaluations allows you to run systematic evaluations across multiple models using your custom test dataset. You define evaluation criteria, run automated tests, and get quantitative metrics (precision, recall, F1) for comparison\u2014exactly what this scenario requires.",
       "incorrectExplanations": {
         "b": "Production A/B tests measure engagement, not classification accuracy. They also risk exposing users to harmful content.",
         "c": "Manual playground testing doesn't scale to 1,000 examples and doesn't provide systematic metric calculation.",
-        "d": "Comprehend toxicity is a different service—the goal is to evaluate FM performance, not compare to Comprehend."
+        "d": "Comprehend toxicity is a different service\u2014the goal is to evaluate FM performance, not compare to Comprehend."
       },
       "parseStrategy": {
         "keyPhrase": "systematic evaluation with metrics",
         "eliminationHints": [
           "Manual testing doesn't scale",
-          "Comparing to Comprehend ≠ evaluating FMs",
+          "Comparing to Comprehend \u2260 evaluating FMs",
           "A/B tests = engagement, not accuracy"
         ],
-        "decisionFramework": "Systematic model evaluation with custom data → Bedrock Model Evaluations."
+        "decisionFramework": "Systematic model evaluation with custom data \u2192 Bedrock Model Evaluations."
       },
       "services": [
         "Amazon Bedrock Model Evaluations"
@@ -1512,7 +1512,7 @@
       "explanation": "Aurora PostgreSQL with pgvector enables vector search using familiar SQL syntax. The team can leverage their existing PostgreSQL skills, use standard SQL for vector queries, and integrate with their existing analytics workflows. pgvector adds vector operations to their familiar toolset.",
       "incorrectExplanations": {
         "a": "Bedrock KB managed store is simpler but doesn't leverage the team's PostgreSQL expertise.",
-        "b": "OpenSearch requires learning a new query language and operational model—doesn't leverage PostgreSQL skills.",
+        "b": "OpenSearch requires learning a new query language and operational model\u2014doesn't leverage PostgreSQL skills.",
         "d": "DynamoDB doesn't natively support vector search and would require custom implementation."
       },
       "parseStrategy": {
@@ -1522,7 +1522,7 @@
           "OpenSearch = new query language",
           "DynamoDB = no native vector support"
         ],
-        "decisionFramework": "Existing PostgreSQL → Aurora pgvector. Familiar SQL + vector search."
+        "decisionFramework": "Existing PostgreSQL \u2192 Aurora pgvector. Familiar SQL + vector search."
       },
       "services": [
         "Amazon Aurora"
@@ -1561,11 +1561,11 @@
       "correctAnswers": [
         "d"
       ],
-      "explanation": "Bedrock function calling (via the Converse API with tools) allows the model to dynamically decide which tools/functions to invoke based on the user's question. You define tools for each data source, and the model calls the appropriate one(s)—this is the standard pattern for multi-source AI assistants.",
+      "explanation": "Bedrock function calling (via the Converse API with tools) allows the model to dynamically decide which tools/functions to invoke based on the user's question. You define tools for each data source, and the model calls the appropriate one(s)\u2014this is the standard pattern for multi-source AI assistants.",
       "incorrectExplanations": {
         "a": "A custom classifier adds complexity and requires training data. Function calling handles routing natively.",
-        "b": "Pre-querying all sources is wasteful—most queries only need one or two sources. It adds latency and cost.",
-        "c": "Comprehend entity detection is too simplistic—it can't understand the intent behind complex queries."
+        "b": "Pre-querying all sources is wasteful\u2014most queries only need one or two sources. It adds latency and cost.",
+        "c": "Comprehend entity detection is too simplistic\u2014it can't understand the intent behind complex queries."
       },
       "parseStrategy": {
         "keyPhrase": "dynamically select and query",
@@ -1574,7 +1574,7 @@
           "Custom classifier = unnecessary complexity",
           "Entity detection = too simple"
         ],
-        "decisionFramework": "Dynamic tool selection → function calling. Model decides which tools to use."
+        "decisionFramework": "Dynamic tool selection \u2192 function calling. Model decides which tools to use."
       },
       "services": [
         "Amazon Bedrock"
@@ -1617,8 +1617,8 @@
       ],
       "explanation": "Glue Data Quality validates inputs with declarative rules (checking non-empty, proper encoding). Comprehend extracts entities like product names and features mentioned in reviews. Together they handle both validation and enrichment requirements.",
       "incorrectExplanations": {
-        "b": "Polly converts text to speech—the opposite of what's needed and unrelated to preprocessing.",
-        "d": "Rekognition is for image/video analysis—not relevant for text review processing."
+        "b": "Polly converts text to speech\u2014the opposite of what's needed and unrelated to preprocessing.",
+        "d": "Rekognition is for image/video analysis\u2014not relevant for text review processing."
       },
       "parseStrategy": {
         "keyPhrase": "validate and extract entities",
@@ -1627,7 +1627,7 @@
           "Transcribe = audio, not text validation",
           "Polly = text-to-speech"
         ],
-        "decisionFramework": "Data validation → Glue Data Quality. Entity extraction → Comprehend."
+        "decisionFramework": "Data validation \u2192 Glue Data Quality. Entity extraction \u2192 Comprehend."
       },
       "services": [
         "AWS Glue Data Quality",
@@ -1671,8 +1671,8 @@
       "explanation": "Few-shot examples are the most effective technique for ensuring consistent format. By showing the model 2-3 examples of questions with correctly formatted responses, you establish a clear pattern the model will follow. This is more reliable than instructions alone.",
       "incorrectExplanations": {
         "a": "System prompt instructions help but are less reliable than examples. Models may interpret instructions differently.",
-        "b": "Temperature 0 makes outputs deterministic but doesn't address format consistency—it affects randomness, not structure.",
-        "d": "Model size doesn't determine format adherence—smaller models may actually be worse at following complex format requirements."
+        "b": "Temperature 0 makes outputs deterministic but doesn't address format consistency\u2014it affects randomness, not structure.",
+        "d": "Model size doesn't determine format adherence\u2014smaller models may actually be worse at following complex format requirements."
       },
       "parseStrategy": {
         "keyPhrase": "consistent response format",
@@ -1681,7 +1681,7 @@
           "Model size unrelated to format",
           "Temperature = randomness, not structure"
         ],
-        "decisionFramework": "Format consistency → few-shot examples. Show, don't just tell."
+        "decisionFramework": "Format consistency \u2192 few-shot examples. Show, don't just tell."
       },
       "services": [
         "Amazon Bedrock"
@@ -1724,7 +1724,7 @@
       "incorrectExplanations": {
         "a": "Caching helps reduce API calls but doesn't handle the throttling that still occurs for uncached queries.",
         "c": "Limit increases help but don't eliminate throttling during spikes. Retry logic is still needed for robust handling.",
-        "d": "Switching models doesn't solve throttling—all Bedrock models share account-level limits for the same model family."
+        "d": "Switching models doesn't solve throttling\u2014all Bedrock models share account-level limits for the same model family."
       },
       "parseStrategy": {
         "keyPhrase": "handle throttling errors gracefully",
@@ -1733,7 +1733,7 @@
           "Caching = partial solution",
           "Limit increase doesn't eliminate throttling"
         ],
-        "decisionFramework": "Throttling → exponential backoff + jitter. Standard AWS SDK retry pattern."
+        "decisionFramework": "Throttling \u2192 exponential backoff + jitter. Standard AWS SDK retry pattern."
       },
       "services": [
         "Amazon Bedrock"
@@ -1775,7 +1775,7 @@
       "explanation": "OpenSearch Service with k-NN provides the scale needed for millions of documents. HNSW indexes enable sub-second queries, and sharding distributes the workload across nodes. OpenSearch auto-scales for variable load and provides fine-grained control over performance tuning.",
       "incorrectExplanations": {
         "a": "Aurora pgvector can work but scaling to millions with sub-second latency may require significant tuning and potentially multiple instances.",
-        "c": "DynamoDB isn't designed for vector similarity search—it lacks native k-NN capabilities.",
+        "c": "DynamoDB isn't designed for vector similarity search\u2014it lacks native k-NN capabilities.",
         "d": "Bedrock KB managed store is great for simplicity but may not provide the performance tuning needed for millions of documents with strict latency requirements."
       },
       "parseStrategy": {
@@ -1785,7 +1785,7 @@
           "Single Aurora instance = scalability limits",
           "DynamoDB = no vector search capability"
         ],
-        "decisionFramework": "Large-scale vector search with performance control → OpenSearch with sharding."
+        "decisionFramework": "Large-scale vector search with performance control \u2192 OpenSearch with sharding."
       },
       "services": [
         "Amazon OpenSearch Service"
@@ -1827,17 +1827,17 @@
       "explanation": "Bedrock batch inference allows you to submit large jobs that process multiple documents efficiently without managing infrastructure. This is more cost-effective and efficient than synchronous calls for millions of documents.",
       "incorrectExplanations": {
         "b": "Synchronous calls for millions of documents would be slow and potentially hit rate limits.",
-        "c": "Comprehend doesn't generate embeddings for vector search—it provides NLP analysis like entity extraction.",
-        "d": "SageMaker endpoints require infrastructure management—contrary to the 'without managing infrastructure' requirement."
+        "c": "Comprehend doesn't generate embeddings for vector search\u2014it provides NLP analysis like entity extraction.",
+        "d": "SageMaker endpoints require infrastructure management\u2014contrary to the 'without managing infrastructure' requirement."
       },
       "parseStrategy": {
         "keyPhrase": "efficiently without managing infrastructure",
         "eliminationHints": [
           "Synchronous = slow at scale",
           "SageMaker = infrastructure management",
-          "Comprehend ≠ embeddings"
+          "Comprehend \u2260 embeddings"
         ],
-        "decisionFramework": "Large-scale embeddings → batch inference. Efficient and managed."
+        "decisionFramework": "Large-scale embeddings \u2192 batch inference. Efficient and managed."
       },
       "services": [
         "Amazon Bedrock"
@@ -1885,11 +1885,11 @@
       "parseStrategy": {
         "keyPhrase": "automated validation of business rules",
         "eliminationHints": [
-          "Instructions ≠ guarantee",
+          "Instructions \u2260 guarantee",
           "Temperature = randomness control",
           "Fine-tuning overkill for validation"
         ],
-        "decisionFramework": "Output validation → post-processing Lambda. Programmatic checks ensure compliance."
+        "decisionFramework": "Output validation \u2192 post-processing Lambda. Programmatic checks ensure compliance."
       },
       "services": [
         "AWS Lambda"
@@ -1941,7 +1941,7 @@
           "Macie = discovery, not network control",
           "CloudTrail = audit, not network"
         ],
-        "decisionFramework": "Private network traffic → VPC endpoints (PrivateLink)."
+        "decisionFramework": "Private network traffic \u2192 VPC endpoints (PrivateLink)."
       },
       "services": [
         "Amazon VPC"
@@ -1984,7 +1984,7 @@
       "incorrectExplanations": {
         "b": "CreateModelCustomizationJob is for fine-tuning, not inference conversations.",
         "c": "Multiple sequential calls are inefficient and don't leverage Bedrock's conversation handling.",
-        "d": "InvokeModel with concatenated strings is the older approach—Converse provides a cleaner, standardized format."
+        "d": "InvokeModel with concatenated strings is the older approach\u2014Converse provides a cleaner, standardized format."
       },
       "parseStrategy": {
         "keyPhrase": "multi-turn conversations",
@@ -1993,7 +1993,7 @@
           "Sequential calls = inefficient",
           "CustomizationJob = training, not inference"
         ],
-        "decisionFramework": "Multi-turn conversation → Converse API with messages array."
+        "decisionFramework": "Multi-turn conversation \u2192 Converse API with messages array."
       },
       "services": [
         "Amazon Bedrock"
@@ -2034,18 +2034,18 @@
       ],
       "explanation": "A reranker model (like Cohere Rerank) uses a cross-encoder to score query-document pairs, providing more accurate relevance ranking than initial retrieval. This ensures the most relevant documents are prioritized in the context sent to the FM, directly addressing the 'relevant content ranked lower' problem.",
       "incorrectExplanations": {
-        "a": "More documents don't help if the most relevant ones are still ranked lower—you'd just add more noise.",
-        "b": "Smaller chunks don't address the ranking problem—relevant chunks would still be ranked lower.",
+        "a": "More documents don't help if the most relevant ones are still ranked lower\u2014you'd just add more noise.",
+        "b": "Smaller chunks don't address the ranking problem\u2014relevant chunks would still be ranked lower.",
         "c": "Higher dimension embeddings don't fix ranking issues with already-retrieved documents."
       },
       "parseStrategy": {
         "keyPhrase": "relevant content ranked lower",
         "eliminationHints": [
           "More documents = more noise if ranking is bad",
-          "Embedding size ≠ ranking quality",
-          "Chunk size ≠ ranking"
+          "Embedding size \u2260 ranking quality",
+          "Chunk size \u2260 ranking"
         ],
-        "decisionFramework": "Poor ranking → reranker. Cross-encoder provides better relevance scoring."
+        "decisionFramework": "Poor ranking \u2192 reranker. Cross-encoder provides better relevance scoring."
       },
       "services": [
         "Amazon Bedrock"
@@ -2086,7 +2086,7 @@
       ],
       "explanation": "Amazon Comprehend custom classification can be trained on labeled travel queries to detect intent (flights, hotels, activities). Once trained, it provides fast, accurate intent detection that can route queries to specialized prompts. This is more robust than keyword matching.",
       "incorrectExplanations": {
-        "b": "Regex keyword matching is brittle—users phrase queries in many ways that won't match patterns.",
+        "b": "Regex keyword matching is brittle\u2014users phrase queries in many ways that won't match patterns.",
         "c": "Forcing users to categorize adds friction and may lead to miscategorization.",
         "d": "General-purpose prompts work but specialized prompts provide better responses. Intent detection enables specialization."
       },
@@ -2097,7 +2097,7 @@
           "General prompt = misses specialization",
           "User selection = poor UX"
         ],
-        "decisionFramework": "Intent detection → Comprehend custom classification or FM-based classification."
+        "decisionFramework": "Intent detection \u2192 Comprehend custom classification or FM-based classification."
       },
       "services": [
         "Amazon Comprehend"
@@ -2136,20 +2136,20 @@
       "correctAnswers": [
         "b"
       ],
-      "explanation": "AppConfig allows runtime configuration changes without redeployment. Store the active model version ID as a configuration parameter, and your Lambda reads it to determine which model to invoke. Rollback is instant—just update the configuration value.",
+      "explanation": "AppConfig allows runtime configuration changes without redeployment. Store the active model version ID as a configuration parameter, and your Lambda reads it to determine which model to invoke. Rollback is instant\u2014just update the configuration value.",
       "incorrectExplanations": {
         "a": "API Gateway weighted routing works but requires infrastructure changes for full rollback, not instant configuration change.",
-        "c": "Lambda aliases don't directly point to Bedrock model versions—they manage Lambda function versions.",
+        "c": "Lambda aliases don't directly point to Bedrock model versions\u2014they manage Lambda function versions.",
         "d": "Separate applications multiply operational burden and don't provide quick rollback."
       },
       "parseStrategy": {
         "keyPhrase": "quickly roll back",
         "eliminationHints": [
-          "Infrastructure changes ≠ quick",
+          "Infrastructure changes \u2260 quick",
           "Lambda aliases wrong abstraction",
           "Separate apps = operational burden"
         ],
-        "decisionFramework": "Quick rollback → runtime config (AppConfig). Change config, not infrastructure."
+        "decisionFramework": "Quick rollback \u2192 runtime config (AppConfig). Change config, not infrastructure."
       },
       "services": [
         "AWS AppConfig"
@@ -2192,16 +2192,16 @@
       "incorrectExplanations": {
         "a": "Manual weekly exports don't provide automatic sync and miss real-time updates.",
         "b": "Kendra is for enterprise search, not foundation model RAG. It doesn't provide vector embeddings for FM context.",
-        "d": "Custom crawlers require significant development and maintenance—connectors are already built."
+        "d": "Custom crawlers require significant development and maintenance\u2014connectors are already built."
       },
       "parseStrategy": {
         "keyPhrase": "unified RAG with automatic sync",
         "eliminationHints": [
-          "Manual export ≠ automatic",
+          "Manual export \u2260 automatic",
           "Custom crawlers = unnecessary work",
           "Kendra = search, not RAG"
         ],
-        "decisionFramework": "Multi-source RAG → Bedrock KB with connectors. Built-in SharePoint/Confluence support."
+        "decisionFramework": "Multi-source RAG \u2192 Bedrock KB with connectors. Built-in SharePoint/Confluence support."
       },
       "services": [
         "Amazon Bedrock Knowledge Bases"
@@ -2242,7 +2242,7 @@
       ],
       "explanation": "Few-shot examples showing the expected JSON structure are most effective for reliable structured output. The model learns from examples that responses should contain only JSON, not explanatory text. Combined with clear instructions, this provides the most reliable results.",
       "incorrectExplanations": {
-        "a": "Instructions alone may be ignored—models sometimes add explanations despite being told not to.",
+        "a": "Instructions alone may be ignored\u2014models sometimes add explanations despite being told not to.",
         "c": "Model size doesn't determine adherence to format requirements.",
         "d": "Temperature 0 makes output deterministic but doesn't prevent the model from adding text around JSON."
       },
@@ -2250,10 +2250,10 @@
         "keyPhrase": "reliably produces parseable JSON",
         "eliminationHints": [
           "Instructions can be ignored",
-          "Temperature ≠ format adherence",
+          "Temperature \u2260 format adherence",
           "Model size irrelevant"
         ],
-        "decisionFramework": "Structured output → few-shot examples showing exact format."
+        "decisionFramework": "Structured output \u2192 few-shot examples showing exact format."
       },
       "services": [
         "Amazon Bedrock"
@@ -2292,11 +2292,11 @@
       "correctAnswers": [
         "d"
       ],
-      "explanation": "Amazon Textract with Forms and Tables features provides intelligent document processing specifically designed for structured documents. It extracts table data maintaining row/column relationships, identifies form fields with their values, and recognizes checkboxes—exactly what's needed for insurance claim documents.",
+      "explanation": "Amazon Textract with Forms and Tables features provides intelligent document processing specifically designed for structured documents. It extracts table data maintaining row/column relationships, identifies form fields with their values, and recognizes checkboxes\u2014exactly what's needed for insurance claim documents.",
       "incorrectExplanations": {
         "a": "Multimodal models can describe images but don't provide the structured extraction (tables, forms) that Textract offers.",
         "b": "Comprehend analyzes text but doesn't extract text from images or understand document layout.",
-        "c": "Rekognition analyzes images for objects, faces, and scenes—not document structure and text extraction."
+        "c": "Rekognition analyzes images for objects, faces, and scenes\u2014not document structure and text extraction."
       },
       "parseStrategy": {
         "keyPhrase": "tables, checkboxes, structured extraction",
@@ -2305,7 +2305,7 @@
           "Comprehend = text analysis, not extraction",
           "Multimodal = description, not structured extraction"
         ],
-        "decisionFramework": "Document extraction with tables/forms → Textract. Specialized for documents."
+        "decisionFramework": "Document extraction with tables/forms \u2192 Textract. Specialized for documents."
       },
       "services": [
         "Amazon Textract"
@@ -2348,7 +2348,7 @@
       "incorrectExplanations": {
         "b": "Chapter-level chunks are too large for precise retrieval and don't provide cross-chapter context.",
         "c": "Fixed-size chunking ignores document structure and may split content mid-section.",
-        "d": "Sentence-level is too granular—loses the context needed for understanding relationships between sections."
+        "d": "Sentence-level is too granular\u2014loses the context needed for understanding relationships between sections."
       },
       "parseStrategy": {
         "keyPhrase": "cross-section context",
@@ -2357,7 +2357,7 @@
           "Full chapters too large",
           "Sentences too small"
         ],
-        "decisionFramework": "Structured documents with cross-reference needs → hierarchical chunking."
+        "decisionFramework": "Structured documents with cross-reference needs \u2192 hierarchical chunking."
       },
       "services": [
         "Amazon Bedrock Knowledge Bases"
@@ -2530,7 +2530,7 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "A production chatbot serves external users. The team needs throttling at the edge, API key management, usage tracking per customer, and request/response transformation—all while maintaining operational simplicity.",
+      "scenario": "A production chatbot serves external users. The team needs throttling at the edge, API key management, usage tracking per customer, and request/response transformation\u2014all while maintaining operational simplicity.",
       "question": "Which integration pattern provides these capabilities with MINIMAL operational overhead?",
       "options": [
         {
@@ -2601,17 +2601,17 @@
         },
         {
           "id": "d",
-          "text": "Custom models require Provisioned Throughput—there's no on-demand option"
+          "text": "Custom models require Provisioned Throughput\u2014there's no on-demand option"
         }
       ],
       "correctAnswers": [
         "d"
       ],
-      "explanation": "Provisioned Throughput is REQUIRED for custom models. If you've fine-tuned a model or done continued pre-training, you must deploy it on provisioned capacity—there's no on-demand option for custom models.",
+      "explanation": "Provisioned Throughput is REQUIRED for custom models. If you've fine-tuned a model or done continued pre-training, you must deploy it on provisioned capacity\u2014there's no on-demand option for custom models.",
       "incorrectExplanations": {
         "a": "Model Registry is for organizing models, not for enabling invocation.",
         "b": "Fine-tuned models work with both InvokeModel and Converse API.",
-        "c": "Cross-account permissions aren't the issue here—the pricing model is."
+        "c": "Cross-account permissions aren't the issue here\u2014the pricing model is."
       },
       "articleReference": "Architectural Design > Provisioned Throughput: 'Provisioned Throughput is required for custom models. If you've fine-tuned a model, you must deploy it on provisioned capacity.'",
       "parseStrategy": {
@@ -2711,11 +2711,11 @@
       "correctAnswers": [
         "b"
       ],
-      "explanation": "The GenAI Lens emphasizes that AI applications can produce output that looks reasonable but is subtly wrong—they don't just crash with errors. Store prompts in Bedrock Prompt Management with version control, test changes against evaluation datasets, and track domain-specific quality metrics, not just latency and errors.",
+      "explanation": "The GenAI Lens emphasizes that AI applications can produce output that looks reasonable but is subtly wrong\u2014they don't just crash with errors. Store prompts in Bedrock Prompt Management with version control, test changes against evaluation datasets, and track domain-specific quality metrics, not just latency and errors.",
       "incorrectExplanations": {
         "a": "Relying on users means problems are already impacting customers.",
         "c": "Manual weekly review is too slow and doesn't scale.",
-        "d": "Latency and error rates miss quality degradation—the model returns 200 OK but with wrong content."
+        "d": "Latency and error rates miss quality degradation\u2014the model returns 200 OK but with wrong content."
       },
       "articleReference": "Architectural Design > Operational Excellence: 'AI applications have a third state: they produce output that looks reasonable but is subtly wrong... treat prompts as code with version control.'",
       "parseStrategy": {
@@ -2764,13 +2764,13 @@
       "correctAnswers": [
         "b"
       ],
-      "explanation": "Titan Embeddings V2 supports flexible dimensions (256, 512, or 1024). At 512 dimensions, you retain 99% retrieval accuracy while halving storage costs. This is the sweet spot—256 dims drops to 97% accuracy which may be too much for some use cases.",
+      "explanation": "Titan Embeddings V2 supports flexible dimensions (256, 512, or 1024). At 512 dimensions, you retain 99% retrieval accuracy while halving storage costs. This is the sweet spot\u2014256 dims drops to 97% accuracy which may be too much for some use cases.",
       "incorrectExplanations": {
         "a": "256 dimensions only retains 97% accuracy, which might be insufficient for precision-critical applications.",
         "c": "1024 is the default but 512 retains 99% accuracy at half the storage cost.",
         "d": "768 isn't a supported dimension for Titan V2 (only 256, 512, or 1024)."
       },
-      "articleReference": "Architectural Design > Cost Optimization: 'Titan Embeddings V2 supports configurable dimensions—512 dimensions instead of 1024 retains 99% of retrieval accuracy while halving storage costs.'",
+      "articleReference": "Architectural Design > Cost Optimization: 'Titan Embeddings V2 supports configurable dimensions\u2014512 dimensions instead of 1024 retains 99% of retrieval accuracy while halving storage costs.'",
       "parseStrategy": {
         "keyPhrase": "cost-effective with high accuracy",
         "eliminationHints": [
@@ -2872,8 +2872,8 @@
       "explanation": "Amazon Bedrock is a fully managed service for accessing foundation models. You make API calls; AWS handles everything else. For standard GenAI use cases like document analysis with Claude, Bedrock is the default choice. SageMaker is for specialized requirements like custom model training or specific hardware needs.",
       "incorrectExplanations": {
         "a": "Model import adds complexity. Claude is already available in Bedrock.",
-        "b": "More control comes with more operational overhead—the opposite of the requirement.",
-        "c": "They're not equal for this use case—Bedrock is clearly better for managed FM access."
+        "b": "More control comes with more operational overhead\u2014the opposite of the requirement.",
+        "c": "They're not equal for this use case\u2014Bedrock is clearly better for managed FM access."
       },
       "articleReference": "Architectural Design > Bedrock vs SageMaker: 'For most GenAI use cases, Bedrock is the default choice... SageMaker comes into play for specialized requirements.'",
       "parseStrategy": {
@@ -2922,7 +2922,7 @@
       "correctAnswers": [
         "a"
       ],
-      "explanation": "Bedrock Model Evaluations requires test datasets in JSONL format (JSON Lines—one JSON object per line). For summarization tasks, ROUGE scores measure the overlap between generated summaries and reference summaries, making it the standard metric for this use case.",
+      "explanation": "Bedrock Model Evaluations requires test datasets in JSONL format (JSON Lines\u2014one JSON object per line). For summarization tasks, ROUGE scores measure the overlap between generated summaries and reference summaries, making it the standard metric for this use case.",
       "incorrectExplanations": {
         "b": "CSV is not the required format. Accuracy is for classification tasks, not summarization.",
         "c": "While BERTScore is mentioned as an option, the format is JSONL not JSON, and ROUGE is more commonly used for summarization.",
@@ -2974,13 +2974,13 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "Claude 3 models offer 200K token context windows—enough to process an entire book. This is significantly larger than the 4K tokens offered by smaller models, eliminating the need to chunk 150K-token documents.",
+      "explanation": "Claude 3 models offer 200K token context windows\u2014enough to process an entire book. This is significantly larger than the 4K tokens offered by smaller models, eliminating the need to chunk 150K-token documents.",
       "incorrectExplanations": {
-        "a": "4K tokens is only a few pages—far too small for a 150K token document.",
+        "a": "4K tokens is only a few pages\u2014far too small for a 150K token document.",
         "b": "Context windows vary significantly by model. There is no unlimited context.",
         "d": "32K tokens is still insufficient for a 150K token document."
       },
-      "articleReference": "Model Selection > Context Window: 'Claude 3: 200K tokens—that's an entire book' and 'Smaller models: Might only see 4K tokens'",
+      "articleReference": "Model Selection > Context Window: 'Claude 3: 200K tokens\u2014that's an entire book' and 'Smaller models: Might only see 4K tokens'",
       "parseStrategy": {
         "keyPhrase": "150,000 tokens",
         "eliminationHints": [
@@ -3026,7 +3026,7 @@
       "correctAnswers": [
         "b"
       ],
-      "explanation": "The cascading pattern can cut costs by 60-80% while maintaining quality for difficult questions. Escalation is triggered by confidence indicators—phrases like 'I'm not certain' or responses that are unusually short (e.g., less than 50 characters) suggest the fast model couldn't handle the query well.",
+      "explanation": "The cascading pattern can cut costs by 60-80% while maintaining quality for difficult questions. Escalation is triggered by confidence indicators\u2014phrases like 'I'm not certain' or responses that are unusually short (e.g., less than 50 characters) suggest the fast model couldn't handle the query well.",
       "incorrectExplanations": {
         "a": "The savings are much higher (60-80%), and latency isn't a confidence indicator.",
         "c": "User feedback is too slow for real-time escalation decisions.",
@@ -3078,7 +3078,7 @@
       "correctAnswers": [
         "a"
       ],
-      "explanation": "Cross-Region Inference requires using an inference profile ARN instead of a model ID. Bedrock handles routing transparently. Important limitation: requests route within the same geographic area—US regions route to other US regions, not to Europe or Asia.",
+      "explanation": "Cross-Region Inference requires using an inference profile ARN instead of a model ID. Bedrock handles routing transparently. Important limitation: requests route within the same geographic area\u2014US regions route to other US regions, not to Europe or Asia.",
       "incorrectExplanations": {
         "b": "Custom domains aren't part of Cross-Region Inference.",
         "c": "Model ARN is not the correct identifier. Global routing is not supported.",
@@ -3107,7 +3107,7 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "A company needs to customize a foundation model. They want the model to consistently output responses in a specific XML format that their downstream systems require. The model already has the knowledge it needs—the issue is output formatting.",
+      "scenario": "A company needs to customize a foundation model. They want the model to consistently output responses in a specific XML format that their downstream systems require. The model already has the knowledge it needs\u2014the issue is output formatting.",
       "question": "Which customization approach is appropriate, and what does it primarily adjust?",
       "options": [
         {
@@ -3130,7 +3130,7 @@
       "correctAnswers": [
         "d"
       ],
-      "explanation": "Fine-tuning teaches a model new behaviors through examples—like outputting a specific format consistently. It adjusts behavior without adding new knowledge. For format consistency, you'd provide 100+ examples of the desired XML output structure.",
+      "explanation": "Fine-tuning teaches a model new behaviors through examples\u2014like outputting a specific format consistently. It adjusts behavior without adding new knowledge. For format consistency, you'd provide 100+ examples of the desired XML output structure.",
       "incorrectExplanations": {
         "a": "LoRA adapters are an efficient fine-tuning technique, not a replacement for the base model.",
         "b": "Continued pre-training adds knowledge, not formatting behavior. Use it when the model lacks domain terminology.",
@@ -3182,11 +3182,11 @@
       "correctAnswers": [
         "a"
       ],
-      "explanation": "LoRA (Low-Rank Adaptation) trains small adapter layers instead of updating millions of parameters. These adapters are faster to train, smaller to store, and can be swapped at inference time—enabling 'one base model, multiple personalities' for different departments.",
+      "explanation": "LoRA (Low-Rank Adaptation) trains small adapter layers instead of updating millions of parameters. These adapters are faster to train, smaller to store, and can be swapped at inference time\u2014enabling 'one base model, multiple personalities' for different departments.",
       "incorrectExplanations": {
         "b": "Prompt templates help with consistency but don't provide the deep customization of LoRA.",
         "c": "Continued pre-training adds knowledge but doesn't enable runtime switching between versions.",
-        "d": "Full fine-tuning creates complete model copies, which is expensive and slow—not efficient for multiple versions."
+        "d": "Full fine-tuning creates complete model copies, which is expensive and slow\u2014not efficient for multiple versions."
       },
       "articleReference": "Model Selection > LoRA Adapters: 'faster to train, smaller to store, and can be swapped at inference time. One base model, multiple personalities.'",
       "parseStrategy": {
@@ -3288,7 +3288,7 @@
       "correctAnswers": [
         "a"
       ],
-      "explanation": "Classification is listed as a task that doesn't need the big model. Haiku is 'blazing fast and dirt cheap' while Opus 'costs 60x more.' For simple classification, extraction, and summarization—use the small model.",
+      "explanation": "Classification is listed as a task that doesn't need the big model. Haiku is 'blazing fast and dirt cheap' while Opus 'costs 60x more.' For simple classification, extraction, and summarization\u2014use the small model.",
       "incorrectExplanations": {
         "b": "Performance differs significantly by cost, not necessarily accuracy for simple tasks.",
         "c": "Classification doesn't require complex reasoning. Using Opus would waste money.",
@@ -3301,12 +3301,12 @@
           "Simple task = small model",
           "60x cost difference"
         ],
-        "decisionFramework": "Classification, extraction, simple Q&A → small/cheap model."
+        "decisionFramework": "Classification, extraction, simple Q&A \u2192 small/cheap model."
       },
       "services": [
         "Amazon Bedrock"
       ],
-      "examTip": "Simple tasks (classification, extraction) → Haiku. Complex reasoning → Opus."
+      "examTip": "Simple tasks (classification, extraction) \u2192 Haiku. Complex reasoning \u2192 Opus."
     },
     {
       "id": "d1-ms-09",
@@ -3340,7 +3340,7 @@
       "correctAnswers": [
         "d"
       ],
-      "explanation": "AWS AppConfig provides gradual rollouts (10% → 50% → 100%), automatic rollback when error rates spike, and environment-specific configurations. Parameter Store stores values but lacks the rollout and rollback features.",
+      "explanation": "AWS AppConfig provides gradual rollouts (10% \u2192 50% \u2192 100%), automatic rollback when error rates spike, and environment-specific configurations. Parameter Store stores values but lacks the rollout and rollback features.",
       "incorrectExplanations": {
         "a": "Parameter Store stores model IDs but lacks AppConfig's gradual rollout and automatic rollback features.",
         "b": "API Gateway canary is for API version deployments, not model ID configuration.",
@@ -3374,7 +3374,7 @@
       "options": [
         {
           "id": "a",
-          "text": "Exhaust prompt engineering options first—it's free to iterate"
+          "text": "Exhaust prompt engineering options first\u2014it's free to iterate"
         },
         {
           "id": "b",
@@ -3457,7 +3457,7 @@
           "DetectDocumentText = basic OCR only",
           "Match API to document type"
         ],
-        "decisionFramework": "Forms/tables → AnalyzeDocument. Receipts → AnalyzeExpense. IDs → AnalyzeID."
+        "decisionFramework": "Forms/tables \u2192 AnalyzeDocument. Receipts \u2192 AnalyzeExpense. IDs \u2192 AnalyzeID."
       },
       "services": [
         "Amazon Textract"
@@ -3561,7 +3561,7 @@
           "Know the nested structure",
           "role + content array"
         ],
-        "decisionFramework": "Converse API: messages → role + content array → type + text"
+        "decisionFramework": "Converse API: messages \u2192 role + content array \u2192 type + text"
       },
       "services": [
         "Amazon Bedrock"
@@ -3652,7 +3652,7 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "Speaker diarization identifies different speakers in audio—who said what. This is essential for call center analytics where you need to distinguish between agent and customer speech.",
+      "explanation": "Speaker diarization identifies different speakers in audio\u2014who said what. This is essential for call center analytics where you need to distinguish between agent and customer speech.",
       "incorrectExplanations": {
         "a": "Custom vocabularies improve accuracy for domain-specific terms, not speaker identification.",
         "b": "Content redaction removes sensitive information, not speaker identification.",
@@ -3755,13 +3755,13 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "Handle errors gracefully: skip bad inputs, log the issues for investigation, and continue processing valid images. Don't let one bad file crash the entire pipeline. The model won't tell you when input is bad—it'll produce garbage output.",
+      "explanation": "Handle errors gracefully: skip bad inputs, log the issues for investigation, and continue processing valid images. Don't let one bad file crash the entire pipeline. The model won't tell you when input is bad\u2014it'll produce garbage output.",
       "incorrectExplanations": {
         "a": "Crashing on every bad input is too aggressive for batch processing.",
         "b": "Sending invalid images wastes resources and produces garbage output.",
         "d": "Automatic repair is unreliable for corrupted files."
       },
-      "articleReference": "Data Pipelines > Error Handling: 'Corrupted images, garbled audio, password-protected PDFs—they all happen. Skip bad inputs, log issues, continue processing.'",
+      "articleReference": "Data Pipelines > Error Handling: 'Corrupted images, garbled audio, password-protected PDFs\u2014they all happen. Skip bad inputs, log issues, continue processing.'",
       "parseStrategy": {
         "keyPhrase": "robust error handling",
         "eliminationHints": [
@@ -3814,7 +3814,7 @@
         "c": "Token limits cause different errors, not parse errors.",
         "d": "Network issues cause timeout errors, not parse errors."
       },
-      "articleReference": "Data Pipelines > Special Characters: 'Need proper escaping in JSON. Newlines, quotes, backslashes, control characters—they'll all break your JSON if not escaped correctly. Use proper serialization libraries, not string concatenation.'",
+      "articleReference": "Data Pipelines > Special Characters: 'Need proper escaping in JSON. Newlines, quotes, backslashes, control characters\u2014they'll all break your JSON if not escaped correctly. Use proper serialization libraries, not string concatenation.'",
       "parseStrategy": {
         "keyPhrase": "parse errors with string concatenation",
         "eliminationHints": [
@@ -3864,7 +3864,7 @@
       "incorrectExplanations": {
         "a": "AnalyzeID is for identity documents, not expense documents.",
         "c": "AnalyzeDocument works for general forms but AnalyzeExpense is optimized specifically for receipts.",
-        "d": "DetectDocumentText only does basic OCR—no semantic understanding of expense documents."
+        "d": "DetectDocumentText only does basic OCR\u2014no semantic understanding of expense documents."
       },
       "articleReference": "Data Pipelines > Textract: 'AnalyzeExpense: Receipts and invoices'",
       "parseStrategy": {
@@ -3911,7 +3911,7 @@
       "correctAnswers": [
         "a"
       ],
-      "explanation": "Build a formatting layer—don't construct JSON throughout your codebase. Create utility functions that handle serialization consistently. When the API changes, you fix one place instead of ten.",
+      "explanation": "Build a formatting layer\u2014don't construct JSON throughout your codebase. Create utility functions that handle serialization consistently. When the API changes, you fix one place instead of ten.",
       "incorrectExplanations": {
         "b": "API Gateway doesn't handle payload construction.",
         "c": "Microservices don't solve the formatting duplication problem.",
@@ -4122,7 +4122,7 @@
       ],
       "explanation": "Adding metadata fields after ingestion typically means re-processing all documents. You cannot change chunking strategy after creating a data source. Plan your metadata schema before bulk ingestion to avoid this costly re-work.",
       "incorrectExplanations": {
-        "a": "Metadata must be explicitly defined—it's not auto-inferred.",
+        "a": "Metadata must be explicitly defined\u2014it's not auto-inferred.",
         "b": "Having inconsistent metadata creates filtering problems.",
         "c": "Adding metadata retroactively requires re-ingestion of all documents."
       },
@@ -4174,7 +4174,7 @@
       ],
       "explanation": "Aurora pgvector adds vector operations to PostgreSQL. If your team already uses PostgreSQL, querying vectors with familiar SQL syntax is simpler than introducing a new database. You can join vector results with relational data.",
       "incorrectExplanations": {
-        "a": "DynamoDB is for metadata, not vector similarity search—it lacks vector capabilities.",
+        "a": "DynamoDB is for metadata, not vector similarity search\u2014it lacks vector capabilities.",
         "b": "OpenSearch is a separate technology stack, not PostgreSQL-based.",
         "c": "MemoryDB for Redis is an in-memory store, not PostgreSQL."
       },
@@ -4276,13 +4276,13 @@
       "correctAnswers": [
         "d"
       ],
-      "explanation": "Tag documents with access levels in metadata, then pre-filter based on who's asking before vector search. Pre-filtering is efficient because you're searching a smaller pile, and users can't retrieve documents they shouldn't see—even if those docs are perfect semantic matches.",
+      "explanation": "Tag documents with access levels in metadata, then pre-filter based on who's asking before vector search. Pre-filtering is efficient because you're searching a smaller pile, and users can't retrieve documents they shouldn't see\u2014even if those docs are perfect semantic matches.",
       "incorrectExplanations": {
         "a": "Post-filtering risks returning too few results if many matches fail the filter.",
         "b": "Separate vector stores per user doesn't scale and creates management overhead.",
         "c": "Encryption prevents reading but doesn't prevent retrieval of unauthorized documents."
       },
-      "articleReference": "Vector Stores > Access Control: 'Tag documents with access levels, then filter based on who's asking. Users can't retrieve documents they shouldn't see—even if those docs are perfect semantic matches.'",
+      "articleReference": "Vector Stores > Access Control: 'Tag documents with access levels, then filter based on who's asking. Users can't retrieve documents they shouldn't see\u2014even if those docs are perfect semantic matches.'",
       "parseStrategy": {
         "keyPhrase": "access control",
         "eliminationHints": [
@@ -4328,13 +4328,13 @@
       "correctAnswers": [
         "a"
       ],
-      "explanation": "Choosing OpenSearch 'just in case' when Bedrock KB would be plenty is like buying a sports car for grocery runs—you're paying for complexity you don't need. Start with Bedrock KB; move to OpenSearch only when you genuinely need its superpowers.",
+      "explanation": "Choosing OpenSearch 'just in case' when Bedrock KB would be plenty is like buying a sports car for grocery runs\u2014you're paying for complexity you don't need. Start with Bedrock KB; move to OpenSearch only when you genuinely need its superpowers.",
       "incorrectExplanations": {
         "b": "Aurora pgvector is appropriate for PostgreSQL teams, but the issue is over-engineering.",
-        "c": "Instance size isn't the issue—they chose the wrong service entirely.",
+        "c": "Instance size isn't the issue\u2014they chose the wrong service entirely.",
         "d": "More shards don't address the fundamental over-engineering problem."
       },
-      "articleReference": "Vector Stores > Common Mistakes: 'Choosing OpenSearch \"just in case\" when Bedrock KB would be plenty. Like buying a sports car for grocery runs—you're paying for complexity you don't need.'",
+      "articleReference": "Vector Stores > Common Mistakes: 'Choosing OpenSearch \"just in case\" when Bedrock KB would be plenty. Like buying a sports car for grocery runs\u2014you're paying for complexity you don't need.'",
       "parseStrategy": {
         "keyPhrase": "just in case",
         "eliminationHints": [
@@ -4375,7 +4375,7 @@
         },
         {
           "id": "d",
-          "text": "No, you cannot change chunking strategy after creating a data source—must recreate"
+          "text": "No, you cannot change chunking strategy after creating a data source\u2014must recreate"
         }
       ],
       "correctAnswers": [
@@ -4415,7 +4415,7 @@
       "options": [
         {
           "id": "a",
-          "text": "DynamoDB doesn't support vector similarity search—it's for metadata, not vectors"
+          "text": "DynamoDB doesn't support vector similarity search\u2014it's for metadata, not vectors"
         },
         {
           "id": "b",
@@ -4437,7 +4437,7 @@
       "incorrectExplanations": {
         "b": "This isn't relevant because DynamoDB doesn't support vectors.",
         "c": "DynamoDB doesn't have vector dimensions because it doesn't support vectors.",
-        "d": "Cost isn't the primary issue—functionality is."
+        "d": "Cost isn't the primary issue\u2014functionality is."
       },
       "articleReference": "Vector Stores > Common Mistakes: 'DynamoDB for vectors: DynamoDB is for metadata, not vector similarity search. Use a proper vector store.'",
       "parseStrategy": {
@@ -4635,7 +4635,7 @@
         },
         {
           "id": "d",
-          "text": "HyDE (Hypothetical Document Embeddings)—generate a hypothetical answer, then embed that"
+          "text": "HyDE (Hypothetical Document Embeddings)\u2014generate a hypothetical answer, then embed that"
         }
       ],
       "correctAnswers": [
@@ -4687,19 +4687,19 @@
         },
         {
           "id": "d",
-          "text": "Retrieval will completely fail—different models produce incompatible vector spaces"
+          "text": "Retrieval will completely fail\u2014different models produce incompatible vector spaces"
         }
       ],
       "correctAnswers": [
         "d"
       ],
-      "explanation": "All documents and all queries must use the same embedding model. Different models produce completely different vector spaces—a Titan embedding and a Cohere embedding for the same text won't be close to each other. Switching models means re-embedding everything.",
+      "explanation": "All documents and all queries must use the same embedding model. Different models produce completely different vector spaces\u2014a Titan embedding and a Cohere embedding for the same text won't be close to each other. Switching models means re-embedding everything.",
       "incorrectExplanations": {
-        "a": "It won't be slightly less accurate—it will be completely broken.",
+        "a": "It won't be slightly less accurate\u2014it will be completely broken.",
         "b": "There's no automatic translation between embedding spaces.",
         "c": "All queries will fail, not just multilingual ones."
       },
-      "articleReference": "Retrieval Mechanisms > The Critical Rule: 'All documents and all queries must use the same embedding model. You can't embed docs with Titan and query with Cohere—the vector spaces are completely different.'",
+      "articleReference": "Retrieval Mechanisms > The Critical Rule: 'All documents and all queries must use the same embedding model. You can't embed docs with Titan and query with Cohere\u2014the vector spaces are completely different.'",
       "parseStrategy": {
         "keyPhrase": "different embedding model",
         "eliminationHints": [
@@ -4749,7 +4749,7 @@
       "incorrectExplanations": {
         "b": "Titan V1 has limited multilingual support compared to Cohere.",
         "c": "Separate models per language creates complexity and cross-language retrieval issues.",
-        "d": "Models have different multilingual capabilities—not all work equally well."
+        "d": "Models have different multilingual capabilities\u2014not all work equally well."
       },
       "articleReference": "Retrieval Mechanisms > Cohere Embed: 'Available through Bedrock, shines for multilingual content. Often outperforms Titan for documents spanning multiple languages. Costs ~5x more.'",
       "parseStrategy": {
@@ -4797,11 +4797,11 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "Large chunks (2000+ tokens) produce semantic mush—a vague average that doesn't match specific queries well. The article recommends 300-500 tokens as a balanced default. Smaller chunks match queries more precisely.",
+      "explanation": "Large chunks (2000+ tokens) produce semantic mush\u2014a vague average that doesn't match specific queries well. The article recommends 300-500 tokens as a balanced default. Smaller chunks match queries more precisely.",
       "incorrectExplanations": {
         "a": "Hybrid search helps with exact matches but doesn't fix the chunking problem.",
         "b": "Larger chunks would make the semantic mush problem worse.",
-        "d": "The model isn't the issue—the chunk size is."
+        "d": "The model isn't the issue\u2014the chunk size is."
       },
       "articleReference": "Retrieval Mechanisms > Chunk Size: 'A 2000-token chunk about \"everything in Chapter 5\" won't match as well as a focused chunk. 300-500 tokens: Balanced default for most cases.'",
       "parseStrategy": {
@@ -4891,7 +4891,7 @@
         },
         {
           "id": "c",
-          "text": "Use function calling—define a retrieval tool the FM invokes when it needs external information"
+          "text": "Use function calling\u2014define a retrieval tool the FM invokes when it needs external information"
         },
         {
           "id": "d",
@@ -4953,7 +4953,7 @@
       "correctAnswers": [
         "b"
       ],
-      "explanation": "The production pattern is: hierarchical chunking + hybrid search + reranking. This is the most robust default—hierarchical preserves context, hybrid catches both semantic and keyword matches, reranking improves precision.",
+      "explanation": "The production pattern is: hierarchical chunking + hybrid search + reranking. This is the most robust default\u2014hierarchical preserves context, hybrid catches both semantic and keyword matches, reranking improves precision.",
       "incorrectExplanations": {
         "a": "Pure vector search misses exact keyword matches.",
         "c": "Keyword-only misses semantic similarity.",
@@ -5109,13 +5109,13 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "Bedrock Prompt Management is the single source of truth for prompts. Teams reference shared prompts rather than copying them. Every change is tracked—who modified what, when. When a prompt improves, everyone benefits immediately.",
+      "explanation": "Bedrock Prompt Management is the single source of truth for prompts. Teams reference shared prompts rather than copying them. Every change is tracked\u2014who modified what, when. When a prompt improves, everyone benefits immediately.",
       "incorrectExplanations": {
         "a": "CodeCommit is for code, not prompt lifecycle management.",
         "b": "S3 can store prompts but lacks prompt-specific features like testing and guardrail integration.",
         "d": "Parameter Store is for configuration values, not prompt management."
       },
-      "articleReference": "Prompt Engineering > Bedrock Prompt Management: 'Your single source of truth. Store prompts centrally with version control. Every change is tracked—who modified what, when.'",
+      "articleReference": "Prompt Engineering > Bedrock Prompt Management: 'Your single source of truth. Store prompts centrally with version control. Every change is tracked\u2014who modified what, when.'",
       "parseStrategy": {
         "keyPhrase": "prompt governance",
         "eliminationHints": [
@@ -5214,7 +5214,7 @@
       "correctAnswers": [
         "a"
       ],
-      "explanation": "FM outputs are probabilistic—the same prompt can produce different outputs. If you requested JSON, parse it and verify the schema. Check for missing fields and invalid values. Either retry with clarification or return an error. Don't pass malformed data downstream.",
+      "explanation": "FM outputs are probabilistic\u2014the same prompt can produce different outputs. If you requested JSON, parse it and verify the schema. Check for missing fields and invalid values. Either retry with clarification or return an error. Don't pass malformed data downstream.",
       "incorrectExplanations": {
         "b": "Model size doesn't guarantee JSON validity.",
         "c": "Never trust FM output without validation.",
@@ -5309,7 +5309,7 @@
         },
         {
           "id": "c",
-          "text": "Exhaust prompt engineering options—it's free to iterate"
+          "text": "Exhaust prompt engineering options\u2014it's free to iterate"
         },
         {
           "id": "d",
@@ -5499,9 +5499,9 @@
     {
       "id": "d1-rp-01",
       "domain": 1,
-      "task": "1.4",
+      "task": "1.8",
       "skills": [
-        "1.4.1"
+        "1.8.1"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -5528,7 +5528,7 @@
       "correctAnswers": [
         "d"
       ],
-      "explanation": "When FMs don't know something, they don't say 'I don't know'—they make something up. This is called hallucination. RAG solves this by grounding responses in actual retrieved documents, so the FM synthesizes answers from real sources.",
+      "explanation": "When FMs don't know something, they don't say 'I don't know'\u2014they make something up. This is called hallucination. RAG solves this by grounding responses in actual retrieved documents, so the FM synthesizes answers from real sources.",
       "incorrectExplanations": {
         "a": "Bias is about systematic errors, not fabricated facts.",
         "b": "Overfitting is a training issue, not a generation issue.",
@@ -5551,9 +5551,9 @@
     {
       "id": "d1-rp-02",
       "domain": 1,
-      "task": "1.4",
+      "task": "1.8",
       "skills": [
-        "1.4.2"
+        "1.8.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -5580,11 +5580,11 @@
       "correctAnswers": [
         "b"
       ],
-      "explanation": "RAG keeps knowledge external and retrievable. Updating knowledge means re-indexing documents (hours), not re-training the model (days, expensive). RAG can cite sources because it knows which documents were retrieved. Fine-tuning bakes knowledge into weights—no citations possible.",
+      "explanation": "RAG keeps knowledge external and retrievable. Updating knowledge means re-indexing documents (hours), not re-training the model (days, expensive). RAG can cite sources because it knows which documents were retrieved. Fine-tuning bakes knowledge into weights\u2014no citations possible.",
       "incorrectExplanations": {
         "a": "Pre-training adds knowledge but doesn't enable citations or quick updates.",
         "c": "Fine-tuning requires retraining for updates and can't cite sources.",
-        "d": "They're not equal—RAG is clearly better for frequent updates and citations."
+        "d": "They're not equal\u2014RAG is clearly better for frequent updates and citations."
       },
       "articleReference": "RAG Patterns > Why Not Just Fine-Tune: 'RAG: Updating knowledge = re-index docs (hours). Fine-tuning: Re-train the model (days, expensive). RAG: Can cite sources. Fine-tuning: Knowledge buried in weights.'",
       "parseStrategy": {
@@ -5603,9 +5603,9 @@
     {
       "id": "d1-rp-03",
       "domain": 1,
-      "task": "1.4",
+      "task": "1.8",
       "skills": [
-        "1.4.3"
+        "1.8.1"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -5614,37 +5614,37 @@
       "options": [
         {
           "id": "a",
-          "text": "Retrieval—wrong documents were found"
+          "text": "Retrieval\u2014wrong documents were found"
         },
         {
           "id": "b",
-          "text": "Embedding—vectors are incorrect"
+          "text": "Embedding\u2014vectors are incorrect"
         },
         {
           "id": "c",
-          "text": "Generation—FM ignored or misused the context"
+          "text": "Generation\u2014FM ignored or misused the context"
         },
         {
           "id": "d",
-          "text": "Chunking—documents were split incorrectly"
+          "text": "Chunking\u2014documents were split incorrectly"
         }
       ],
       "correctAnswers": [
         "c"
       ],
-      "explanation": "The debugging workflow: 1) Check retrieval—right docs found? YES. 2) Check context—answer in docs? YES. 3) Check generation—FM used context correctly? NO. This is a prompt engineering issue—the FM isn't properly using the provided context.",
+      "explanation": "The debugging workflow: 1) Check retrieval\u2014right docs found? YES. 2) Check context\u2014answer in docs? YES. 3) Check generation\u2014FM used context correctly? NO. This is a prompt engineering issue\u2014the FM isn't properly using the provided context.",
       "incorrectExplanations": {
-        "a": "The scenario says chunks look relevant—retrieval worked.",
+        "a": "The scenario says chunks look relevant\u2014retrieval worked.",
         "b": "Embedding issues would cause retrieval problems.",
         "d": "Chunking issues would cause retrieval problems."
       },
-      "articleReference": "RAG Patterns > Debugging Workflow: '1. Check retrieval → Were the right docs found? Yes → Continue. 2. Check context → Is the answer in the retrieved docs? Yes → Continue. 3. Check generation → Did the FM use the context correctly? No → Prompt engineering issue.'",
+      "articleReference": "RAG Patterns > Debugging Workflow: '1. Check retrieval \u2192 Were the right docs found? Yes \u2192 Continue. 2. Check context \u2192 Is the answer in the retrieved docs? Yes \u2192 Continue. 3. Check generation \u2192 Did the FM use the context correctly? No \u2192 Prompt engineering issue.'",
       "parseStrategy": {
         "keyPhrase": "retrieved chunks look relevant, answer is in chunks, response incorrect",
         "eliminationHints": [
           "Good retrieval, good context, bad output = generation issue"
         ],
-        "decisionFramework": "RAG debugging: retrieval → context → generation."
+        "decisionFramework": "RAG debugging: retrieval \u2192 context \u2192 generation."
       },
       "services": [
         "Amazon Bedrock"
@@ -5654,9 +5654,9 @@
     {
       "id": "d1-rp-04",
       "domain": 1,
-      "task": "1.4",
+      "task": "1.8",
       "skills": [
-        "1.4.4"
+        "1.8.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -5706,9 +5706,9 @@
     {
       "id": "d1-rp-05",
       "domain": 1,
-      "task": "1.4",
+      "task": "1.8",
       "skills": [
-        "1.4.5"
+        "1.8.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -5741,7 +5741,7 @@
         "c": "Metadata filtering works within one index, not across separate knowledge bases.",
         "d": "Conversational RAG is for context resolution, not routing."
       },
-      "articleReference": "RAG Patterns > Multi-Index RAG: 'Route queries to specialized knowledge bases. If \"policy\" in query → POLICY_KB. If \"technical\" → TECHNICAL_KB.'",
+      "articleReference": "RAG Patterns > Multi-Index RAG: 'Route queries to specialized knowledge bases. If \"policy\" in query \u2192 POLICY_KB. If \"technical\" \u2192 TECHNICAL_KB.'",
       "parseStrategy": {
         "keyPhrase": "separate repositories, route to relevant",
         "eliminationHints": [
@@ -5758,9 +5758,9 @@
     {
       "id": "d1-rp-06",
       "domain": 1,
-      "task": "1.4",
+      "task": "1.8",
       "skills": [
-        "1.4.6"
+        "1.8.1"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -5787,13 +5787,13 @@
       "correctAnswers": [
         "a"
       ],
-      "explanation": "Agentic RAG lets the agent reason and decide when to search. The pattern is: Query → Agent reasons → Decides to search → Retrieves → Reasons more → Maybe searches again → Response. Best for complex questions requiring multiple lookups.",
+      "explanation": "Agentic RAG lets the agent reason and decide when to search. The pattern is: Query \u2192 Agent reasons \u2192 Decides to search \u2192 Retrieves \u2192 Reasons more \u2192 Maybe searches again \u2192 Response. Best for complex questions requiring multiple lookups.",
       "incorrectExplanations": {
         "b": "Conversational RAG handles history, not iterative retrieval.",
         "c": "Basic RAG does one retrieval, not iterative search-reason-search.",
         "d": "Multi-Index RAG routes once, doesn't iterate."
       },
-      "articleReference": "RAG Patterns > Agentic RAG: 'Query → Agent reasons → Decides to search → Retrieves → Reasons more → Maybe searches again → Response. Best for: Complex questions requiring multiple lookups.'",
+      "articleReference": "RAG Patterns > Agentic RAG: 'Query \u2192 Agent reasons \u2192 Decides to search \u2192 Retrieves \u2192 Reasons more \u2192 Maybe searches again \u2192 Response. Best for: Complex questions requiring multiple lookups.'",
       "parseStrategy": {
         "keyPhrase": "iterative search-reason-search",
         "eliminationHints": [
@@ -5810,9 +5810,9 @@
     {
       "id": "d1-rp-07",
       "domain": 1,
-      "task": "1.4",
+      "task": "1.8",
       "skills": [
-        "1.4.7"
+        "1.8.1"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -5841,7 +5841,7 @@
       ],
       "explanation": "RetrieveAndGenerate does full RAG in one call: retrieves relevant documents from the knowledge base and generates a response using an FM. Use this for simple RAG. Use Retrieve alone when you need custom prompts or non-Bedrock FMs.",
       "incorrectExplanations": {
-        "b": "Retrieve only returns documents—you handle generation yourself.",
+        "b": "Retrieve only returns documents\u2014you handle generation yourself.",
         "c": "Query API doesn't exist for Knowledge Bases.",
         "d": "InvokeModel calls models directly without retrieval."
       },
@@ -5862,9 +5862,9 @@
     {
       "id": "d1-rp-08",
       "domain": 1,
-      "task": "1.4",
+      "task": "1.8",
       "skills": [
-        "1.4.8"
+        "1.8.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -5895,7 +5895,7 @@
       "incorrectExplanations": {
         "a": "Manual spot-checking doesn't scale and misses systematic issues.",
         "b": "Token usage doesn't indicate answer quality.",
-        "d": "Surveys are lagging indicators—users already experienced problems."
+        "d": "Surveys are lagging indicators\u2014users already experienced problems."
       },
       "articleReference": "RAG Patterns > Golden Dataset Testing: 'Maintain test cases with known answers. Run regression tests after any change to catch quality degradation before users do.'",
       "parseStrategy": {
@@ -5914,9 +5914,9 @@
     {
       "id": "d1-rp-09",
       "domain": 1,
-      "task": "1.4",
+      "task": "1.8",
       "skills": [
-        "1.4.9"
+        "1.8.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -5943,7 +5943,7 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "Recall measures: of all the relevant chunks that exist, how many did you retrieve? Precision measures: of the chunks you retrieved, how many were actually relevant? There's a tradeoff—retrieve more for higher recall, fewer for higher precision.",
+      "explanation": "Recall measures: of all the relevant chunks that exist, how many did you retrieve? Precision measures: of the chunks you retrieved, how many were actually relevant? There's a tradeoff\u2014retrieve more for higher recall, fewer for higher precision.",
       "incorrectExplanations": {
         "a": "F1 is a balance of precision and recall, not this specific question.",
         "b": "Latency measures speed, not retrieval completeness.",
@@ -5966,9 +5966,9 @@
     {
       "id": "d1-rp-10",
       "domain": 1,
-      "task": "1.4",
+      "task": "1.8",
       "skills": [
-        "1.4.10"
+        "1.8.1"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -6018,9 +6018,9 @@
     {
       "id": "d1-bd-01",
       "domain": 1,
-      "task": "1.1",
+      "task": "1.7",
       "skills": [
-        "1.1.1"
+        "1.7.1"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -6033,7 +6033,7 @@
         },
         {
           "id": "b",
-          "text": "Bedrock provides a managed API layer—AWS hosts all model infrastructure"
+          "text": "Bedrock provides a managed API layer\u2014AWS hosts all model infrastructure"
         },
         {
           "id": "c",
@@ -6051,7 +6051,7 @@
       "incorrectExplanations": {
         "a": "Models don't run in customer containers.",
         "c": "Models don't run on customer EC2 instances.",
-        "d": "Models aren't downloaded—they're accessed via API."
+        "d": "Models aren't downloaded\u2014they're accessed via API."
       },
       "articleReference": "Bedrock Deep Dive > How Bedrock Actually Works: 'Bedrock is not hosting models in your account. It provides a managed API layer that routes your requests to model infrastructure AWS manages.'",
       "parseStrategy": {
@@ -6070,9 +6070,9 @@
     {
       "id": "d1-bd-02",
       "domain": 1,
-      "task": "1.1",
+      "task": "1.7",
       "skills": [
-        "1.1.2"
+        "1.7.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -6122,9 +6122,9 @@
     {
       "id": "d1-bd-03",
       "domain": 1,
-      "task": "1.1",
+      "task": "1.7",
       "skills": [
-        "1.1.3"
+        "1.7.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -6174,9 +6174,9 @@
     {
       "id": "d1-bd-04",
       "domain": 1,
-      "task": "1.1",
+      "task": "1.7",
       "skills": [
-        "1.1.4"
+        "1.7.1"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -6193,7 +6193,7 @@
         },
         {
           "id": "c",
-          "text": "Content filters only—they handle everything"
+          "text": "Content filters only\u2014they handle everything"
         },
         {
           "id": "d",
@@ -6226,9 +6226,9 @@
     {
       "id": "d1-bd-05",
       "domain": 1,
-      "task": "1.1",
+      "task": "1.7",
       "skills": [
-        "1.1.5"
+        "1.7.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -6257,7 +6257,7 @@
       ],
       "explanation": "ApplyGuardrail API applies guardrails without invoking a model. Set source='INPUT' to check user input before sending to the model. Set source='OUTPUT' to check model responses. Useful for pre-checking to save costs.",
       "incorrectExplanations": {
-        "a": "The capability exists—ApplyGuardrail API.",
+        "a": "The capability exists\u2014ApplyGuardrail API.",
         "b": "Converse with guardrails still invokes the model.",
         "d": "InvokeModel applies guardrails during invocation, using model tokens."
       },
@@ -6278,9 +6278,9 @@
     {
       "id": "d1-bd-06",
       "domain": 1,
-      "task": "1.1",
+      "task": "1.7",
       "skills": [
-        "1.1.6"
+        "1.7.1"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -6307,9 +6307,9 @@
       "correctAnswers": [
         "b"
       ],
-      "explanation": "Claude 3 Haiku is cheapest ($0.25/1M input tokens) and fastest—perfect for simple tasks. Claude 3 Opus is most capable ($15/1M input tokens) for complex reasoning. The 60x price difference means matching model to task matters.",
+      "explanation": "Claude 3 Haiku is cheapest ($0.25/1M input tokens) and fastest\u2014perfect for simple tasks. Claude 3 Opus is most capable ($15/1M input tokens) for complex reasoning. The 60x price difference means matching model to task matters.",
       "incorrectExplanations": {
-        "a": "Opus for simple FAQ is wasteful—60x more expensive than needed.",
+        "a": "Opus for simple FAQ is wasteful\u201460x more expensive than needed.",
         "c": "Sonnet is balanced but not optimal for either extreme use case.",
         "d": "This reverses the appropriate mapping."
       },
@@ -6330,9 +6330,9 @@
     {
       "id": "d1-bd-07",
       "domain": 1,
-      "task": "1.1",
+      "task": "1.7",
       "skills": [
-        "1.1.7"
+        "1.7.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -6382,9 +6382,9 @@
     {
       "id": "d1-bd-08",
       "domain": 1,
-      "task": "1.1",
+      "task": "1.7",
       "skills": [
-        "1.1.8"
+        "1.7.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -6434,9 +6434,9 @@
     {
       "id": "d1-bd-09",
       "domain": 1,
-      "task": "1.1",
+      "task": "1.7",
       "skills": [
-        "1.1.9"
+        "1.7.1"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -6487,9 +6487,9 @@
     {
       "id": "d1-bd-10",
       "domain": 1,
-      "task": "1.1",
+      "task": "1.7",
       "skills": [
-        "1.1.10"
+        "1.7.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -6498,7 +6498,7 @@
       "options": [
         {
           "id": "a",
-          "text": "Model cascading—classify first, then route to appropriate model"
+          "text": "Model cascading\u2014classify first, then route to appropriate model"
         },
         {
           "id": "b",
@@ -6534,7 +6534,7 @@
       "services": [
         "Amazon Bedrock"
       ],
-      "examTip": "Model cascading: classify → route simple to cheap model, complex to capable model."
+      "examTip": "Model cascading: classify \u2192 route simple to cheap model, complex to capable model."
     }
   ]
 }
