@@ -1080,9 +1080,6 @@
         {
           "id": "d",
           "text": "Create shared CloudFormation templates that embed organizational standards"
-        },
-        {
-          "text": "Implement AWS Config rules to enforce required Bedrock configurations"
         }
       ],
       "correctAnswers": [
@@ -1092,8 +1089,7 @@
       "explanation": "The GenAI Lens provides AI-specific guidance for Well-Architected reviews, establishing architectural standards. Shared CloudFormation templates embed these standards into deployable infrastructure, making compliance automatic. Together they provide guidance and enforcement.",
       "incorrectExplanations": {
         "a": "Manual code reviews are valuable but don't scale and don't provide proactive enforcement of standards.",
-        "c": "Mandating the same model doesn't establish architectural standards—different use cases may legitimately need different models.",
-        "undefined": "AWS Config rules can enforce some settings but don't cover architectural patterns or design decisions."
+        "c": "Mandating the same model doesn't establish architectural standards—different use cases may legitimately need different models."
       },
       "parseStrategy": {
         "keyPhrase": "establish and enforce standards",
@@ -1138,9 +1134,6 @@
         {
           "id": "d",
           "text": "Enable Cross-Region Inference for automatic regional failover"
-        },
-        {
-          "text": "Deploy redundant Lambda functions in the same region"
         }
       ],
       "correctAnswers": [
@@ -1150,8 +1143,7 @@
       "explanation": "Exponential backoff with jitter handles transient failures (rate limits, temporary errors) by spreading retry attempts. Cross-Region Inference handles regional outages by automatically routing to available regions. Together they address both failure modes mentioned in the scenario.",
       "incorrectExplanations": {
         "a": "Synchronous vs async invocation doesn't affect availability—both can implement retry logic.",
-        "b": "Caching all responses indefinitely would return stale data and doesn't address the availability of new requests.",
-        "undefined": "Redundant Lambda in the same region doesn't help with regional outages or Bedrock API failures."
+        "b": "Caching all responses indefinitely would return stale data and doesn't address the availability of new requests."
       },
       "parseStrategy": {
         "keyPhrase": "transient failures and regional outages",
@@ -1617,9 +1609,6 @@
         {
           "id": "d",
           "text": "Amazon Rekognition for content analysis"
-        },
-        {
-          "text": "Amazon Transcribe for text processing"
         }
       ],
       "correctAnswers": [
@@ -1629,8 +1618,7 @@
       "explanation": "Glue Data Quality validates inputs with declarative rules (checking non-empty, proper encoding). Comprehend extracts entities like product names and features mentioned in reviews. Together they handle both validation and enrichment requirements.",
       "incorrectExplanations": {
         "b": "Polly converts text to speech—the opposite of what's needed and unrelated to preprocessing.",
-        "d": "Rekognition is for image/video analysis—not relevant for text review processing.",
-        "undefined": "Transcribe converts speech to text—reviews are already text, so this is unnecessary."
+        "d": "Rekognition is for image/video analysis—not relevant for text review processing."
       },
       "parseStrategy": {
         "keyPhrase": "validate and extract entities",

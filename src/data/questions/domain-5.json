@@ -238,6 +238,786 @@
       },
       "services": ["Amazon SageMaker Ground Truth"],
       "examTip": "Ground Truth manages human labeling and evaluation workflows. Use it for systematic human evaluation with quality controls."
+    },
+    {
+      "id": "d5-q08",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A RAG application needs to measure how well retrieved documents answer user queries. The team wants to evaluate whether the retrieval step is finding relevant information before it reaches the generation stage.",
+      "question": "Which metric evaluates retrieval quality independently from generation?",
+      "options": [
+        {"id": "a", "text": "Answer relevance (how relevant the final answer is to the query)"},
+        {"id": "b", "text": "Context precision (how many retrieved documents are relevant to the query)"},
+        {"id": "c", "text": "Faithfulness (whether the answer is grounded in retrieved context)"},
+        {"id": "d", "text": "Toxicity score (whether content is harmful)"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Context precision measures retrieval quality by evaluating whether retrieved documents are relevant to the query. High precision means the retrieval step is working well. This is independent of how the generation model uses that context.",
+      "incorrectExplanations": {
+        "a": "Answer relevance evaluates the final generated answer, not the retrieval step specifically.",
+        "c": "Faithfulness measures generation quality (whether answers match context), not retrieval quality.",
+        "d": "Toxicity is a safety metric unrelated to retrieval effectiveness."
+      },
+      "parseStrategy": {
+        "keyPhrase": "retrieval quality independently",
+        "eliminationHints": [
+          "Answer relevance = generation metric",
+          "Faithfulness = generation vs context",
+          "Toxicity = safety, not retrieval"
+        ],
+        "decisionFramework": "Retrieval-specific metric = context precision"
+      },
+      "services": ["Amazon Bedrock Knowledge Bases"],
+      "examTip": "Context precision and context recall are retrieval metrics. Faithfulness and answer relevance are generation metrics."
+    },
+    {
+      "id": "d5-q09",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.1"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A production GenAI application is experiencing high latency. Some requests take 30 seconds while others complete in 2 seconds. The team needs to identify what's causing the latency variation.",
+      "question": "Which debugging approach BEST identifies the source of latency variation?",
+      "options": [
+        {"id": "a", "text": "Check average latency metrics in CloudWatch"},
+        {"id": "b", "text": "Use X-Ray to compare trace timelines between fast and slow requests"},
+        {"id": "c", "text": "Review application logs for error messages"},
+        {"id": "d", "text": "Monitor CPU utilization on Lambda functions"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "X-Ray traces show timing for each component in a request. Comparing fast vs slow traces reveals which component causes the variation—is it retrieval, model inference, or post-processing? This pinpoints where optimization efforts should focus.",
+      "incorrectExplanations": {
+        "a": "Average latency hides variation. You need to see individual request timing to understand what makes some slow.",
+        "c": "Logs might show errors but don't show timing breakdowns for successful but slow requests.",
+        "d": "CPU utilization is one factor but doesn't explain where time is spent across the distributed system."
+      },
+      "parseStrategy": {
+        "keyPhrase": "latency variation",
+        "eliminationHints": [
+          "Averages hide variation",
+          "Logs = errors, not timing",
+          "CPU = one component only"
+        ],
+        "decisionFramework": "Latency debugging = X-Ray trace comparison"
+      },
+      "services": ["AWS X-Ray"],
+      "examTip": "Compare X-Ray traces to understand latency variation. Look for the component that differs between fast and slow requests."
+    },
+    {
+      "id": "d5-q10",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.4"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A team is setting up automated evaluation for their chatbot. They want to ensure responses are relevant to user questions before deploying updates to production.",
+      "question": "What type of evaluation dataset is MOST appropriate for validating chatbot relevance?",
+      "options": [
+        {"id": "a", "text": "Random samples of production traffic"},
+        {"id": "b", "text": "Curated question-answer pairs covering expected use cases with known good answers"},
+        {"id": "c", "text": "Adversarial prompts designed to break the model"},
+        {"id": "d", "text": "Synthetic data generated by another LLM"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Curated question-answer pairs with known good answers serve as a golden dataset. You can systematically compare model outputs to expected answers across version changes. This provides consistent, reproducible evaluation.",
+      "incorrectExplanations": {
+        "a": "Random production samples may not cover edge cases and don't have known-good answers for comparison.",
+        "c": "Adversarial prompts test robustness but don't validate core relevance for normal use cases.",
+        "d": "LLM-generated data may contain errors and doesn't represent real user needs."
+      },
+      "parseStrategy": {
+        "keyPhrase": "validating relevance",
+        "eliminationHints": [
+          "Random samples lack ground truth",
+          "Adversarial = robustness, not relevance",
+          "Synthetic = potential errors"
+        ],
+        "decisionFramework": "Relevance validation = curated dataset with known answers"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "Golden datasets with known answers enable reproducible evaluation. Use them for regression testing across model versions."
+    },
+    {
+      "id": "d5-q11",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "Users report that a GenAI application sometimes returns empty responses. The issue occurs sporadically and isn't easily reproducible. The team needs to capture the conditions when failures occur.",
+      "question": "Which approach helps capture and diagnose sporadic empty response issues?",
+      "options": [
+        {"id": "a", "text": "Add client-side retry logic to mask the failures"},
+        {"id": "b", "text": "Enable Bedrock invocation logging and set up CloudWatch alerts for empty responses"},
+        {"id": "c", "text": "Increase model temperature to generate more varied outputs"},
+        {"id": "d", "text": "Switch to a different foundation model"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Invocation logging captures the full request/response for every call. Setting up alerts for empty responses notifies you when they occur and provides the context needed for diagnosis—what prompt, what parameters, what went wrong.",
+      "incorrectExplanations": {
+        "a": "Retries mask failures but don't help you understand or fix the root cause.",
+        "c": "Temperature affects creativity, not whether responses are empty. This doesn't address the issue.",
+        "d": "Switching models is a workaround, not a diagnosis. You should understand the failure first."
+      },
+      "parseStrategy": {
+        "keyPhrase": "sporadic failures, capture conditions",
+        "eliminationHints": [
+          "Retries = masking, not diagnosis",
+          "Temperature = creativity, not failures",
+          "Model switch = workaround, not fix"
+        ],
+        "decisionFramework": "Sporadic failure diagnosis = logging + alerting"
+      },
+      "services": ["Amazon Bedrock", "Amazon CloudWatch"],
+      "examTip": "For sporadic issues, enable logging and set up alerts. Capture the conditions when failures occur for diagnosis."
+    },
+    {
+      "id": "d5-q12",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.1"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A company wants to compare three different foundation models for their summarization use case. They need to select the model that produces the best quality summaries while meeting latency requirements.",
+      "question": "Which evaluation approach enables fair model comparison for this use case?",
+      "options": [
+        {"id": "a", "text": "Run each model in production for a week and compare user feedback"},
+        {"id": "b", "text": "Use Bedrock Model Evaluations with the same test dataset and evaluation criteria for all models"},
+        {"id": "c", "text": "Compare pricing and select the cheapest option"},
+        {"id": "d", "text": "Use the model with the highest parameter count"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Using the same test dataset and evaluation criteria ensures fair comparison. Bedrock Model Evaluations runs all models against identical inputs and measures against consistent metrics. This removes variables that could skew results.",
+      "incorrectExplanations": {
+        "a": "Production testing introduces variables like different users, times, and inputs. Not a controlled comparison.",
+        "c": "Price doesn't reflect quality. The cheapest model might produce poor summaries.",
+        "d": "Parameter count doesn't determine quality for a specific task. Smaller models can outperform larger ones for specific use cases."
+      },
+      "parseStrategy": {
+        "keyPhrase": "fair model comparison",
+        "eliminationHints": [
+          "Production testing = uncontrolled variables",
+          "Price = not quality",
+          "Parameters = not task performance"
+        ],
+        "decisionFramework": "Fair comparison = same dataset + same criteria"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "For model comparison, control variables. Same dataset, same prompts, same evaluation criteria across all models."
+    },
+    {
+      "id": "d5-q13",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.3"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A Knowledge Base returns documents with high similarity scores, but users say the answers aren't relevant. The team suspects the embedding model isn't capturing domain-specific concepts well.",
+      "question": "Which approach validates whether the embedding model is suitable for the domain?",
+      "options": [
+        {"id": "a", "text": "Increase the number of documents returned per query"},
+        {"id": "b", "text": "Test with domain-specific synonym pairs and verify they have high embedding similarity"},
+        {"id": "c", "text": "Use a larger chunk size for document ingestion"},
+        {"id": "d", "text": "Enable hybrid search with keyword matching"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Testing synonym pairs reveals whether the embedding model understands domain relationships. If domain synonyms have low similarity, the model isn't capturing domain semantics well. This diagnostic identifies embedding model fit for your domain.",
+      "incorrectExplanations": {
+        "a": "More documents doesn't help if the embedding model doesn't understand domain concepts.",
+        "c": "Chunk size affects context but doesn't address whether embeddings capture domain meaning.",
+        "d": "Hybrid search is a workaround, not a diagnosis. You should confirm the embedding issue first."
+      },
+      "parseStrategy": {
+        "keyPhrase": "embedding model suitable for domain",
+        "eliminationHints": [
+          "More documents = same bad embeddings",
+          "Chunk size = context, not semantics",
+          "Hybrid search = workaround"
+        ],
+        "decisionFramework": "Embedding suitability = test domain synonym similarity"
+      },
+      "services": ["Amazon Bedrock Knowledge Bases"],
+      "examTip": "Test embedding quality with domain synonyms. If related terms have low similarity, consider a domain-specific embedding model."
+    },
+    {
+      "id": "d5-q14",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.2"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A RAG system retrieves 5 documents per query. The team wants to measure what percentage of queries return at least one relevant document in the top results.",
+      "question": "Which RAG metric measures this aspect of retrieval performance?",
+      "options": [
+        {"id": "a", "text": "Context precision"},
+        {"id": "b", "text": "Context recall"},
+        {"id": "c", "text": "Answer correctness"},
+        {"id": "d", "text": "Faithfulness"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Context recall measures whether relevant documents are retrieved. High recall means the system finds relevant information when it exists. Low recall means relevant documents are being missed.",
+      "incorrectExplanations": {
+        "a": "Context precision measures what fraction of retrieved docs are relevant, not whether relevant docs are found.",
+        "c": "Answer correctness evaluates the generated answer, not the retrieval step.",
+        "d": "Faithfulness measures whether answers are grounded in context, not retrieval coverage."
+      },
+      "parseStrategy": {
+        "keyPhrase": "relevant document in top results",
+        "eliminationHints": [
+          "Precision = fraction relevant of retrieved",
+          "Answer metrics = generation, not retrieval",
+          "Faithfulness = generation quality"
+        ],
+        "decisionFramework": "Finding relevant docs = recall. Avoiding irrelevant docs = precision."
+      },
+      "services": ["Amazon Bedrock Knowledge Bases"],
+      "examTip": "Recall = did we find what exists? Precision = is what we found relevant? Both matter for RAG quality."
+    },
+    {
+      "id": "d5-q15",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.1"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A GenAI application has multiple Lambda functions, each calling different Bedrock models. The team needs to understand the end-to-end request flow and identify which model calls contribute most to total latency.",
+      "question": "Which observability approach provides this visibility?",
+      "options": [
+        {"id": "a", "text": "Check CloudWatch Logs for each Lambda function"},
+        {"id": "b", "text": "Enable X-Ray tracing with Bedrock integration and create a service map"},
+        {"id": "c", "text": "Monitor Lambda duration metrics in CloudWatch"},
+        {"id": "d", "text": "Review Bedrock usage metrics in the console"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "X-Ray with Bedrock integration traces each model call as a subsegment. The service map shows request flow and timing. You can see exactly how much time each model call takes and identify the bottleneck.",
+      "incorrectExplanations": {
+        "a": "Logs require manual correlation and don't show timing relationships between services.",
+        "c": "Lambda duration shows total function time but not the breakdown of model calls within.",
+        "d": "Usage metrics show aggregate stats, not per-request timing for specific flows."
+      },
+      "parseStrategy": {
+        "keyPhrase": "end-to-end request flow, model latency contribution",
+        "eliminationHints": [
+          "Logs = manual correlation",
+          "Lambda duration = total only",
+          "Usage metrics = aggregate"
+        ],
+        "decisionFramework": "Request flow + per-call timing = X-Ray service map"
+      },
+      "services": ["AWS X-Ray", "Amazon Bedrock"],
+      "examTip": "X-Ray service maps show request flow and timing. Use them to identify bottlenecks in multi-model architectures."
+    },
+    {
+      "id": "d5-q16",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.3"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A team is using LLM-as-a-Judge to evaluate chatbot responses. They notice inconsistent ratings for similar responses. Some evaluations seem random rather than based on the defined criteria.",
+      "question": "Which approach improves LLM-as-a-Judge consistency?",
+      "options": [
+        {"id": "a", "text": "Use a higher temperature for the judge model"},
+        {"id": "b", "text": "Provide few-shot examples of ideal ratings with explanations in the judge prompt"},
+        {"id": "c", "text": "Evaluate more responses per batch"},
+        {"id": "d", "text": "Use a smaller, faster model as the judge"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Few-shot examples calibrate the judge model. Showing examples of ratings with explanations teaches the model how to apply criteria consistently. This reduces random variation and improves rating reliability.",
+      "incorrectExplanations": {
+        "a": "Higher temperature increases randomness, making ratings less consistent.",
+        "c": "Batch size doesn't affect individual rating consistency.",
+        "d": "Smaller models may be less capable of nuanced evaluation, potentially reducing quality."
+      },
+      "parseStrategy": {
+        "keyPhrase": "judge consistency",
+        "eliminationHints": [
+          "Higher temperature = more random",
+          "Batch size = throughput, not consistency",
+          "Smaller model = potentially less capable"
+        ],
+        "decisionFramework": "Judge consistency = few-shot calibration examples"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "Calibrate LLM judges with few-shot examples. Show how to apply criteria with example ratings and explanations."
+    },
+    {
+      "id": "d5-q17",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A GenAI application's responses have degraded over time. Users report lower quality answers compared to when the system launched. The foundation model and prompts haven't changed.",
+      "question": "What is the MOST likely cause of this gradual quality degradation?",
+      "options": [
+        {"id": "a", "text": "The foundation model was updated by AWS"},
+        {"id": "b", "text": "The Knowledge Base data has become stale or contains contradictory information"},
+        {"id": "c", "text": "Network latency has increased"},
+        {"id": "d", "text": "CloudWatch alarms are triggering too frequently"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Knowledge Base content can become outdated as the world changes. New information may contradict old documents. If ingestion isn't maintained, the retrieval context becomes stale, leading to lower quality answers even with unchanged prompts.",
+      "incorrectExplanations": {
+        "a": "AWS doesn't update model behavior without notice. Model versions are versioned and stable.",
+        "c": "Latency affects speed, not answer quality.",
+        "d": "Alarms are for monitoring, not a cause of quality issues."
+      },
+      "parseStrategy": {
+        "keyPhrase": "gradual quality degradation, model unchanged",
+        "eliminationHints": [
+          "Model updates = versioned, announced",
+          "Latency = speed, not quality",
+          "Alarms = monitoring, not cause"
+        ],
+        "decisionFramework": "Gradual degradation + unchanged model = data drift/staleness"
+      },
+      "services": ["Amazon Bedrock Knowledge Bases"],
+      "examTip": "When quality degrades gradually, check data freshness. Knowledge Base content needs regular updates to stay relevant."
+    },
+    {
+      "id": "d5-q18",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.4"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A company wants to evaluate their model's safety before production deployment. They need to systematically test for harmful outputs across categories like toxicity, bias, and misinformation.",
+      "question": "Which evaluation approach provides comprehensive safety testing?",
+      "options": [
+        {"id": "a", "text": "Deploy to production with Guardrails and monitor blocked content"},
+        {"id": "b", "text": "Run automated safety evaluations using adversarial test sets covering multiple harm categories"},
+        {"id": "c", "text": "Have internal employees test the model manually"},
+        {"id": "d", "text": "Compare outputs to another model's safety ratings"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Automated safety evaluations with adversarial test sets systematically probe for harmful outputs across categories. This provides comprehensive coverage before deployment rather than discovering issues in production.",
+      "incorrectExplanations": {
+        "a": "Production monitoring is reactive. You'd expose users to harmful content before blocking it.",
+        "c": "Manual testing doesn't scale and may miss edge cases that adversarial sets would catch.",
+        "d": "Comparing to another model doesn't establish absolute safety standards."
+      },
+      "parseStrategy": {
+        "keyPhrase": "comprehensive safety testing before deployment",
+        "eliminationHints": [
+          "Production = reactive, too late",
+          "Manual = doesn't scale",
+          "Model comparison = relative, not absolute"
+        ],
+        "decisionFramework": "Pre-deployment safety = adversarial evaluation sets"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "Test safety before deployment, not after. Use adversarial datasets covering multiple harm categories."
+    },
+    {
+      "id": "d5-q19",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.1"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "The operations team needs to be alerted when the GenAI application's error rate exceeds 1%. They want automatic notifications when thresholds are breached.",
+      "question": "Which AWS service provides threshold-based alerting for GenAI applications?",
+      "options": [
+        {"id": "a", "text": "AWS X-Ray"},
+        {"id": "b", "text": "Amazon CloudWatch Alarms"},
+        {"id": "c", "text": "AWS CloudTrail"},
+        {"id": "d", "text": "Amazon EventBridge"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "CloudWatch Alarms trigger when metrics cross defined thresholds. Configure an alarm on your error rate metric with a 1% threshold, and set notification actions via SNS. This provides automated alerting when problems occur.",
+      "incorrectExplanations": {
+        "a": "X-Ray provides tracing but not threshold-based alerting.",
+        "c": "CloudTrail logs API calls for audit, not operational alerting.",
+        "d": "EventBridge routes events but isn't used for metric threshold alerting."
+      },
+      "parseStrategy": {
+        "keyPhrase": "threshold-based alerting",
+        "eliminationHints": [
+          "X-Ray = tracing, not alerting",
+          "CloudTrail = audit logging",
+          "EventBridge = event routing"
+        ],
+        "decisionFramework": "Metric thresholds + notifications = CloudWatch Alarms"
+      },
+      "services": ["Amazon CloudWatch"],
+      "examTip": "CloudWatch Alarms for metric thresholds. Connect to SNS for notifications when thresholds are breached."
+    },
+    {
+      "id": "d5-q20",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A team is evaluating a code generation model. They need metrics that specifically measure whether generated code is syntactically correct and functionally working, not just textually similar to reference solutions.",
+      "question": "Which evaluation approach is MOST appropriate for code generation?",
+      "options": [
+        {"id": "a", "text": "BLEU score comparing generated code to reference implementations"},
+        {"id": "b", "text": "Execute generated code against test cases and measure pass rate"},
+        {"id": "c", "text": "Count matching lines between generated and reference code"},
+        {"id": "d", "text": "Measure character-level edit distance from reference"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Code correctness requires execution testing. Generated code that looks different from reference code may still be correct. Running against test cases measures functional correctness—does the code actually work?",
+      "incorrectExplanations": {
+        "a": "BLEU measures textual similarity. Correct code with different variable names would score poorly.",
+        "c": "Line matching penalizes valid alternative implementations.",
+        "d": "Edit distance measures text similarity, not functional correctness."
+      },
+      "parseStrategy": {
+        "keyPhrase": "syntactically correct and functionally working",
+        "eliminationHints": [
+          "BLEU = text similarity",
+          "Line matching = surface comparison",
+          "Edit distance = text similarity"
+        ],
+        "decisionFramework": "Functional correctness = execution testing"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "For code evaluation, execute and test. Textual similarity metrics don't measure whether code actually works."
+    },
+    {
+      "id": "d5-q21",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.3"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A GenAI application has been running well, but after a recent code deployment, response quality dropped significantly. The team needs to identify what changed and roll back if necessary.",
+      "question": "Which practice would have BEST prepared the team for this situation?",
+      "options": [
+        {"id": "a", "text": "Manual testing before each deployment"},
+        {"id": "b", "text": "Automated evaluation pipeline comparing pre/post deployment metrics with automatic rollback triggers"},
+        {"id": "c", "text": "User feedback collection after deployment"},
+        {"id": "d", "text": "Longer code review processes"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Automated evaluation pipelines run standard tests before and after deployment. Comparing metrics identifies regressions immediately. Automatic rollback triggers revert changes when quality drops below thresholds, minimizing user impact.",
+      "incorrectExplanations": {
+        "a": "Manual testing doesn't scale and may miss edge cases covered by automated suites.",
+        "c": "User feedback is delayed and reactive. Problems persist while collecting feedback.",
+        "d": "Code reviews catch code issues but don't predict model output quality changes."
+      },
+      "parseStrategy": {
+        "keyPhrase": "deployment quality drop, rollback",
+        "eliminationHints": [
+          "Manual testing = doesn't scale",
+          "User feedback = delayed, reactive",
+          "Code review = code, not output quality"
+        ],
+        "decisionFramework": "Deployment quality assurance = automated evaluation + rollback"
+      },
+      "services": ["Amazon Bedrock Model Evaluations", "AWS CodePipeline"],
+      "examTip": "Integrate evaluation into CI/CD. Automated pre/post deployment comparison catches regressions before users notice."
+    },
+    {
+      "id": "d5-q22",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A team is evaluating a question-answering system. They want to measure whether the system's answers contain all the key information that should be present based on the source documents.",
+      "question": "Which metric measures completeness of information in answers?",
+      "options": [
+        {"id": "a", "text": "Answer relevance (how on-topic the answer is)"},
+        {"id": "b", "text": "Answer completeness (whether all key facts from context appear in answer)"},
+        {"id": "c", "text": "Groundedness (whether claims are supported by context)"},
+        {"id": "d", "text": "Fluency (how naturally the answer reads)"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Answer completeness measures whether the answer includes all relevant information from the source documents. This catches cases where the answer is accurate but misses important details.",
+      "incorrectExplanations": {
+        "a": "Relevance measures topic alignment, not whether all key facts are included.",
+        "c": "Groundedness measures accuracy (no hallucination) but not completeness.",
+        "d": "Fluency measures readability, not information coverage."
+      },
+      "parseStrategy": {
+        "keyPhrase": "all key information",
+        "eliminationHints": [
+          "Relevance = topic alignment",
+          "Groundedness = accuracy, not coverage",
+          "Fluency = readability"
+        ],
+        "decisionFramework": "Information coverage = completeness metric"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "Completeness and groundedness are complementary. Groundedness = no wrong info. Completeness = no missing info."
+    },
+    {
+      "id": "d5-q23",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.2"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A development team wants to track model invocation costs across different features of their GenAI application. Each feature uses different prompts and models.",
+      "question": "How should the team implement cost tracking per feature?",
+      "options": [
+        {"id": "a", "text": "Check the monthly AWS bill and estimate proportions"},
+        {"id": "b", "text": "Use AWS Cost Allocation Tags on Bedrock resources and enable cost reporting by tag"},
+        {"id": "c", "text": "Count invocations manually in application logs"},
+        {"id": "d", "text": "Use separate AWS accounts for each feature"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Cost Allocation Tags let you label resources and track costs by tag. Tag Bedrock calls by feature, then use Cost Explorer to view spending by feature. This provides automated, accurate cost attribution.",
+      "incorrectExplanations": {
+        "a": "Monthly estimates don't provide accurate feature-level attribution.",
+        "c": "Manual counting is error-prone and doesn't capture actual dollar costs.",
+        "d": "Separate accounts is extreme overhead for cost tracking."
+      },
+      "parseStrategy": {
+        "keyPhrase": "cost tracking per feature",
+        "eliminationHints": [
+          "Monthly estimates = inaccurate",
+          "Manual counting = error-prone",
+          "Separate accounts = overkill"
+        ],
+        "decisionFramework": "Cost attribution = Cost Allocation Tags"
+      },
+      "services": ["AWS Cost Explorer", "Amazon Bedrock"],
+      "examTip": "Use Cost Allocation Tags for cost attribution. Tag by project, feature, or team for granular cost visibility."
+    },
+    {
+      "id": "d5-q24",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.3"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A company needs to validate that their GenAI system doesn't exhibit harmful biases. They want to test whether the model treats different demographic groups fairly in its responses.",
+      "question": "Which evaluation approach assesses fairness across demographic groups?",
+      "options": [
+        {"id": "a", "text": "Test with a single diverse evaluator"},
+        {"id": "b", "text": "Run identical prompts with different demographic markers and compare response quality/tone"},
+        {"id": "c", "text": "Use automated toxicity detection"},
+        {"id": "d", "text": "Review model training data for diversity"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Bias testing requires controlled comparison. Run the same prompt with only demographic markers changed (names, pronouns, etc.) and compare responses. Differences in quality, tone, or treatment reveal bias.",
+      "incorrectExplanations": {
+        "a": "A single evaluator, even diverse, provides subjective assessment without systematic comparison.",
+        "c": "Toxicity detection catches harmful content but not subtle differential treatment.",
+        "d": "Training data review is useful but doesn't test actual model behavior."
+      },
+      "parseStrategy": {
+        "keyPhrase": "fairness across demographic groups",
+        "eliminationHints": [
+          "Single evaluator = subjective",
+          "Toxicity = explicit harm, not bias",
+          "Training data = inputs, not outputs"
+        ],
+        "decisionFramework": "Bias testing = controlled demographic comparison"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "Test for bias with controlled prompts. Change only demographic markers and compare responses for differences."
+    },
+    {
+      "id": "d5-q25",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "An operations team needs to create a dashboard showing GenAI application health: error rates, latency percentiles, throughput, and model invocation counts. They want a single view for monitoring.",
+      "question": "Which service provides the BEST solution for this unified monitoring dashboard?",
+      "options": [
+        {"id": "a", "text": "AWS X-Ray service map"},
+        {"id": "b", "text": "Amazon CloudWatch Dashboards with metrics from multiple services"},
+        {"id": "c", "text": "Amazon QuickSight for business intelligence"},
+        {"id": "d", "text": "AWS Health Dashboard"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "CloudWatch Dashboards aggregate metrics from multiple services into a single view. You can add Lambda metrics, Bedrock invocation counts, API Gateway latency, and custom metrics. This provides unified operational visibility.",
+      "incorrectExplanations": {
+        "a": "X-Ray service maps show request flow but aren't designed for operational dashboards with multiple metric types.",
+        "c": "QuickSight is for business analytics, not real-time operational monitoring.",
+        "d": "Health Dashboard shows AWS service health, not your application metrics."
+      },
+      "parseStrategy": {
+        "keyPhrase": "unified monitoring dashboard",
+        "eliminationHints": [
+          "X-Ray = request tracing",
+          "QuickSight = business analytics",
+          "Health Dashboard = AWS service status"
+        ],
+        "decisionFramework": "Operational dashboard = CloudWatch Dashboards"
+      },
+      "services": ["Amazon CloudWatch"],
+      "examTip": "CloudWatch Dashboards for operational monitoring. Aggregate metrics from Lambda, Bedrock, API Gateway in one view."
+    },
+    {
+      "id": "d5-q26",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.4"],
+      "type": "multiple-response",
+      "difficulty": "hard",
+      "scenario": "A team is setting up continuous evaluation for their production GenAI application. They want to catch quality regressions early and maintain consistent output quality over time.",
+      "question": "Which TWO practices support continuous quality monitoring? (Select TWO)",
+      "options": [
+        {"id": "a", "text": "Run periodic automated evaluations against a golden dataset and trend results over time"},
+        {"id": "b", "text": "Rely exclusively on user complaints to identify issues"},
+        {"id": "c", "text": "Set up alerts when evaluation metrics drop below established baselines"},
+        {"id": "d", "text": "Evaluate only when deploying new code"}
+      ],
+      "correctAnswers": ["a", "c"],
+      "explanation": "Periodic evaluation against golden datasets catches drift proactively. Alerts on metric drops notify you of regressions immediately. Together, these provide continuous quality assurance—detecting issues before users complain.",
+      "incorrectExplanations": {
+        "b": "User complaints are reactive and delayed. Many users don't report issues—they just leave.",
+        "d": "Model behavior can change due to data drift even without code changes. Continuous monitoring is needed."
+      },
+      "parseStrategy": {
+        "keyPhrase": "continuous quality monitoring",
+        "eliminationHints": [
+          "User complaints = reactive",
+          "Deploy-only = misses data drift"
+        ],
+        "decisionFramework": "Continuous monitoring = periodic evaluation + baseline alerting"
+      },
+      "services": ["Amazon Bedrock Model Evaluations", "Amazon CloudWatch"],
+      "examTip": "Continuous evaluation catches drift. Don't wait for user complaints or deployments—monitor proactively."
+    },
+    {
+      "id": "d5-q27",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.3"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A GenAI application's Knowledge Base was recently updated with new documents. Since the update, some queries return less relevant results. The team suspects the new documents are affecting retrieval for existing queries.",
+      "question": "How should the team diagnose the retrieval regression?",
+      "options": [
+        {"id": "a", "text": "Remove all new documents and start over"},
+        {"id": "b", "text": "Compare retrieval results for affected queries before and after the update using saved query-document pairs"},
+        {"id": "c", "text": "Increase the similarity threshold"},
+        {"id": "d", "text": "Switch to a different embedding model"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Comparing before/after retrieval results identifies which new documents are displacing relevant ones. With saved query-document pairs, you can see exactly how the new content affects existing retrieval patterns.",
+      "incorrectExplanations": {
+        "a": "Removing documents is drastic and loses new content. Diagnosis should precede such actions.",
+        "c": "Threshold changes affect all queries, not just problematic ones.",
+        "d": "Switching models is expensive and doesn't explain the current issue."
+      },
+      "parseStrategy": {
+        "keyPhrase": "retrieval regression after update",
+        "eliminationHints": [
+          "Remove all = drastic, loses content",
+          "Threshold = global change",
+          "New model = expensive workaround"
+        ],
+        "decisionFramework": "Regression diagnosis = before/after comparison"
+      },
+      "services": ["Amazon Bedrock Knowledge Bases"],
+      "examTip": "Save baseline query-document pairs. After updates, compare results to identify regression sources."
+    },
+    {
+      "id": "d5-q28",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.1"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A team wants to understand how their GenAI application performs across different categories of user queries. Some categories seem to work better than others, but they lack systematic data.",
+      "question": "How should the team structure their evaluation to identify category-specific performance?",
+      "options": [
+        {"id": "a", "text": "Evaluate all queries together and report a single accuracy score"},
+        {"id": "b", "text": "Tag evaluation queries by category and report metrics broken down by category"},
+        {"id": "c", "text": "Focus only on the best-performing categories"},
+        {"id": "d", "text": "Use different models for different categories"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Tagging queries by category and reporting category-specific metrics reveals where the system excels and struggles. This identifies opportunities for targeted improvement rather than optimizing blindly.",
+      "incorrectExplanations": {
+        "a": "A single score hides category variation. Good performance in one area can mask poor performance in another.",
+        "c": "Focusing on best categories ignores problem areas that need attention.",
+        "d": "Multiple models adds complexity and doesn't address understanding current performance."
+      },
+      "parseStrategy": {
+        "keyPhrase": "category-specific performance",
+        "eliminationHints": [
+          "Single score = hides variation",
+          "Best categories only = ignores problems",
+          "Multiple models = adds complexity"
+        ],
+        "decisionFramework": "Category performance = tagged evaluation + segmented reporting"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "Segment evaluation by category. Aggregate scores hide important performance variations across use cases."
+    },
+    {
+      "id": "d5-q29",
+      "domain": 5,
+      "task": "5.2",
+      "skills": ["5.2.2"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A GenAI agent occasionally enters infinite loops, repeatedly calling the same tool without making progress. The team needs to understand why this happens and prevent it.",
+      "question": "Which approach helps diagnose agent loop issues?",
+      "options": [
+        {"id": "a", "text": "Increase the maximum number of allowed agent steps"},
+        {"id": "b", "text": "Enable detailed agent trace logging to examine the reasoning chain that led to the loop"},
+        {"id": "c", "text": "Reduce the model temperature to zero"},
+        {"id": "d", "text": "Remove tools the agent can call"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Agent trace logging shows each reasoning step, tool call, and result. Examining traces for looping requests reveals what triggers the loop—unclear results, ambiguous instructions, or failure to recognize completion. This informs how to fix the issue.",
+      "incorrectExplanations": {
+        "a": "More steps allows longer loops, making the problem worse.",
+        "c": "Zero temperature makes outputs deterministic but doesn't prevent faulty reasoning patterns.",
+        "d": "Removing tools may break functionality and doesn't address why the loop occurs."
+      },
+      "parseStrategy": {
+        "keyPhrase": "diagnose agent loops",
+        "eliminationHints": [
+          "More steps = worse problem",
+          "Temperature = determinism, not logic",
+          "Remove tools = breaks functionality"
+        ],
+        "decisionFramework": "Agent debugging = trace logging + reasoning chain analysis"
+      },
+      "services": ["Amazon Bedrock Agents"],
+      "examTip": "Agent traces reveal reasoning chains. Use them to debug loops, unexpected tool calls, or incorrect decisions."
+    },
+    {
+      "id": "d5-q30",
+      "domain": 5,
+      "task": "5.1",
+      "skills": ["5.1.2", "5.1.4"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A team wants to set up A/B testing for their GenAI application. They want to compare a new prompt template against the current one using real production traffic while measuring quality metrics.",
+      "question": "Which approach enables safe A/B testing with quality measurement?",
+      "options": [
+        {"id": "a", "text": "Deploy the new template to all users and measure feedback"},
+        {"id": "b", "text": "Route a percentage of traffic to each variant and evaluate responses with automated metrics"},
+        {"id": "c", "text": "Test the new template internally only"},
+        {"id": "d", "text": "Run the new template on historical queries offline"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Traffic splitting enables controlled comparison on real production data. Automated evaluation of responses provides objective quality metrics. This reveals true production performance differences without risking all users.",
+      "incorrectExplanations": {
+        "a": "Full deployment risks all users if the new template is worse.",
+        "c": "Internal testing may not reflect real user behavior and query patterns.",
+        "d": "Offline testing on historical data may miss real-time patterns and edge cases."
+      },
+      "parseStrategy": {
+        "keyPhrase": "A/B testing with quality measurement",
+        "eliminationHints": [
+          "Full deployment = high risk",
+          "Internal only = not representative",
+          "Offline = misses real patterns"
+        ],
+        "decisionFramework": "Production A/B testing = traffic split + automated evaluation"
+      },
+      "services": ["Amazon Bedrock", "Amazon CloudWatch"],
+      "examTip": "A/B test prompt changes with traffic splitting. Measure quality objectively before full rollout."
     }
   ]
 }

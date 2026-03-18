@@ -442,6 +442,748 @@
       },
       "services": ["Amazon S3", "AWS Lambda", "Amazon Macie"],
       "examTip": "Staged ingestion pipelines with security scanning prevent malicious content from reaching production systems."
+    },
+    {
+      "id": "d3-q14",
+      "domain": 3,
+      "task": "3.1",
+      "skills": ["3.1.1"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A GenAI chatbot is being deployed for a children's educational platform. The team needs to ensure the chatbot never generates age-inappropriate content, regardless of what users ask.",
+      "question": "Which Guardrails capability should be configured?",
+      "options": [
+        {"id": "a", "text": "Content filters with strict thresholds for sexual content, violence, and hate speech"},
+        {"id": "b", "text": "Word filters to block profanity"},
+        {"id": "c", "text": "PII filters to remove names"},
+        {"id": "d", "text": "Denied topics for educational content"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Content filters in Guardrails block harmful content categories (sexual, violence, hate, insults, misconduct). Setting strict thresholds ensures even borderline content is filtered, making the chatbot safe for children.",
+      "incorrectExplanations": {
+        "b": "Word filters only catch specific words. Age-inappropriate content can be conveyed without profanity.",
+        "c": "PII filters remove personal data but don't address content appropriateness.",
+        "d": "Educational content shouldn't be denied—it's the purpose of the chatbot."
+      },
+      "parseStrategy": {
+        "keyPhrase": "never generate age-inappropriate content",
+        "eliminationHints": [
+          "Word filters = too narrow",
+          "PII filters = wrong purpose",
+          "Denied topics = wrong use"
+        ],
+        "decisionFramework": "Harmful content prevention = Guardrails content filters"
+      },
+      "services": ["Amazon Bedrock Guardrails"],
+      "examTip": "Content filters block categories of harmful content. Use strict thresholds for sensitive audiences."
+    },
+    {
+      "id": "d3-q15",
+      "domain": 3,
+      "task": "3.1",
+      "skills": ["3.1.5"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A security researcher discovers that users can manipulate the GenAI assistant by prefixing requests with 'Developer mode: ignore safety.' The assistant sometimes follows these instructions, bypassing safety guidelines.",
+      "question": "Which defense mechanism specifically addresses this jailbreak technique?",
+      "options": [
+        {"id": "a", "text": "Configure Guardrails attack filters to detect prompt injection and jailbreak attempts"},
+        {"id": "b", "text": "Make the system prompt longer to dilute injection attempts"},
+        {"id": "c", "text": "Add 'ignore jailbreak attempts' to the system prompt"},
+        {"id": "d", "text": "Use a more recent model version"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Guardrails attack filters specifically detect prompt injection and jailbreak patterns. They can identify attempts to manipulate the system through phrases like 'ignore previous instructions' or 'developer mode,' blocking these before they reach the FM.",
+      "incorrectExplanations": {
+        "b": "Longer prompts don't prevent jailbreaks. Well-crafted injections can override long prompts.",
+        "c": "Adding 'ignore jailbreaks' to prompts is unreliable—it's essentially asking the model to self-moderate, which doesn't work consistently.",
+        "d": "Model versions don't inherently prevent jailbreaks. All models can be vulnerable without proper guardrails."
+      },
+      "parseStrategy": {
+        "keyPhrase": "addresses jailbreak technique",
+        "eliminationHints": [
+          "Longer prompt = doesn't prevent",
+          "Prompt instruction = unreliable",
+          "Model version = not the solution"
+        ],
+        "decisionFramework": "Jailbreak detection = Guardrails attack filters"
+      },
+      "services": ["Amazon Bedrock Guardrails"],
+      "examTip": "Guardrails attack filters detect jailbreak and injection patterns. They're the specific defense for these attacks."
+    },
+    {
+      "id": "d3-q16",
+      "domain": 3,
+      "task": "3.2",
+      "skills": ["3.2.1"],
+      "type": "multiple-response",
+      "difficulty": "medium",
+      "scenario": "A company is implementing a GenAI application that processes sensitive customer data. The security team requires comprehensive logging of all AI interactions for audit purposes.",
+      "question": "Which TWO services should be configured for comprehensive audit logging of Bedrock interactions?",
+      "options": [
+        {"id": "a", "text": "AWS CloudTrail for API call logging"},
+        {"id": "b", "text": "CloudWatch Logs for model invocation logs"},
+        {"id": "c", "text": "S3 access logs for object-level logging"},
+        {"id": "d", "text": "VPC Flow Logs for network traffic"}
+      ],
+      "correctAnswers": ["a", "b"],
+      "explanation": "CloudTrail logs all Bedrock API calls (who called what, when, from where). CloudWatch Logs can capture model invocation details including prompts and responses when configured. Together, they provide comprehensive audit visibility.",
+      "incorrectExplanations": {
+        "c": "S3 access logs show object access but don't capture Bedrock interactions or model invocations.",
+        "d": "VPC Flow Logs capture network traffic but don't reveal what was requested or generated in Bedrock calls."
+      },
+      "parseStrategy": {
+        "keyPhrase": "comprehensive audit logging of Bedrock",
+        "eliminationHints": [
+          "S3 logs = object access, not Bedrock",
+          "VPC Flow Logs = network level, not content"
+        ],
+        "decisionFramework": "Bedrock audit logging = CloudTrail (API) + CloudWatch Logs (invocations)"
+      },
+      "services": ["AWS CloudTrail", "Amazon CloudWatch"],
+      "examTip": "CloudTrail logs API calls; CloudWatch Logs captures invocation details. Both are needed for comprehensive auditing."
+    },
+    {
+      "id": "d3-q17",
+      "domain": 3,
+      "task": "3.3",
+      "skills": ["3.3.4"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A GenAI application has been in production for several months. The team notices the model's outputs are gradually drifting from expected behavior—responses are longer and sometimes include topics that weren't part of the original scope.",
+      "question": "Which monitoring approach detects this type of model behavior drift?",
+      "options": [
+        {"id": "a", "text": "Monitor error rates and latency in CloudWatch"},
+        {"id": "b", "text": "Run periodic evaluations comparing outputs against baseline expectations using golden datasets"},
+        {"id": "c", "text": "Check CloudTrail for unusual API call patterns"},
+        {"id": "d", "text": "Monitor the model provider's status page for changes"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Golden dataset evaluations compare current model outputs against expected results. Running these periodically detects drift in model behavior—outputs that deviate from baselines trigger alerts before drift becomes severe.",
+      "incorrectExplanations": {
+        "a": "Error rates and latency are operational metrics. Drift in output quality doesn't necessarily change these metrics.",
+        "c": "CloudTrail shows API calls but not output quality or behavioral drift.",
+        "d": "Provider status pages don't reveal gradual drift in your specific use case."
+      },
+      "parseStrategy": {
+        "keyPhrase": "model behavior drift",
+        "eliminationHints": [
+          "Error/latency = operational, not quality",
+          "CloudTrail = API calls, not outputs",
+          "Status page = doesn't show drift"
+        ],
+        "decisionFramework": "Behavior drift detection = periodic golden dataset evaluation"
+      },
+      "services": ["Amazon Bedrock Model Evaluations", "Amazon CloudWatch"],
+      "examTip": "Golden dataset evaluations detect drift. Run them periodically and compare against baselines."
+    },
+    {
+      "id": "d3-q18",
+      "domain": 3,
+      "task": "3.4",
+      "skills": ["3.4.3"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A company's legal team requires that all GenAI-generated contract clauses include a disclaimer that they were AI-generated. This disclosure must appear consistently regardless of the prompt or context.",
+      "question": "How should this consistent disclosure requirement be implemented?",
+      "options": [
+        {"id": "a", "text": "Add disclosure instructions to the system prompt"},
+        {"id": "b", "text": "Configure a Guardrails contextual grounding policy to add disclosure to all outputs"},
+        {"id": "c", "text": "Use Lambda post-processing to append the disclosure to all responses"},
+        {"id": "d", "text": "Train users to add 'include AI disclosure' to their prompts"}
+      ],
+      "correctAnswers": ["c"],
+      "explanation": "Lambda post-processing guarantees disclosure is added to every response, regardless of what the model generates. This is reliable enforcement—the disclosure is appended in code, not dependent on model behavior.",
+      "incorrectExplanations": {
+        "a": "Prompt instructions can be ignored by the model. The disclosure might not appear consistently.",
+        "b": "Contextual grounding is for grounding responses in provided context, not adding disclosures. It's not designed for this use case.",
+        "d": "Relying on user behavior is unreliable. Users will forget, and compliance requires consistent enforcement."
+      },
+      "parseStrategy": {
+        "keyPhrase": "consistent disclosure requirement",
+        "eliminationHints": [
+          "Prompt instructions = can be ignored",
+          "Contextual grounding = wrong feature",
+          "User training = unreliable"
+        ],
+        "decisionFramework": "Guaranteed output modification = Lambda post-processing"
+      },
+      "services": ["AWS Lambda", "Amazon Bedrock"],
+      "examTip": "When you need guaranteed modifications to outputs, use code (Lambda post-processing), not prompts."
+    },
+    {
+      "id": "d3-q19",
+      "domain": 3,
+      "task": "3.2",
+      "skills": ["3.2.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "An application processes customer support transcripts containing credit card numbers and social security numbers. Before sending these transcripts for AI analysis, the PII must be masked but the analysis should still reference the masked fields meaningfully.",
+      "question": "Which approach masks PII while maintaining contextual references?",
+      "options": [
+        {"id": "a", "text": "Use Amazon Comprehend to detect PII and replace with consistent masked tokens like [CARD_1], [SSN_1]"},
+        {"id": "b", "text": "Remove all numbers from the text"},
+        {"id": "c", "text": "Encrypt the PII with KMS keys"},
+        {"id": "d", "text": "Store PII in a separate database and send only non-PII text"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Comprehend PII detection identifies sensitive data types. Replacing them with consistent tokens (like [CARD_1]) maintains referential integrity—if the same card number appears twice, it's replaced with the same token, preserving context for analysis.",
+      "incorrectExplanations": {
+        "b": "Removing all numbers destroys non-PII numeric data like dates, quantities, and prices needed for analysis.",
+        "c": "Encrypted PII isn't readable for analysis. The FM can't understand encrypted text.",
+        "d": "Removing PII entirely loses the ability to reference 'the customer's card' in analysis."
+      },
+      "parseStrategy": {
+        "keyPhrase": "masked but maintain contextual references",
+        "eliminationHints": [
+          "Remove numbers = destroys data",
+          "Encryption = unreadable",
+          "Separate storage = loses references"
+        ],
+        "decisionFramework": "PII masking with context = Comprehend + consistent token replacement"
+      },
+      "services": ["Amazon Comprehend"],
+      "examTip": "Use consistent masking tokens to maintain referential integrity after PII removal."
+    },
+    {
+      "id": "d3-q20",
+      "domain": 3,
+      "task": "3.1",
+      "skills": ["3.1.2"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A content moderation AI assistant processes user-generated content. The output quality varies unpredictably—sometimes the assistant provides excellent moderation decisions, other times it produces erratic judgments.",
+      "question": "Which parameter adjustment is MOST likely to increase output consistency?",
+      "options": [
+        {"id": "a", "text": "Lower the temperature parameter"},
+        {"id": "b", "text": "Increase max_tokens"},
+        {"id": "c", "text": "Use a different embedding model"},
+        {"id": "d", "text": "Add more context to the prompt"}
+      ],
+      "correctAnswers": ["a"],
+      "explanation": "Lower temperature reduces randomness in model outputs, making responses more deterministic and consistent. For tasks requiring consistent decision-making like moderation, lower temperature (0.0-0.3) is appropriate.",
+      "incorrectExplanations": {
+        "b": "max_tokens controls response length, not consistency. Longer responses aren't more consistent.",
+        "c": "Embedding models are for RAG retrieval, not generation consistency.",
+        "d": "More context might improve accuracy but doesn't directly address output variability from randomness."
+      },
+      "parseStrategy": {
+        "keyPhrase": "increase output consistency",
+        "eliminationHints": [
+          "max_tokens = length, not consistency",
+          "Embedding model = retrieval, not generation",
+          "More context = accuracy, not consistency"
+        ],
+        "decisionFramework": "Output consistency = lower temperature"
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "Temperature controls randomness. Lower temperature = more consistent outputs. Higher = more creative."
+    },
+    {
+      "id": "d3-q21",
+      "domain": 3,
+      "task": "3.3",
+      "skills": ["3.3.1"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A heavily regulated financial institution needs to demonstrate to auditors that their GenAI models meet specific compliance requirements. They need documentation showing model capabilities, limitations, intended use cases, and evaluation results in a standardized format.",
+      "question": "Which combination provides standardized, auditable model documentation?",
+      "options": [
+        {"id": "a", "text": "Store documentation in Confluence with version history"},
+        {"id": "b", "text": "Use SageMaker Model Cards with Model Registry versioning and attach evaluation reports"},
+        {"id": "c", "text": "Maintain documentation in Git repositories"},
+        {"id": "d", "text": "Create Word documents for each model and store in S3"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "SageMaker Model Cards provide a standardized schema for documenting model capabilities, limitations, and intended use. Model Registry tracks versions. Evaluation reports can be attached, creating a complete auditable package.",
+      "incorrectExplanations": {
+        "a": "Confluence is general documentation without a model-specific schema. It doesn't provide standardized compliance documentation.",
+        "c": "Git tracks changes but doesn't provide structured model documentation. You'd need to define your own schema.",
+        "d": "Word documents lack standardization and aren't easily queryable or integrated with model versioning."
+      },
+      "parseStrategy": {
+        "keyPhrase": "standardized, auditable model documentation",
+        "eliminationHints": [
+          "Confluence = no standard schema",
+          "Git = version control, not documentation schema",
+          "Word docs = not standardized or integrated"
+        ],
+        "decisionFramework": "Compliance model documentation = Model Cards + Model Registry + evaluations"
+      },
+      "services": ["Amazon SageMaker"],
+      "examTip": "Model Cards provide standardized documentation for compliance. They're the AWS answer for auditable AI documentation."
+    },
+    {
+      "id": "d3-q22",
+      "domain": 3,
+      "task": "3.4",
+      "skills": ["3.4.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A RAG system answers employee questions using HR documentation. Employees report that some answers seem authoritative but they can't verify where the information came from, leading to distrust.",
+      "question": "How should the system be enhanced to increase trustworthiness?",
+      "options": [
+        {"id": "a", "text": "Use a more authoritative tone in the system prompt"},
+        {"id": "b", "text": "Include source citations with each answer, linking to the specific HR documents used"},
+        {"id": "c", "text": "Add disclaimers that the AI may be wrong"},
+        {"id": "d", "text": "Reduce the creativity of responses with lower temperature"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Source citations allow employees to verify information against original documents. This transparency builds trust because users can check claims themselves. It's the core of RAG transparency.",
+      "incorrectExplanations": {
+        "a": "More authoritative tone doesn't help users verify information—it might even increase unwarranted trust.",
+        "c": "Disclaimers acknowledge uncertainty but don't help users verify specific claims.",
+        "d": "Lower temperature affects consistency, not verifiability or trustworthiness."
+      },
+      "parseStrategy": {
+        "keyPhrase": "increase trustworthiness",
+        "eliminationHints": [
+          "Authoritative tone = might increase false trust",
+          "Disclaimers = don't enable verification",
+          "Temperature = unrelated"
+        ],
+        "decisionFramework": "RAG trustworthiness = source citations"
+      },
+      "services": ["Amazon Bedrock Knowledge Bases"],
+      "examTip": "Source citations are essential for RAG trustworthiness. Users should be able to verify claims."
+    },
+    {
+      "id": "d3-q23",
+      "domain": 3,
+      "task": "3.2",
+      "skills": ["3.2.1"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A GenAI application needs to access sensitive data from multiple AWS accounts across different business units. The security team requires that each business unit's data access be independently controlled.",
+      "question": "Which IAM pattern enables segregated access control across accounts?",
+      "options": [
+        {"id": "a", "text": "Create IAM users in each account with appropriate permissions"},
+        {"id": "b", "text": "Use cross-account IAM roles with specific resource ARNs and conditions in trust policies"},
+        {"id": "c", "text": "Share IAM credentials across accounts"},
+        {"id": "d", "text": "Use a single administrative role with access to all accounts"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Cross-account roles with explicit trust policies and resource conditions enable controlled access. Each business unit's role specifies exactly what can be accessed, and trust policies control who can assume the role. This maintains separation while enabling necessary access.",
+      "incorrectExplanations": {
+        "a": "IAM users with long-term credentials are less secure than temporary role credentials. They also require credential management.",
+        "c": "Sharing credentials violates security best practices and makes audit attribution impossible.",
+        "d": "A single admin role provides no segregation—it's the opposite of the requirement."
+      },
+      "parseStrategy": {
+        "keyPhrase": "independently controlled across accounts",
+        "eliminationHints": [
+          "IAM users = less secure credentials",
+          "Shared credentials = security violation",
+          "Single admin = no segregation"
+        ],
+        "decisionFramework": "Multi-account segregated access = cross-account roles with conditions"
+      },
+      "services": ["AWS IAM"],
+      "examTip": "Cross-account roles with specific trust policies enable controlled, auditable multi-account access."
+    },
+    {
+      "id": "d3-q24",
+      "domain": 3,
+      "task": "3.1",
+      "skills": ["3.1.3"],
+      "type": "multiple-response",
+      "difficulty": "hard",
+      "scenario": "A legal research AI analyzes case law and provides summaries. Accuracy is critical—hallucinated case citations could harm legal proceedings. The team needs multiple controls to minimize hallucination risk.",
+      "question": "Which TWO techniques work together to minimize hallucination in this high-stakes application?",
+      "options": [
+        {"id": "a", "text": "Use Guardrails contextual grounding to verify responses match provided sources"},
+        {"id": "b", "text": "Implement structured output format requiring citation of specific case numbers that can be validated"},
+        {"id": "c", "text": "Use the highest temperature setting for comprehensive analysis"},
+        {"id": "d", "text": "Limit responses to short summaries to reduce hallucination opportunity"}
+      ],
+      "correctAnswers": ["a", "b"],
+      "explanation": "Contextual grounding in Guardrails checks that responses are supported by provided context, reducing hallucination. Structured output with specific citations enables programmatic verification—you can check if cited case numbers actually exist. Together, they provide detection and verification.",
+      "incorrectExplanations": {
+        "c": "High temperature increases randomness and can increase hallucination. Legal applications need low temperature.",
+        "d": "Short responses might miss important nuance. Length isn't the primary hallucination control."
+      },
+      "parseStrategy": {
+        "keyPhrase": "minimize hallucination in high-stakes",
+        "eliminationHints": [
+          "High temperature = increases hallucination",
+          "Short responses = misses nuance"
+        ],
+        "decisionFramework": "Hallucination control = contextual grounding + verifiable citations"
+      },
+      "services": ["Amazon Bedrock Guardrails"],
+      "examTip": "Contextual grounding + verifiable structured outputs provide layered hallucination protection."
+    },
+    {
+      "id": "d3-q25",
+      "domain": 3,
+      "task": "3.4",
+      "skills": ["3.4.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A loan approval AI has been deployed for six months. The compliance team needs to verify the AI is treating all demographic groups fairly over time, not just at initial deployment.",
+      "question": "How should ongoing fairness monitoring be implemented?",
+      "options": [
+        {"id": "a", "text": "Rely on customer complaints to identify bias"},
+        {"id": "b", "text": "Schedule regular Bedrock Model Evaluations testing outputs across demographic segments"},
+        {"id": "c", "text": "Monitor overall approval rates in CloudWatch"},
+        {"id": "d", "text": "Review the model's training data for bias"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Scheduled Model Evaluations with test datasets covering various demographic segments provide ongoing, systematic fairness testing. This catches bias that develops over time due to data drift or usage patterns.",
+      "incorrectExplanations": {
+        "a": "Customer complaints are reactive and biased—affected groups may not complain. This misses systematic bias.",
+        "c": "Overall approval rates don't reveal disparate treatment across groups. You need demographic breakdown.",
+        "d": "Training data review is one-time. It doesn't address ongoing production bias or drift."
+      },
+      "parseStrategy": {
+        "keyPhrase": "ongoing fairness monitoring",
+        "eliminationHints": [
+          "Complaints = reactive, biased sample",
+          "Overall rates = no demographic insight",
+          "Training data = one-time, not ongoing"
+        ],
+        "decisionFramework": "Ongoing fairness = scheduled evaluations across demographic segments"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "Fairness monitoring must be ongoing. Schedule regular evaluations across demographic test cases."
+    },
+    {
+      "id": "d3-q26",
+      "domain": 3,
+      "task": "3.3",
+      "skills": ["3.3.3"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A company wants to ensure that no developer can accidentally deploy a GenAI application that uses foundation models that haven't been approved by the security team.",
+      "question": "Which mechanism prevents use of unapproved models?",
+      "options": [
+        {"id": "a", "text": "Email developers a list of approved models"},
+        {"id": "b", "text": "Create an IAM policy that only allows InvokeModel on specific approved model ARNs"},
+        {"id": "c", "text": "Use Guardrails to block unapproved model responses"},
+        {"id": "d", "text": "Monitor CloudTrail for unapproved model usage"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "IAM policies can restrict InvokeModel to specific model ARNs. Developers simply cannot call unapproved models—the request is denied at the API level. This is preventive control, not detective.",
+      "incorrectExplanations": {
+        "a": "Email lists rely on developer compliance and can be ignored or forgotten.",
+        "c": "Guardrails filter content, not model selection. They can't prevent calling a specific model.",
+        "d": "CloudTrail monitoring is detective, not preventive. It catches violations after they happen."
+      },
+      "parseStrategy": {
+        "keyPhrase": "prevents use of unapproved models",
+        "eliminationHints": [
+          "Email = relies on compliance",
+          "Guardrails = content filtering, not model selection",
+          "CloudTrail = detective, not preventive"
+        ],
+        "decisionFramework": "Model access control = IAM policies on model ARNs"
+      },
+      "services": ["AWS IAM", "Amazon Bedrock"],
+      "examTip": "IAM policies can restrict which models are accessible. Use specific ARNs for model allow-lists."
+    },
+    {
+      "id": "d3-q27",
+      "domain": 3,
+      "task": "3.1",
+      "skills": ["3.1.4"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A customer support AI occasionally provides responses that are technically correct but inappropriately casual or off-brand for the company's professional image. The team needs to ensure responses match the company's communication style.",
+      "question": "Which approach enforces consistent brand voice?",
+      "options": [
+        {"id": "a", "text": "Fine-tune the model on company communications"},
+        {"id": "b", "text": "Use comprehensive system prompts with style guidelines, tone examples, and response templates"},
+        {"id": "c", "text": "Configure Guardrails content filters"},
+        {"id": "d", "text": "Lower the temperature to 0"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "System prompts with detailed style guidelines, approved phrases, and tone examples guide the model to match brand voice. Including examples of correct vs. incorrect responses teaches the appropriate style.",
+      "incorrectExplanations": {
+        "a": "Fine-tuning is expensive and time-consuming for style changes. System prompts are more flexible.",
+        "c": "Content filters block harmful content but don't shape communication style.",
+        "d": "Zero temperature makes responses deterministic but doesn't change the style of those responses."
+      },
+      "parseStrategy": {
+        "keyPhrase": "consistent brand voice",
+        "eliminationHints": [
+          "Fine-tuning = expensive for style",
+          "Content filters = wrong purpose",
+          "Temperature = consistency, not style"
+        ],
+        "decisionFramework": "Brand voice enforcement = system prompts with style guidelines"
+      },
+      "services": ["Amazon Bedrock"],
+      "examTip": "System prompts with examples and guidelines shape communication style effectively."
+    },
+    {
+      "id": "d3-q28",
+      "domain": 3,
+      "task": "3.2",
+      "skills": ["3.2.3"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A company stores embeddings of confidential documents in OpenSearch. They're concerned that attackers with read access to the vector store might be able to reconstruct original document content from the embeddings.",
+      "question": "Which security measure protects against embedding-based content reconstruction?",
+      "options": [
+        {"id": "a", "text": "Encrypt embeddings at rest with KMS"},
+        {"id": "b", "text": "Use lower-dimensional embeddings that capture less information"},
+        {"id": "c", "text": "Implement fine-grained IAM policies limiting who can read embeddings and what queries they can run"},
+        {"id": "d", "text": "Store only document IDs without embeddings"}
+      ],
+      "correctAnswers": ["c"],
+      "explanation": "While embeddings can leak information, the primary defense is access control—limiting who can read embeddings. Fine-grained IAM policies ensure only authorized systems access embeddings, and query restrictions prevent bulk extraction.",
+      "incorrectExplanations": {
+        "a": "Encryption at rest doesn't help if the attacker has read access—they see decrypted embeddings when querying.",
+        "b": "Lower dimensions reduce information but also reduce search quality. This trades security for functionality.",
+        "d": "Without embeddings, you can't do semantic search—this breaks the core functionality."
+      },
+      "parseStrategy": {
+        "keyPhrase": "protect against embedding-based reconstruction",
+        "eliminationHints": [
+          "At-rest encryption = doesn't help with read access",
+          "Lower dimensions = breaks functionality",
+          "No embeddings = no semantic search"
+        ],
+        "decisionFramework": "Embedding security = access control + query restrictions"
+      },
+      "services": ["AWS IAM", "Amazon OpenSearch Service"],
+      "examTip": "Access control is the primary embedding security measure. Limit who can read and what queries they can run."
+    },
+    {
+      "id": "d3-q29",
+      "domain": 3,
+      "task": "3.4",
+      "skills": ["3.4.3"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A company's AI ethics board has defined policies that all GenAI applications must follow, including content restrictions and required disclosures. The engineering team needs to implement these policies consistently across all applications.",
+      "question": "Which approach enables organization-wide policy enforcement across multiple GenAI applications?",
+      "options": [
+        {"id": "a", "text": "Train each development team on the policies"},
+        {"id": "b", "text": "Create shared Guardrails configurations that all applications reference"},
+        {"id": "c", "text": "Include policy requirements in code review checklists"},
+        {"id": "d", "text": "Document policies in a wiki"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Shared Guardrails configurations ensure consistent policy enforcement. All applications reference the same guardrail, so policy changes apply everywhere. This is centralized, enforceable governance.",
+      "incorrectExplanations": {
+        "a": "Training relies on human compliance and doesn't guarantee enforcement.",
+        "c": "Code reviews are manual and can miss issues. They don't prevent violations.",
+        "d": "Documentation informs but doesn't enforce. Developers might not follow documented policies."
+      },
+      "parseStrategy": {
+        "keyPhrase": "organization-wide policy enforcement",
+        "eliminationHints": [
+          "Training = relies on compliance",
+          "Code review = manual, not preventive",
+          "Documentation = informative, not enforceable"
+        ],
+        "decisionFramework": "Organization-wide AI policy = shared Guardrails"
+      },
+      "services": ["Amazon Bedrock Guardrails"],
+      "examTip": "Shared Guardrails enable organization-wide policy enforcement. One guardrail, many applications."
+    },
+    {
+      "id": "d3-q30",
+      "domain": 3,
+      "task": "3.1",
+      "skills": ["3.1.5"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A security team is conducting a red team exercise on their GenAI application. They want to systematically test for vulnerabilities including prompt injection, jailbreaks, and data extraction attacks.",
+      "question": "Which approach provides systematic adversarial testing of GenAI applications?",
+      "options": [
+        {"id": "a", "text": "Have users report any suspicious behavior they observe"},
+        {"id": "b", "text": "Use Bedrock Model Evaluations with adversarial test datasets covering known attack patterns"},
+        {"id": "c", "text": "Review the model provider's security documentation"},
+        {"id": "d", "text": "Monitor production logs for anomalies"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Model Evaluations with adversarial test datasets systematically probe for vulnerabilities. Test datasets can include known injection patterns, jailbreak attempts, and extraction techniques, revealing weaknesses before attackers find them.",
+      "incorrectExplanations": {
+        "a": "User reports are reactive and depend on users recognizing attacks. Adversarial testing is proactive.",
+        "c": "Provider documentation describes general security but doesn't test your specific implementation.",
+        "d": "Production monitoring catches attacks in progress but doesn't proactively find vulnerabilities."
+      },
+      "parseStrategy": {
+        "keyPhrase": "systematic adversarial testing",
+        "eliminationHints": [
+          "User reports = reactive",
+          "Provider docs = general, not specific",
+          "Production monitoring = reactive"
+        ],
+        "decisionFramework": "Adversarial testing = Model Evaluations with attack datasets"
+      },
+      "services": ["Amazon Bedrock Model Evaluations"],
+      "examTip": "Adversarial test datasets enable proactive vulnerability discovery. Test before attackers find weaknesses."
+    },
+    {
+      "id": "d3-q31",
+      "domain": 3,
+      "task": "3.3",
+      "skills": ["3.3.2"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company uses Glue to process data for model training. They need to understand which training datasets were derived from which source data for compliance documentation.",
+      "question": "Which feature tracks data provenance through Glue pipelines?",
+      "options": [
+        {"id": "a", "text": "Glue job execution logs"},
+        {"id": "b", "text": "Glue Data Lineage in the Data Catalog"},
+        {"id": "c", "text": "S3 object versioning"},
+        {"id": "d", "text": "Glue crawler history"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Glue Data Lineage tracks data as it flows through ETL jobs, showing which sources contributed to which outputs. This is integrated with the Data Catalog, providing a visual and queryable lineage graph.",
+      "incorrectExplanations": {
+        "a": "Execution logs show what jobs ran but don't track data relationships between sources and destinations.",
+        "c": "S3 versioning tracks object versions but doesn't show data transformation relationships.",
+        "d": "Crawler history shows when schemas were discovered but doesn't track data flow."
+      },
+      "parseStrategy": {
+        "keyPhrase": "data provenance through pipelines",
+        "eliminationHints": [
+          "Job logs = execution, not lineage",
+          "S3 versioning = object versions, not flow",
+          "Crawler history = schema discovery"
+        ],
+        "decisionFramework": "Data lineage = Glue Data Lineage"
+      },
+      "services": ["AWS Glue"],
+      "examTip": "Glue Data Lineage tracks data flow through ETL pipelines. Use it for compliance and debugging."
+    },
+    {
+      "id": "d3-q32",
+      "domain": 3,
+      "task": "3.2",
+      "skills": ["3.2.2"],
+      "type": "multiple-response",
+      "difficulty": "medium",
+      "scenario": "A healthcare company is building a GenAI application that processes patient records. HIPAA requires protecting PHI at rest and in transit.",
+      "question": "Which TWO configurations are required for HIPAA-compliant data handling?",
+      "options": [
+        {"id": "a", "text": "Enable TLS 1.2+ for all API communications"},
+        {"id": "b", "text": "Use KMS encryption for data at rest (S3, databases)"},
+        {"id": "c", "text": "Deploy in the us-east-1 region only"},
+        {"id": "d", "text": "Use smaller models to process less data"}
+      ],
+      "correctAnswers": ["a", "b"],
+      "explanation": "HIPAA requires encryption in transit (TLS) and at rest (KMS). TLS 1.2+ protects data during API calls. KMS encryption protects stored data including S3 objects and database records containing PHI.",
+      "incorrectExplanations": {
+        "c": "Region selection doesn't address encryption requirements. HIPAA is about how data is protected, not where.",
+        "d": "Model size doesn't affect HIPAA compliance. The concern is data protection, not model architecture."
+      },
+      "parseStrategy": {
+        "keyPhrase": "HIPAA-compliant data handling",
+        "eliminationHints": [
+          "Region = not about protection",
+          "Model size = irrelevant to compliance"
+        ],
+        "decisionFramework": "HIPAA = encryption in transit (TLS) + at rest (KMS)"
+      },
+      "services": ["AWS KMS", "Amazon S3"],
+      "examTip": "HIPAA requires encryption in transit and at rest. TLS for transit, KMS for rest."
+    },
+    {
+      "id": "d3-q33",
+      "domain": 3,
+      "task": "3.4",
+      "skills": ["3.4.1"],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A GenAI agent makes autonomous decisions that affect customer outcomes (like order prioritization). Regulations require that customers can request explanations for decisions that affect them.",
+      "question": "How should decision explainability be implemented for the agent?",
+      "options": [
+        {"id": "a", "text": "Store the model's internal weights for each decision"},
+        {"id": "b", "text": "Enable agent tracing to capture the reasoning chain, tool calls, and data accessed for each decision"},
+        {"id": "c", "text": "Have the agent generate a summary explanation after each decision"},
+        {"id": "d", "text": "Log only the final decision outcomes"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Agent tracing captures the full reasoning chain: what the agent thought, what tools it called, what data it retrieved, and how it reached its conclusion. This provides comprehensive explainability for any decision.",
+      "incorrectExplanations": {
+        "a": "Model weights are not stored per-decision and don't explain reasoning in human terms.",
+        "c": "Self-generated summaries may not capture all factors and could be inaccurate or incomplete.",
+        "d": "Outcomes without reasoning don't explain why decisions were made."
+      },
+      "parseStrategy": {
+        "keyPhrase": "decision explainability for agent",
+        "eliminationHints": [
+          "Model weights = not per-decision, not human-readable",
+          "Self-summary = may be incomplete",
+          "Outcomes only = no reasoning"
+        ],
+        "decisionFramework": "Agent explainability = full tracing of reasoning chain"
+      },
+      "services": ["Amazon Bedrock Agents", "AWS X-Ray"],
+      "examTip": "Agent tracing provides explainability by capturing the full reasoning chain and tool interactions."
+    },
+    {
+      "id": "d3-q34",
+      "domain": 3,
+      "task": "3.1",
+      "skills": ["3.1.1", "3.1.2"],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "A company wants to add GenAI capabilities but is concerned about AI safety risks. They want to start with basic protections and add more over time.",
+      "question": "What is the recommended first step for AI safety?",
+      "options": [
+        {"id": "a", "text": "Build custom safety monitoring from scratch"},
+        {"id": "b", "text": "Deploy Guardrails with content filters and PII detection as baseline protection"},
+        {"id": "c", "text": "Wait until the application is in production to add safety features"},
+        {"id": "d", "text": "Rely on the foundation model's built-in safety training"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "Guardrails provides immediate baseline protection with minimal setup. Content filters block harmful content, PII detection protects sensitive data. Start here and add custom controls as needed.",
+      "incorrectExplanations": {
+        "a": "Building from scratch is time-consuming. Guardrails provides a ready-to-use baseline.",
+        "c": "Safety should be built in from the start, not added after production deployment.",
+        "d": "Built-in safety training helps but isn't sufficient. Models can still be manipulated or produce harmful content."
+      },
+      "parseStrategy": {
+        "keyPhrase": "first step for AI safety",
+        "eliminationHints": [
+          "Build from scratch = unnecessary effort",
+          "Wait for production = too late",
+          "Model training alone = insufficient"
+        ],
+        "decisionFramework": "Baseline AI safety = Guardrails content filters + PII detection"
+      },
+      "services": ["Amazon Bedrock Guardrails"],
+      "examTip": "Start with Guardrails for baseline safety. Add custom controls as you understand your specific risks."
+    },
+    {
+      "id": "d3-q35",
+      "domain": 3,
+      "task": "3.3",
+      "skills": ["3.3.4"],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company's AI governance committee meets quarterly to review GenAI application compliance. They need aggregated metrics showing safety incidents, policy violations, and usage patterns across all applications.",
+      "question": "How should compliance metrics be collected and presented?",
+      "options": [
+        {"id": "a", "text": "Have each team submit spreadsheets before the meeting"},
+        {"id": "b", "text": "Build CloudWatch dashboards aggregating Guardrails block rates, CloudTrail events, and usage metrics"},
+        {"id": "c", "text": "Review production logs manually during the meeting"},
+        {"id": "d", "text": "Survey users about their experience"}
+      ],
+      "correctAnswers": ["b"],
+      "explanation": "CloudWatch dashboards can aggregate Guardrails metrics (content blocked, PII detected), CloudTrail events (API patterns), and custom application metrics. This provides real-time, queryable compliance visibility.",
+      "incorrectExplanations": {
+        "a": "Manual spreadsheets are error-prone, inconsistent, and not real-time.",
+        "c": "Manual log review doesn't scale and can't provide aggregated metrics efficiently.",
+        "d": "User surveys provide perception data but not objective compliance metrics."
+      },
+      "parseStrategy": {
+        "keyPhrase": "compliance metrics aggregated",
+        "eliminationHints": [
+          "Spreadsheets = manual, error-prone",
+          "Manual log review = doesn't scale",
+          "Surveys = perception, not objective"
+        ],
+        "decisionFramework": "Compliance dashboards = CloudWatch aggregating Guardrails + CloudTrail + usage"
+      },
+      "services": ["Amazon CloudWatch", "AWS CloudTrail"],
+      "examTip": "CloudWatch dashboards aggregate multiple metric sources for compliance visibility."
     }
   ]
 }
