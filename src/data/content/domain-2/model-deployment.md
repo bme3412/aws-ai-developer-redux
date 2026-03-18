@@ -1,246 +1,742 @@
 # Model Deployment Strategies
 
-**Domain 2 | Task 2.2 | ~30 minutes**
+**Domain 2 | Task 2.2 | ~45 minutes**
 
 ---
 
 ## Why This Matters
 
-Choosing the right deployment strategy determines your application's **cost**, **latency**, and **reliability** profile. The wrong choice means either overpaying for unused capacity or struggling with performance issues. A production chatbot on the wrong deployment model might cost 3x what it should—or fail under load when you need it most.
+Every foundation model application faces a fundamental question: **how do you run the model?** The answer determines your cost structure, latency profile, operational burden, and ultimately whether your application succeeds in production.
 
-This isn't a decision you make once and forget. As your application evolves—traffic patterns change, usage grows, requirements shift—your deployment strategy should evolve too. Understanding the tradeoffs between Lambda with on-demand pricing, Bedrock provisioned throughput, SageMaker endpoints, and container-based deployments is a core skill for building production GenAI systems.
+Consider this scenario: A startup launches a customer service chatbot using Lambda with Bedrock on-demand. Perfect for development—zero infrastructure, pay only for what you use. Six months later, they're processing 50,000 conversations daily. On-demand pricing now costs $15,000/month. Switching to provisioned throughput would cut that to $8,000. But they didn't architect for it, and migration requires significant refactoring.
 
-The decision framework is simpler than it might seem: match your deployment choice to your traffic patterns, latency requirements, cost constraints, and whether you're using managed models or custom ones you've trained yourself.
+The reverse mistake is equally costly. An enterprise provisions massive capacity for a projected rollout, pays $25,000/month for guaranteed throughput, then discovers adoption is slower than expected. They're utilizing 15% of paid capacity while burning budget.
 
----
+**Model deployment isn't a one-time decision—it's an evolving strategy** that should match your application's lifecycle:
+- **Development**: On-demand for experimentation
+- **Early production**: On-demand with monitoring
+- **Growth**: Evaluate provisioned throughput economics
+- **Scale**: Optimize with cascading, batch processing, and committed capacity
 
-## Model Deployment Patterns
-
-There is no universal deployment strategy that works for every situation. The right choice depends on several factors working together.
-
-```
-                    ┌─────────────────────────┐
-                    │ Custom or fine-tuned    │
-                    │ model?                  │
-                    └───────────┬─────────────┘
-                           ┌────┴────┐
-                           │         │
-                          Yes        No
-                           │         │
-                           ▼         ▼
-              ┌─────────────────┐  ┌─────────────────┐
-              │   SageMaker     │  │ Traffic         │
-              │   Endpoints     │  │ predictable?    │
-              └─────────────────┘  └───────┬─────────┘
-                                      ┌────┴────┐
-                                      │         │
-                                  Variable   Predictable
-                                      │         │
-                                      ▼         ▼
-                          ┌─────────────────┐  ┌─────────────────┐
-                          │ Lambda +        │  │ Need <50ms      │
-                          │ On-Demand       │  │ latency?        │
-                          └─────────────────┘  └───────┬─────────┘
-                                                  ┌────┴────┐
-                                                  │         │
-                                                 Yes        No
-                                                  │         │
-                                                  ▼         ▼
-                                      ┌─────────────────┐ ┌─────────────────┐
-                                      │ Provisioned     │ │ On-Demand       │
-                                      │ Throughput      │ │ (cheaper)       │
-                                      └─────────────────┘ └─────────────────┘
-```
-
-### Lambda + Bedrock On-Demand
-
-The simplest deployment pattern combines **Lambda** with Bedrock's **on-demand pricing**. Your Lambda functions call Bedrock's `InvokeModel` API, and you pay only for the tokens you actually process.
-
-This approach requires **zero infrastructure management**—no servers to maintain, no capacity to provision, no scaling policies to configure. It works well for:
-
-- Applications with **variable traffic**
-- Development and testing environments
-- Any situation where cold starts are acceptable
-- Early-stage applications where usage is unpredictable
-
-The trade-off is that you pay a **premium per token** compared to committed capacity options. On-demand uses **shared capacity**, so during periods of high demand across AWS, your requests compete with everyone else's. Latency can spike, and in extreme cases requests may be throttled.
-
-### Bedrock Provisioned Throughput
-
-**Provisioned Throughput** reserves **dedicated capacity** for your workload. You pre-purchase model capacity by committing to a throughput level measured in **model units**. In exchange:
-
-- **Guaranteed capacity** that's always available
-- **Lower per-token costs** than on-demand
-- **Consistent latency** since your requests don't compete with others
-
-This makes sense for **production workloads with predictable, sustained traffic** where you can calculate expected usage and commit accordingly.
-
-The key decision point is **utilization**: if you'll use the capacity consistently, provisioned throughput saves money. If your traffic is unpredictable, you'll pay for capacity that sits idle.
-
-**Important**: Provisioned Throughput is **required for custom models**. If you've fine-tuned a model or done continued pre-training, you must deploy it on provisioned capacity—there's no on-demand option for custom models.
-
-### SageMaker Endpoints
-
-**SageMaker endpoints** become necessary when you need capabilities that Bedrock doesn't provide:
-
-- **Fine-tuned models** you've trained yourself
-- **Specific instance types**—particular GPU configurations, memory sizes, or compute profiles
-- **Model version management** and gradual rollouts
-- **A/B testing** between model versions
-- **Multi-model endpoints** for hosting multiple models on shared infrastructure
-
-The operational overhead is higher because you're managing infrastructure rather than just calling an API. But you gain flexibility that managed services can't provide.
-
-### Container-Based Deployment (ECS/EKS)
-
-Container-based deployment using **ECS** or **EKS** offers maximum flexibility for specialized requirements:
-
-- Deploy **custom model serving frameworks**
-- Use **specific GPU configurations**
-- Integrate with **existing container orchestration infrastructure**
-
-This approach has the **highest operational overhead**—you're responsible for container images, cluster management, networking, and scaling—but provides complete control over every aspect of the deployment.
-
-### Deployment Comparison
-
-| Aspect | Lambda + On-Demand | Provisioned Throughput | SageMaker |
-|--------|-------------------|------------------------|-----------|
-| Operational overhead | Lowest | Low | Medium |
-| Cost model | Pay per token | Hourly commitment | Per-instance-hour |
-| Best for | Variable traffic | Predictable production | Custom models |
-| Model flexibility | Bedrock models only | Bedrock models only | Any model |
-| Cold starts | Possible | No | No |
+This section covers the full spectrum: from the simplest Lambda-based deployments through enterprise-grade container orchestration, including the optimization patterns that separate cost-effective systems from money pits.
 
 ---
 
-## Model Cascading for Cost Optimization
+## Understanding the Deployment Landscape
 
-**Model cascading** is one of the most powerful cost optimization patterns available for foundation model applications. The core insight is simple: **not every query requires your most capable (and expensive) model**.
+Before diving into specific patterns, understand the key dimensions that differentiate deployment options:
 
-By routing simple queries to smaller, cheaper models and reserving larger models for queries that actually need sophisticated reasoning, you can dramatically reduce costs while maintaining quality.
+### Deployment Decision Factors
 
-### How Cascading Works
+| Factor | Questions to Answer |
+|--------|---------------------|
+| **Model source** | Using Bedrock's models or your own trained models? |
+| **Traffic pattern** | Predictable steady-state or highly variable spikes? |
+| **Latency requirements** | Sub-second interactive or minutes-acceptable batch? |
+| **Cost structure preference** | Pay-per-use flexibility or committed savings? |
+| **Operational capacity** | Minimal management or full control needed? |
+| **Compliance requirements** | Data residency, isolation, audit needs? |
+
+### The Deployment Spectrum
 
 ```
-               ┌──────────────┐
-               │ User Query   │
-               └──────┬───────┘
-                      │
-                      ▼
-               ┌──────────────┐
-               │ Classify     │
-               │ Complexity   │
-               └──────┬───────┘
-                 ┌────┴────┐
-                 │         │
-              Simple    Complex
-                 │         │
-                 ▼         ▼
-          ┌──────────┐ ┌──────────┐
-          │  Haiku   │ │  Sonnet  │
-          │ ($0.25/M)│ │ ($3.00/M)│
-          └────┬─────┘ └────┬─────┘
-               │            │
-               ▼            │
-        ┌──────────────┐    │
-        │ Confident?   │    │
-        └──────┬───────┘    │
-          ┌────┴────┐       │
-          │         │       │
-         Yes        No──────┤
-          │                 │
-          ▼                 ▼
-    ┌──────────┐     ┌──────────┐
-    │ Response │     │ Response │
-    └──────────┘     └──────────┘
+                    OPERATIONAL COMPLEXITY
+       Low ◄────────────────────────────────────────► High
+         │                                             │
+         │  Lambda +        Bedrock         SageMaker  │
+         │  On-Demand       Provisioned     Endpoints  │
+         │      │               │               │      │
+         │      │               │               │      │
+         │      ▼               ▼               ▼      │
+         │  ┌───────┐       ┌───────┐       ┌───────┐  │
+         │  │ Zero  │       │ Some  │       │ Full  │  │
+         │  │ Infra │       │ Commit│       │Control│  │
+         │  └───────┘       └───────┘       └───────┘  │
+         │      │               │               │      │
+         │      │               │               ▼      │
+         │      │               │           ┌───────┐  │
+         │      │               │           │ECS/EKS│  │
+         │      │               │           │Custom │  │
+         │      │               │           └───────┘  │
+         │                                             │
+       Low ◄────────────────────────────────────────► High
+                         FLEXIBILITY
 ```
 
-1. **Classify** incoming queries by complexity
-2. Route **simple queries** to small models (Claude Haiku, Titan Express)
-3. Route **complex queries** to large models (Claude Sonnet, Opus)
-4. If small model response indicates uncertainty, **escalate** to larger model
+---
 
-### Why the Economics Work
+## Lambda + Bedrock On-Demand: The Starting Point
 
-Query complexity follows a **power law distribution**. In most applications:
+The simplest deployment pattern combines **AWS Lambda** with Bedrock's **on-demand pricing**. This is where most applications should start—and where many should stay.
 
-- **70-80% of queries are simple**: FAQs, straightforward lookups, basic generations
-- **20-30% require complex reasoning**: nuanced understanding, sophisticated generation
+### Architecture Pattern
 
-Small models handle simple queries perfectly well at **10-20x lower cost** than large models. Only the complex minority truly benefits from larger models.
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         API Gateway                                  │
+│                              │                                       │
+│              ┌───────────────┼───────────────┐                      │
+│              ▼               ▼               ▼                      │
+│         ┌─────────┐     ┌─────────┐     ┌─────────┐                 │
+│         │ Lambda  │     │ Lambda  │     │ Lambda  │                 │
+│         │ (Chat)  │     │ (Search)│     │ (Summ.) │                 │
+│         └────┬────┘     └────┬────┘     └────┬────┘                 │
+│              │               │               │                      │
+│              └───────────────┴───────────────┘                      │
+│                              │                                       │
+│                              ▼                                       │
+│              ┌─────────────────────────────────┐                    │
+│              │       Bedrock (On-Demand)       │                    │
+│              │    ┌─────────────────────────┐  │                    │
+│              │    │    Shared Capacity      │  │                    │
+│              │    │  (Pay per token only)   │  │                    │
+│              │    └─────────────────────────┘  │                    │
+│              └─────────────────────────────────┘                    │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-### Cost Impact Example
-
-Processing **100,000 queries per day** at 500 tokens each:
-
-| Approach | Daily Cost | Monthly Cost |
-|----------|------------|--------------|
-| All Sonnet | $150 | ~$4,500 |
-| 70% Haiku, 30% Sonnet | $54 | ~$1,620 |
-| **Savings** | **$96/day** | **~$2,880/mo** |
-
-That's a **64% reduction** just from intelligent routing.
-
-### Implementation with Python
+### Implementation
 
 ```python
 import boto3
 import json
+from typing import Optional
 
-client = boto3.client('bedrock-runtime')
+# Initialize client outside handler for connection reuse
+bedrock = boto3.client('bedrock-runtime')
 
-def cascading_inference(query: str) -> dict:
-    # Start with the cheapest model
-    haiku_response = invoke_model('anthropic.claude-3-haiku-20240307-v1:0', query)
+def lambda_handler(event: dict, context) -> dict:
+    """
+    Simple Lambda handler for Bedrock inference.
+    Uses on-demand capacity - no provisioning required.
+    """
+    user_message = event.get('body', {}).get('message', '')
 
-    if is_confident_response(haiku_response):
-        return {'model': 'haiku', 'response': haiku_response, 'cost': 'low'}
+    try:
+        response = bedrock.converse(
+            modelId='anthropic.claude-3-haiku-20240307-v1:0',
+            messages=[
+                {'role': 'user', 'content': [{'text': user_message}]}
+            ],
+            inferenceConfig={
+                'maxTokens': 1024,
+                'temperature': 0.7
+            }
+        )
 
-    # Escalate to more capable model
-    sonnet_response = invoke_model('anthropic.claude-3-sonnet-20240229-v1:0', query)
-    return {'model': 'sonnet', 'response': sonnet_response, 'cost': 'medium'}
+        assistant_message = response['output']['message']['content'][0]['text']
 
-def is_confident_response(response: str) -> bool:
-    uncertainty_phrases = ["I'm not sure", "I don't know", "unclear", "might be"]
-    return not any(phrase in response.lower() for phrase in uncertainty_phrases)
+        return {
+            'statusCode': 200,
+            'body': json.dumps({
+                'response': assistant_message,
+                'usage': response['usage']  # Track token consumption
+            })
+        }
 
-def invoke_model(model_id: str, query: str) -> str:
-    response = client.invoke_model(
-        modelId=model_id,
-        body=json.dumps({
-            'anthropic_version': 'bedrock-2023-05-31',
-            'messages': [{'role': 'user', 'content': query}],
-            'max_tokens': 1024
-        })
-    )
-    return json.loads(response['body'].read())['content'][0]['text']
+    except bedrock.exceptions.ThrottlingException as e:
+        # On-demand can throttle during high demand
+        return {
+            'statusCode': 429,
+            'body': json.dumps({'error': 'Rate limited, please retry'})
+        }
+    except bedrock.exceptions.ModelTimeoutException as e:
+        # Complex prompts may timeout
+        return {
+            'statusCode': 504,
+            'body': json.dumps({'error': 'Request timed out'})
+        }
 ```
 
-Production implementations might use more sophisticated quality evaluation: semantic analysis, explicit confidence scores, or comparison against expected response patterns.
+### Lambda Configuration for GenAI
+
+GenAI workloads have specific Lambda configuration needs:
+
+| Setting | Recommendation | Why |
+|---------|----------------|-----|
+| **Memory** | 512MB-1024MB | More memory = more CPU = faster boto3 processing |
+| **Timeout** | 60-120 seconds | FM inference can take 10-30 seconds |
+| **Reserved concurrency** | Set limits | Prevent runaway costs and rate limiting |
+| **Provisioned concurrency** | For latency-critical | Eliminates cold starts |
+
+### When On-Demand Excels
+
+**Perfect for:**
+- **Variable traffic**: Pay nothing during quiet periods
+- **Development/staging**: No commitment while iterating
+- **Unpredictable usage**: Can't forecast token consumption
+- **Cost-sensitive startups**: No upfront commitment
+- **Multi-model experimentation**: Test different models freely
+
+**Challenges:**
+- **Shared capacity**: Competes with all AWS customers
+- **Potential throttling**: During high-demand periods
+- **Higher per-token cost**: Premium for flexibility
+- **Cold starts**: Lambda + Bedrock connection overhead
+
+### The Economics of On-Demand
+
+```
+Cost = Input Tokens × Input Price + Output Tokens × Output Price
+
+Example: Claude 3 Haiku on-demand
+- Input:  $0.00025 per 1K tokens
+- Output: $0.00125 per 1K tokens
+
+10,000 requests/day × 500 input + 200 output tokens each:
+- Input cost:  10,000 × 500 ÷ 1000 × $0.00025 = $1.25/day
+- Output cost: 10,000 × 200 ÷ 1000 × $0.00125 = $2.50/day
+- Total: $3.75/day = ~$112/month
+```
+
+At this volume, on-demand is clearly correct. The break-even with provisioned throughput depends on consistent utilization levels.
+
+---
+
+## Bedrock Provisioned Throughput: Committed Capacity
+
+**Provisioned Throughput** reserves dedicated model capacity. You commit to a throughput level measured in **model units**, paying hourly regardless of actual usage.
+
+### How Provisioned Throughput Works
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Provisioned Throughput                          │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │                    Your Dedicated Capacity                   │   │
+│  │                                                              │   │
+│  │     Model Unit 1      Model Unit 2      Model Unit 3        │   │
+│  │    ┌──────────┐      ┌──────────┐      ┌──────────┐         │   │
+│  │    │ Reserved │      │ Reserved │      │ Reserved │         │   │
+│  │    │ Compute  │      │ Compute  │      │ Compute  │         │   │
+│  │    └──────────┘      └──────────┘      └──────────┘         │   │
+│  │                                                              │   │
+│  │    ✓ No throttling    ✓ Consistent latency                  │   │
+│  │    ✓ Guaranteed       ✓ Lower per-token cost                │   │
+│  │                                                              │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │                    Shared Pool (Others)                      │   │
+│  │         You don't compete with this capacity                 │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Creating Provisioned Throughput
+
+```python
+import boto3
+
+bedrock = boto3.client('bedrock')
+
+# Create provisioned throughput
+response = bedrock.create_provisioned_model_throughput(
+    modelUnits=1,  # Number of model units
+    provisionedModelName='my-production-capacity',
+    modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+    commitmentDuration='OneMonth'  # Or 'SixMonths' for additional discount
+)
+
+provisioned_arn = response['provisionedModelArn']
+
+# Use the provisioned ARN for inference
+runtime = boto3.client('bedrock-runtime')
+
+inference_response = runtime.converse(
+    modelId=provisioned_arn,  # Use ARN, not model ID
+    messages=[
+        {'role': 'user', 'content': [{'text': 'Hello'}]}
+    ]
+)
+```
+
+### Model Units Explained
+
+A **model unit** provides a specific throughput capacity measured in tokens per minute. The exact capacity varies by model:
+
+| Model | Approximate Throughput per Model Unit |
+|-------|---------------------------------------|
+| Claude 3 Haiku | Higher (faster model) |
+| Claude 3 Sonnet | Medium |
+| Claude 3 Opus | Lower (more compute per token) |
+
+**Planning capacity:**
+1. Estimate tokens per minute at peak
+2. Add 20-30% headroom
+3. Divide by model unit capacity
+4. Round up to nearest unit
+
+### Commitment Options
+
+| Commitment | Discount | Best For |
+|------------|----------|----------|
+| No commitment | 0% | Testing, uncertain future |
+| 1 month | ~15% | Proven workloads, flexibility needed |
+| 6 months | ~30% | Stable production workloads |
+
+### When Provisioned Throughput Makes Sense
+
+**Use provisioned when:**
+- **Predictable, sustained traffic** (40-60%+ utilization)
+- **SLA requirements** (can't tolerate throttling)
+- **Consistent latency required** (customer-facing production)
+- **Custom models** (required—no on-demand option)
+- **Cost optimization at scale** (high-volume applications)
+
+**Avoid provisioned when:**
+- Traffic is highly variable
+- You're still experimenting with models
+- Utilization would be below 30-40%
+- Budget constraints prevent commitment
+
+### Custom Models Require Provisioned Throughput
+
+This is a critical exam point: **fine-tuned and custom models have no on-demand option**. If you've customized a model through:
+- Continued pre-training
+- Fine-tuning
+- Custom model import
+
+You **must** deploy on provisioned throughput. Factor this into any customization decision.
+
+---
+
+## SageMaker Endpoints: Full Control
+
+**Amazon SageMaker endpoints** provide managed infrastructure for hosting ML models with full control over the underlying compute.
+
+### When SageMaker Is Required
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                   SageMaker Decision Tree                           │
+│                                                                     │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │ Do you need any of the following?                           │   │
+│   │                                                             │   │
+│   │ □ Custom model (not available in Bedrock)                   │   │
+│   │ □ Specific instance types (GPU, memory)                     │   │
+│   │ □ A/B testing between model versions                        │   │
+│   │ □ Multi-model endpoints (multiple models, shared infra)     │   │
+│   │ □ Model version management and rollbacks                    │   │
+│   │ □ Custom inference containers                               │   │
+│   │ □ Integration with SageMaker ML pipelines                   │   │
+│   │                                                             │   │
+│   │           ┌────────────────┬────────────────┐               │   │
+│   │           │                │                │               │   │
+│   │          Yes               No               │               │   │
+│   │           │                │                │               │   │
+│   │           ▼                ▼                │               │   │
+│   │    ┌──────────┐     ┌──────────┐           │               │   │
+│   │    │SageMaker │     │ Consider │           │               │   │
+│   │    │Endpoints │     │ Bedrock  │           │               │   │
+│   │    └──────────┘     └──────────┘           │               │   │
+│   │                                             │               │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### SageMaker Endpoint Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      SageMaker Endpoint                             │
+│                                                                     │
+│  ┌───────────────────────────────────────────────────────────────┐ │
+│  │                    Endpoint Configuration                      │ │
+│  │                                                                │ │
+│  │   Production Variant A (90%)    Production Variant B (10%)    │ │
+│  │  ┌────────────────────────┐    ┌────────────────────────┐    │ │
+│  │  │  Model v2.1            │    │  Model v2.2 (canary)   │    │ │
+│  │  │  ┌─────────────────┐   │    │  ┌─────────────────┐   │    │ │
+│  │  │  │ ml.g5.2xlarge   │   │    │  │ ml.g5.2xlarge   │   │    │ │
+│  │  │  │ × 2 instances   │   │    │  │ × 1 instance    │   │    │ │
+│  │  │  └─────────────────┘   │    │  └─────────────────┘   │    │ │
+│  │  └────────────────────────┘    └────────────────────────┘    │ │
+│  │                                                                │ │
+│  │   Auto Scaling: 2-10 instances based on InvocationsPerInstance │ │
+│  │                                                                │ │
+│  └───────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Deploying a Model to SageMaker
+
+```python
+import boto3
+from sagemaker.huggingface import HuggingFaceModel
+
+# Deploy a HuggingFace model to SageMaker
+huggingface_model = HuggingFaceModel(
+    model_data='s3://my-bucket/model.tar.gz',  # Your model artifacts
+    role='arn:aws:iam::123456789012:role/SageMakerRole',
+    transformers_version='4.26',
+    pytorch_version='1.13',
+    py_version='py39'
+)
+
+# Deploy with specific instance type
+predictor = huggingface_model.deploy(
+    initial_instance_count=2,
+    instance_type='ml.g5.2xlarge',
+    endpoint_name='my-llm-endpoint'
+)
+
+# Invoke the endpoint
+response = predictor.predict({
+    'inputs': 'Summarize the following document: ...',
+    'parameters': {
+        'max_new_tokens': 256,
+        'temperature': 0.7
+    }
+})
+```
+
+### Instance Selection for LLMs
+
+| Instance Family | GPU | Memory | Best For |
+|-----------------|-----|--------|----------|
+| **ml.g5.xlarge** | 1× A10G | 24GB | Small models (7B parameters) |
+| **ml.g5.2xlarge** | 1× A10G | 24GB | Medium models, better CPU |
+| **ml.g5.12xlarge** | 4× A10G | 96GB | Large models (70B parameters) |
+| **ml.p4d.24xlarge** | 8× A100 | 320GB | Very large models, training |
+| **ml.inf2.xlarge** | 2× Inferentia2 | 32GB | Cost-optimized inference |
+
+### A/B Testing with Production Variants
+
+```python
+import boto3
+
+sagemaker = boto3.client('sagemaker')
+
+# Create endpoint config with multiple variants
+sagemaker.create_endpoint_config(
+    EndpointConfigName='ab-test-config',
+    ProductionVariants=[
+        {
+            'VariantName': 'model-v1',
+            'ModelName': 'my-model-v1',
+            'InstanceType': 'ml.g5.2xlarge',
+            'InitialInstanceCount': 2,
+            'InitialVariantWeight': 90  # 90% of traffic
+        },
+        {
+            'VariantName': 'model-v2',
+            'ModelName': 'my-model-v2',
+            'InstanceType': 'ml.g5.2xlarge',
+            'InitialInstanceCount': 1,
+            'InitialVariantWeight': 10  # 10% of traffic (canary)
+        }
+    ]
+)
+```
+
+### Auto Scaling for SageMaker Endpoints
+
+```python
+import boto3
+
+autoscaling = boto3.client('application-autoscaling')
+
+# Register scalable target
+autoscaling.register_scalable_target(
+    ServiceNamespace='sagemaker',
+    ResourceId='endpoint/my-llm-endpoint/variant/AllTraffic',
+    ScalableDimension='sagemaker:variant:DesiredInstanceCount',
+    MinCapacity=1,
+    MaxCapacity=10
+)
+
+# Create scaling policy based on invocations per instance
+autoscaling.put_scaling_policy(
+    PolicyName='invocations-scaling',
+    ServiceNamespace='sagemaker',
+    ResourceId='endpoint/my-llm-endpoint/variant/AllTraffic',
+    ScalableDimension='sagemaker:variant:DesiredInstanceCount',
+    PolicyType='TargetTrackingScaling',
+    TargetTrackingScalingPolicyConfiguration={
+        'TargetValue': 100,  # Target invocations per instance
+        'PredefinedMetricSpecification': {
+            'PredefinedMetricType': 'SageMakerVariantInvocationsPerInstance'
+        },
+        'ScaleInCooldown': 300,
+        'ScaleOutCooldown': 60
+    }
+)
+```
+
+---
+
+## Model Cascading: The Cost Optimization Secret
+
+**Model cascading** is one of the most impactful cost optimization patterns available. The insight is simple but powerful: **most queries don't need your most capable model**.
+
+### The Power Law of Query Complexity
+
+```
+                    Query Complexity Distribution
+
+  Frequency
+      │
+  70% │████████████████████████████████████████████████████
+      │                 │
+  20% │                 │██████████████████
+      │                 │        │
+  10% │                 │        │█████████
+      │                 │        │    │
+      └─────────────────┴────────┴────┴───────────────────►
+                 Simple     Medium    Complex     Complexity
+
+   Simple (70%): FAQ lookups, basic generation, formatting
+   Medium (20%): Multi-step reasoning, analysis, longer generation
+   Complex (10%): Expert reasoning, nuanced understanding, creativity
+```
+
+### Cascading Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Model Cascading Pipeline                        │
+│                                                                     │
+│                        ┌────────────────┐                          │
+│                        │  User Query    │                          │
+│                        └───────┬────────┘                          │
+│                                │                                    │
+│                                ▼                                    │
+│              ┌─────────────────────────────────────┐               │
+│              │     Query Complexity Classifier     │               │
+│              │                                     │               │
+│              │  • Keyword analysis                 │               │
+│              │  • Query length                     │               │
+│              │  • Required reasoning depth         │               │
+│              │  • Domain complexity                │               │
+│              └─────────────────┬───────────────────┘               │
+│                    ┌───────────┼───────────┐                       │
+│                    │           │           │                       │
+│                 Simple      Medium      Complex                    │
+│                    │           │           │                       │
+│                    ▼           ▼           ▼                       │
+│              ┌─────────┐ ┌─────────┐ ┌─────────┐                   │
+│              │  Haiku  │ │ Sonnet  │ │  Opus   │                   │
+│              │ $0.25/M │ │ $3.00/M │ │ $15/M   │                   │
+│              └────┬────┘ └────┬────┘ └────┬────┘                   │
+│                   │           │           │                        │
+│                   ▼           │           │                        │
+│         ┌─────────────────┐   │           │                        │
+│         │ Confidence Check│   │           │                        │
+│         └────────┬────────┘   │           │                        │
+│             ┌────┴────┐       │           │                        │
+│           High       Low──────┴───────────┤                        │
+│             │                             │                        │
+│             ▼                             ▼                        │
+│       ┌───────────┐                ┌───────────┐                   │
+│       │  Response │                │  Response │                   │
+│       │ (Fast/Low)│                │(Quality)  │                   │
+│       └───────────┘                └───────────┘                   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Complete Cascading Implementation
+
+```python
+import boto3
+import json
+from dataclasses import dataclass
+from typing import Literal, Optional
+from enum import Enum
+
+class Complexity(Enum):
+    SIMPLE = "simple"
+    MEDIUM = "medium"
+    COMPLEX = "complex"
+
+@dataclass
+class CascadeResult:
+    response: str
+    model_used: str
+    complexity: Complexity
+    escalated: bool
+    estimated_cost: float
+
+class ModelCascade:
+    """
+    Intelligent model routing based on query complexity.
+    Routes simple queries to cheap models, escalates when needed.
+    """
+
+    MODELS = {
+        Complexity.SIMPLE: {
+            'id': 'anthropic.claude-3-haiku-20240307-v1:0',
+            'name': 'Haiku',
+            'input_cost': 0.00025,   # per 1K tokens
+            'output_cost': 0.00125
+        },
+        Complexity.MEDIUM: {
+            'id': 'anthropic.claude-3-sonnet-20240229-v1:0',
+            'name': 'Sonnet',
+            'input_cost': 0.003,
+            'output_cost': 0.015
+        },
+        Complexity.COMPLEX: {
+            'id': 'anthropic.claude-3-opus-20240229-v1:0',
+            'name': 'Opus',
+            'input_cost': 0.015,
+            'output_cost': 0.075
+        }
+    }
+
+    # Indicators that suggest higher complexity
+    COMPLEXITY_INDICATORS = {
+        'simple': ['what is', 'define', 'list', 'how many', 'when did'],
+        'complex': ['analyze', 'compare and contrast', 'evaluate',
+                   'synthesize', 'critique', 'design', 'recommend strategy']
+    }
+
+    UNCERTAINTY_PHRASES = [
+        "i'm not sure", "i don't know", "unclear", "might be",
+        "possibly", "i cannot determine", "insufficient information"
+    ]
+
+    def __init__(self):
+        self.client = boto3.client('bedrock-runtime')
+
+    def classify_complexity(self, query: str) -> Complexity:
+        """Classify query complexity based on content analysis."""
+        query_lower = query.lower()
+
+        # Check for complex indicators first
+        for indicator in self.COMPLEXITY_INDICATORS['complex']:
+            if indicator in query_lower:
+                return Complexity.COMPLEX
+
+        # Check for simple indicators
+        for indicator in self.COMPLEXITY_INDICATORS['simple']:
+            if indicator in query_lower:
+                return Complexity.SIMPLE
+
+        # Default to medium for uncertain cases
+        # Production: use ML classifier here
+        word_count = len(query.split())
+        if word_count < 10:
+            return Complexity.SIMPLE
+        elif word_count > 50:
+            return Complexity.COMPLEX
+        return Complexity.MEDIUM
+
+    def invoke_model(self, model_id: str, query: str) -> tuple[str, dict]:
+        """Invoke a model and return response with usage stats."""
+        response = self.client.converse(
+            modelId=model_id,
+            messages=[{'role': 'user', 'content': [{'text': query}]}],
+            inferenceConfig={'maxTokens': 1024, 'temperature': 0.7}
+        )
+
+        text = response['output']['message']['content'][0]['text']
+        usage = response['usage']
+        return text, usage
+
+    def is_confident(self, response: str) -> bool:
+        """Check if response indicates confidence."""
+        response_lower = response.lower()
+        return not any(phrase in response_lower
+                      for phrase in self.UNCERTAINTY_PHRASES)
+
+    def calculate_cost(self, usage: dict, complexity: Complexity) -> float:
+        """Calculate cost based on token usage."""
+        model = self.MODELS[complexity]
+        input_cost = (usage['inputTokens'] / 1000) * model['input_cost']
+        output_cost = (usage['outputTokens'] / 1000) * model['output_cost']
+        return input_cost + output_cost
+
+    def process(self, query: str) -> CascadeResult:
+        """Process query with intelligent model cascading."""
+
+        # Classify query complexity
+        complexity = self.classify_complexity(query)
+        model = self.MODELS[complexity]
+
+        # Try initial model
+        response, usage = self.invoke_model(model['id'], query)
+        cost = self.calculate_cost(usage, complexity)
+
+        # Check if we need to escalate
+        escalated = False
+        if complexity == Complexity.SIMPLE and not self.is_confident(response):
+            # Escalate to medium
+            complexity = Complexity.MEDIUM
+            model = self.MODELS[complexity]
+            response, usage = self.invoke_model(model['id'], query)
+            cost += self.calculate_cost(usage, complexity)
+            escalated = True
+
+        return CascadeResult(
+            response=response,
+            model_used=model['name'],
+            complexity=complexity,
+            escalated=escalated,
+            estimated_cost=cost
+        )
+
+# Usage
+cascade = ModelCascade()
+result = cascade.process("What is the capital of France?")  # Simple -> Haiku
+result = cascade.process("Analyze the economic implications...")  # Complex -> Opus
+```
+
+### Cost Impact Analysis
+
+| Traffic Volume | All Sonnet | Cascaded (70/20/10) | Monthly Savings |
+|----------------|------------|---------------------|-----------------|
+| 100K queries/mo | $4,500 | $1,620 | $2,880 (64%) |
+| 500K queries/mo | $22,500 | $8,100 | $14,400 (64%) |
+| 1M queries/mo | $45,000 | $16,200 | $28,800 (64%) |
 
 ---
 
 ## Cross-Region Inference with Inference Profiles
 
-**Inference profiles** enable cross-region inference, automatically routing requests to healthy regions when your primary region experiences capacity constraints or outages. This improves **availability** without requiring you to build custom failover logic.
+**Inference Profiles** enable automatic cross-region routing for high availability. Instead of calling a model in a specific region, you call an inference profile that routes to available capacity.
 
 ### How Inference Profiles Work
 
-An inference profile is an **ARN that references a model across multiple regions**. Instead of calling a specific model in a specific region, you call the inference profile, and Bedrock routes your request to an available region automatically.
-
 ```
-arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-3-sonnet-20240229-v1:0
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Inference Profile Routing                        │
+│                                                                     │
+│                     ┌───────────────────┐                          │
+│                     │  Inference Profile │                          │
+│                     │  us.claude-sonnet  │                          │
+│                     └─────────┬─────────┘                          │
+│                               │                                     │
+│              ┌────────────────┼────────────────┐                   │
+│              │                │                │                   │
+│              ▼                ▼                ▼                   │
+│       ┌──────────┐     ┌──────────┐     ┌──────────┐              │
+│       │us-east-1 │     │us-west-2 │     │us-east-2 │              │
+│       │          │     │          │     │          │              │
+│       │ ✓ Healthy│     │ ✓ Healthy│     │ ⚠ Busy   │              │
+│       └──────────┘     └──────────┘     └──────────┘              │
+│              │                │                                    │
+│              └────────────────┤                                    │
+│                               │                                    │
+│                     ┌─────────▼─────────┐                          │
+│                     │  Route to healthy │                          │
+│                     │  region with      │                          │
+│                     │  available capacity│                          │
+│                     └───────────────────┘                          │
+│                                                                     │
+│  Geographic Scopes:                                                 │
+│  • us.* - Routes within US regions                                 │
+│  • eu.* - Routes within EU regions                                 │
+│  • Respects data residency requirements                            │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
-
-The prefix (`us.`) indicates the **geographic scope**. Requests using a US profile might route to us-east-1, us-west-2, or other US regions based on availability. This happens transparently—your code doesn't change based on which region ultimately serves the request.
-
-### Data Residency
-
-The routing **respects data residency**:
-- US-based profiles route within the US
-- EU-based profiles stay in EU regions
-
-This maintains compliance with data sovereignty requirements while providing geographic redundancy.
 
 ### Using Inference Profiles
 
@@ -250,7 +746,17 @@ import json
 
 client = boto3.client('bedrock-runtime')
 
-# Using inference profile instead of direct model ID
+# Using inference profile for cross-region availability
+response = client.invoke_model(
+    modelId='us.anthropic.claude-3-sonnet-20240229-v1:0',  # Note: us. prefix
+    body=json.dumps({
+        'anthropic_version': 'bedrock-2023-05-31',
+        'max_tokens': 1024,
+        'messages': [{'role': 'user', 'content': 'Hello'}]
+    })
+)
+
+# Or using full ARN format
 response = client.invoke_model(
     modelId='arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-3-sonnet-20240229-v1:0',
     body=json.dumps({
@@ -261,126 +767,363 @@ response = client.invoke_model(
 )
 ```
 
-### When to Use (and Not Use) Inference Profiles
+### Inference Profiles vs Provisioned Throughput
 
-| Use When | Don't Use When |
-|----------|----------------|
-| Production workloads requiring high availability | Data must stay in specific region for compliance |
-| Applications that can't tolerate regional outages | Development/testing (consistent behavior matters more) |
-| Global applications with variable latency | Using provisioned throughput (committed to specific region) |
+This distinction is a common exam topic:
 
-**Key exam point**: Inference profiles are **NOT the same as provisioned throughput**. They serve different purposes—availability vs. committed capacity.
+| Aspect | Inference Profiles | Provisioned Throughput |
+|--------|-------------------|------------------------|
+| **Purpose** | High availability, cross-region | Guaranteed capacity, cost savings |
+| **Capacity** | Shared (on-demand) | Dedicated |
+| **Geographic** | Routes across regions | Single region |
+| **Cost model** | Pay per token | Hourly commitment |
+| **Throttling** | Possible (shared) | No (dedicated) |
+| **Custom models** | No | Yes (required) |
+
+**Key exam point**: Inference profiles provide **availability** through geographic redundancy. Provisioned throughput provides **capacity guarantees** through dedicated resources. They solve different problems.
 
 ---
 
-## Batch Inference for Bulk Processing
+## Batch Inference: Bulk Processing at Scale
 
-**Batch inference** processes large volumes of requests asynchronously, trading latency for cost efficiency. Instead of paying on-demand prices for each request, batch jobs process inputs at roughly **50% discount**—significant savings for bulk workloads.
+**Batch inference** processes large volumes asynchronously at approximately **50% discount** compared to on-demand. Trade latency for cost efficiency.
 
-### When to Use Batch Inference
+### Batch Inference Architecture
 
-- Processing **thousands of documents** for summarization
-- **Bulk data enrichment** (sentiment analysis, classification)
-- **Content generation at scale** (product descriptions, translations)
-- **Offline evaluation** datasets
-- Any workload where **real-time response isn't required**
-
-### How It Works
-
-1. **Prepare** input data in JSONL format in S3
-2. **Create** a batch inference job via `CreateModelInvocationJob`
-3. Bedrock **processes** inputs asynchronously
-4. **Results** appear in S3 when complete
-
-### Input Format (JSONL)
-
-Each line is a complete JSON object with a unique `recordId` and `modelInput`:
-
-```json
-{"recordId": "1", "modelInput": {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 256, "messages": [{"role": "user", "content": "Summarize this article: ..."}]}}
-{"recordId": "2", "modelInput": {"anthropic_version": "bedrock-2023-05-31", "max_tokens": 256, "messages": [{"role": "user", "content": "Summarize this article: ..."}]}}
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Batch Inference Pipeline                       │
+│                                                                     │
+│   ┌────────────────────────────────────────────────────────────┐   │
+│   │ 1. Prepare Input (JSONL)                                    │   │
+│   │                                                             │   │
+│   │    s3://bucket/input/batch-job-001.jsonl                   │   │
+│   │    ┌───────────────────────────────────────────────────┐   │   │
+│   │    │ {"recordId":"1","modelInput":{...}}               │   │   │
+│   │    │ {"recordId":"2","modelInput":{...}}               │   │   │
+│   │    │ {"recordId":"3","modelInput":{...}}               │   │   │
+│   │    │ ... (thousands of records)                        │   │   │
+│   │    └───────────────────────────────────────────────────┘   │   │
+│   └────────────────────────────────────────────────────────────┘   │
+│                                │                                    │
+│                                ▼                                    │
+│   ┌────────────────────────────────────────────────────────────┐   │
+│   │ 2. Create Batch Job                                        │   │
+│   │                                                             │   │
+│   │    CreateModelInvocationJob                                 │   │
+│   │    • jobName: "document-summarization"                      │   │
+│   │    • modelId: "claude-3-haiku"                              │   │
+│   │    • inputDataConfig: s3://bucket/input/                    │   │
+│   │    • outputDataConfig: s3://bucket/output/                  │   │
+│   └────────────────────────────────────────────────────────────┘   │
+│                                │                                    │
+│                                ▼                                    │
+│   ┌────────────────────────────────────────────────────────────┐   │
+│   │ 3. Processing (Asynchronous)                                │   │
+│   │                                                             │   │
+│   │    Status: InProgress ─────► Completed                      │   │
+│   │    (Monitor via GetModelInvocationJob)                      │   │
+│   └────────────────────────────────────────────────────────────┘   │
+│                                │                                    │
+│                                ▼                                    │
+│   ┌────────────────────────────────────────────────────────────┐   │
+│   │ 4. Retrieve Results                                         │   │
+│   │                                                             │   │
+│   │    s3://bucket/output/batch-job-001/                        │   │
+│   │    ┌───────────────────────────────────────────────────┐   │   │
+│   │    │ {"recordId":"1","modelOutput":{...}}              │   │   │
+│   │    │ {"recordId":"2","modelOutput":{...}}              │   │   │
+│   │    │ {"recordId":"3","modelOutput":{...}}              │   │   │
+│   │    └───────────────────────────────────────────────────┘   │   │
+│   └────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Creating a Batch Job
+### Complete Batch Processing Example
+
+```python
+import boto3
+import json
+import time
+from typing import List, Dict
+
+class BatchInferenceManager:
+    """Manages batch inference jobs for bulk processing."""
+
+    def __init__(self, bucket: str, role_arn: str):
+        self.bedrock = boto3.client('bedrock')
+        self.s3 = boto3.client('s3')
+        self.bucket = bucket
+        self.role_arn = role_arn
+
+    def prepare_input(self, documents: List[Dict], job_id: str) -> str:
+        """
+        Convert documents to JSONL format and upload to S3.
+
+        Each document should have 'id' and 'content' fields.
+        """
+        jsonl_lines = []
+
+        for doc in documents:
+            record = {
+                "recordId": doc['id'],
+                "modelInput": {
+                    "anthropic_version": "bedrock-2023-05-31",
+                    "max_tokens": 256,
+                    "messages": [{
+                        "role": "user",
+                        "content": f"Summarize this document in 2-3 sentences:\n\n{doc['content']}"
+                    }]
+                }
+            }
+            jsonl_lines.append(json.dumps(record))
+
+        # Upload to S3
+        input_key = f"batch-jobs/{job_id}/input.jsonl"
+        self.s3.put_object(
+            Bucket=self.bucket,
+            Key=input_key,
+            Body='\n'.join(jsonl_lines)
+        )
+
+        return f"s3://{self.bucket}/{input_key}"
+
+    def create_job(
+        self,
+        job_name: str,
+        input_s3_uri: str,
+        model_id: str = 'anthropic.claude-3-haiku-20240307-v1:0'
+    ) -> str:
+        """Create batch inference job."""
+
+        response = self.bedrock.create_model_invocation_job(
+            jobName=job_name,
+            modelId=model_id,
+            roleArn=self.role_arn,
+            inputDataConfig={
+                's3InputDataConfig': {
+                    's3Uri': input_s3_uri,
+                    's3InputFormat': 'JSONL'
+                }
+            },
+            outputDataConfig={
+                's3OutputDataConfig': {
+                    's3Uri': f"s3://{self.bucket}/batch-jobs/{job_name}/output/"
+                }
+            }
+        )
+
+        return response['jobArn']
+
+    def wait_for_completion(self, job_arn: str, poll_interval: int = 60) -> str:
+        """Poll job status until completion."""
+
+        while True:
+            response = self.bedrock.get_model_invocation_job(
+                jobIdentifier=job_arn
+            )
+
+            status = response['status']
+
+            if status == 'Completed':
+                return response['outputDataConfig']['s3OutputDataConfig']['s3Uri']
+            elif status == 'Failed':
+                raise Exception(f"Batch job failed: {response.get('message')}")
+            elif status in ['Stopping', 'Stopped']:
+                raise Exception(f"Batch job was stopped")
+
+            print(f"Job status: {status}. Waiting {poll_interval}s...")
+            time.sleep(poll_interval)
+
+    def get_results(self, output_s3_uri: str) -> List[Dict]:
+        """Retrieve and parse batch results from S3."""
+
+        # Parse S3 URI
+        bucket = output_s3_uri.split('/')[2]
+        prefix = '/'.join(output_s3_uri.split('/')[3:])
+
+        # List output files
+        response = self.s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+
+        results = []
+        for obj in response.get('Contents', []):
+            if obj['Key'].endswith('.jsonl'):
+                file_response = self.s3.get_object(Bucket=bucket, Key=obj['Key'])
+                content = file_response['Body'].read().decode('utf-8')
+
+                for line in content.strip().split('\n'):
+                    if line:
+                        results.append(json.loads(line))
+
+        return results
+
+# Usage
+manager = BatchInferenceManager(
+    bucket='my-batch-bucket',
+    role_arn='arn:aws:iam::123456789012:role/BedrockBatchRole'
+)
+
+# Prepare documents
+documents = [
+    {'id': '1', 'content': 'Long document 1...'},
+    {'id': '2', 'content': 'Long document 2...'},
+    # ... thousands more
+]
+
+input_uri = manager.prepare_input(documents, 'job-001')
+job_arn = manager.create_job('summarization-job', input_uri)
+output_uri = manager.wait_for_completion(job_arn)
+results = manager.get_results(output_uri)
+```
+
+### Batch Inference Use Cases
+
+| Use Case | Volume | Why Batch |
+|----------|--------|-----------|
+| **Document summarization** | 10,000+ docs | No real-time need, 50% savings |
+| **Data enrichment** | Millions of records | Background processing acceptable |
+| **Content generation** | Bulk marketing content | Quality over speed |
+| **Sentiment analysis** | Historical data analysis | Offline processing |
+| **Model evaluation** | Test datasets | No latency requirement |
+
+---
+
+## Container-Based Deployment: Maximum Control
+
+For workloads requiring complete control over infrastructure, **ECS** or **EKS** deployments host custom model serving.
+
+### Memory and GPU Considerations
+
+LLMs have unique resource requirements:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LLM Memory Requirements                          │
+│                                                                     │
+│   Model Size (Parameters)  →  Memory Requirement (FP16)             │
+│                                                                     │
+│   7B parameters  ────────────────►  ~14 GB GPU memory               │
+│   13B parameters ────────────────►  ~26 GB GPU memory               │
+│   33B parameters ────────────────►  ~66 GB GPU memory               │
+│   70B parameters ────────────────►  ~140 GB GPU memory              │
+│                                                                     │
+│   Formula: Memory ≈ Parameters × 2 bytes (FP16)                    │
+│            + Activation overhead (varies with context length)       │
+│            + KV cache (grows with sequence length)                  │
+│                                                                     │
+│   Optimization Techniques:                                          │
+│   ┌─────────────┬─────────────┬─────────────────────────────────┐  │
+│   │ Technique   │ Reduction   │ Trade-off                       │  │
+│   ├─────────────┼─────────────┼─────────────────────────────────┤  │
+│   │ INT8 quant  │ ~50%        │ Minor quality impact            │  │
+│   │ INT4 quant  │ ~75%        │ Noticeable quality impact       │  │
+│   │ Model shard │ Distributed │ Requires multi-GPU              │  │
+│   │ Paged attn  │ Dynamic     │ Better memory efficiency        │  │
+│   └─────────────┴─────────────┴─────────────────────────────────┘  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### ECS Task Definition for LLM Serving
+
+```json
+{
+  "family": "llm-inference",
+  "requiresCompatibilities": ["EC2"],
+  "containerDefinitions": [
+    {
+      "name": "llm-server",
+      "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/llm-serving:latest",
+      "memory": 32768,
+      "cpu": 4096,
+      "resourceRequirements": [
+        {
+          "type": "GPU",
+          "value": "1"
+        }
+      ],
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {"name": "MODEL_NAME", "value": "my-custom-model"},
+        {"name": "MAX_BATCH_SIZE", "value": "4"},
+        {"name": "MAX_SEQUENCE_LENGTH", "value": "4096"}
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/llm-inference",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "llm"
+        }
+      }
+    }
+  ]
+}
+```
+
+### Scaling Based on Token Throughput
 
 ```python
 import boto3
 
-client = boto3.client('bedrock')
+cloudwatch = boto3.client('cloudwatch')
+autoscaling = boto3.client('application-autoscaling')
 
-response = client.create_model_invocation_job(
-    jobName='document-summarization-batch',
-    modelId='anthropic.claude-3-haiku-20240307-v1:0',
-    roleArn='arn:aws:iam::123456789012:role/BedrockBatchRole',
-    inputDataConfig={
-        's3InputDataConfig': {
-            's3Uri': 's3://my-bucket/input/',
-            's3InputFormat': 'JSONL'
+# Publish custom metric: tokens per second
+cloudwatch.put_metric_data(
+    Namespace='LLM/Inference',
+    MetricData=[
+        {
+            'MetricName': 'TokensPerSecond',
+            'Dimensions': [
+                {'Name': 'Service', 'Value': 'llm-inference'},
+                {'Name': 'ClusterName', 'Value': 'production'}
+            ],
+            'Value': current_tokens_per_second,
+            'Unit': 'Count/Second'
+        },
+        {
+            'MetricName': 'QueueDepth',
+            'Dimensions': [
+                {'Name': 'Service', 'Value': 'llm-inference'},
+                {'Name': 'ClusterName', 'Value': 'production'}
+            ],
+            'Value': pending_requests,
+            'Unit': 'Count'
         }
-    },
-    outputDataConfig={
-        's3OutputDataConfig': {
-            's3Uri': 's3://my-bucket/output/'
-        }
-    }
+    ]
 )
 
-job_arn = response['jobArn']
-
-# Monitor job status
-status = client.get_model_invocation_job(jobIdentifier=job_arn)
-print(status['status'])  # InProgress, Completed, Failed, etc.
+# Scale based on queue depth (better than request count for LLMs)
+autoscaling.put_scaling_policy(
+    PolicyName='queue-depth-scaling',
+    ServiceNamespace='ecs',
+    ResourceId='service/production/llm-inference',
+    ScalableDimension='ecs:service:DesiredCount',
+    PolicyType='StepScaling',
+    StepScalingPolicyConfiguration={
+        'AdjustmentType': 'ChangeInCapacity',
+        'StepAdjustments': [
+            {'MetricIntervalLowerBound': 0, 'MetricIntervalUpperBound': 50, 'ScalingAdjustment': 1},
+            {'MetricIntervalLowerBound': 50, 'MetricIntervalUpperBound': 100, 'ScalingAdjustment': 2},
+            {'MetricIntervalLowerBound': 100, 'ScalingAdjustment': 3}
+        ],
+        'Cooldown': 120
+    }
+)
 ```
-
-### Cost Comparison
-
-| Method | Per 1K Input Tokens | Best For |
-|--------|---------------------|----------|
-| On-demand | $0.00025 | Real-time, interactive |
-| Batch | ~$0.000125 | Bulk processing |
-| Provisioned | Variable | Sustained high volume |
-
----
-
-## Container-Based Deployment Optimization
-
-When you deploy models in containers using ECS, EKS, or SageMaker, optimization becomes more hands-on. You're directly managing compute resources, which means understanding how LLMs consume memory, utilize GPUs, and process tokens.
-
-### Memory Management
-
-LLMs are **exceptionally memory-hungry**. A 7-billion parameter model requires approximately **14GB** just for model weights when using FP16 (16-bit floating point) precision. This doesn't include:
-
-- Memory for **activations** during inference
-- **Batch processing** overhead
-- **Operating system** requirements
-
-**Quantization** techniques like INT8 or INT4 reduce memory requirements—potentially halving or quartering the footprint—but come with quality trade-offs to evaluate for your use case.
-
-### GPU Utilization
-
-ML inference workloads often show surprisingly **low GPU utilization**—30-40% is common—because of:
-
-- I/O bottlenecks between CPU and GPU memory
-- Small batch sizes
-- Sequential nature of token generation
-
-**Improving utilization:**
-- **Batch requests** so GPU processes multiple inputs simultaneously
-- **Monitor both GPU memory and compute** to identify bottlenecks
-- **Multi-model serving** to share GPU resources across models
-
-### Token Processing Characteristics
-
-- **Input tokens** process in parallel (fast)
-- **Output tokens** generate sequentially—each depends on previous tokens (slow)
-- Longer outputs **always take more time** regardless of hardware power
-- **Streaming** improves perceived latency even though total time is same
-
-### Scaling Policies
-
-Scale on **token throughput**, not just request count. A handful of requests generating long outputs can saturate capacity that would handle hundreds of short-response requests.
-
-CloudWatch custom metrics tracking **tokens per second** and **queue depth** provide better scaling signals than simple request-count metrics.
 
 ---
 
@@ -388,35 +1131,37 @@ CloudWatch custom metrics tracking **tokens per second** and **queue depth** pro
 
 | When you see... | Think... |
 |-----------------|----------|
-| "least operational overhead" + FM access | Bedrock (Lambda + on-demand) |
-| "custom model" or "fine-tuned" | SageMaker endpoints |
+| "least operational overhead" + FM access | Lambda + Bedrock on-demand |
+| "custom model" or "fine-tuned" | SageMaker endpoints (or Provisioned Throughput) |
 | "high availability" or "cross-region failover" | Inference Profiles |
 | "bulk processing" or "offline inference" | Batch Inference (~50% savings) |
-| "cost optimization" with variable traffic | Model cascading + on-demand |
-| "predictable production traffic" | Provisioned Throughput |
-| "GPU utilization" or "container optimization" | Batch requests, monitor utilization |
+| "cost optimization" with variable query complexity | Model cascading |
+| "predictable production traffic" + cost savings | Provisioned Throughput |
+| "GPU utilization" or "container optimization" | Batch requests, scale on tokens/second |
+| "A/B testing" model versions | SageMaker production variants |
+| "multi-model" shared infrastructure | SageMaker multi-model endpoints |
 
 ---
 
 ## Key Takeaways
 
-> **1. Lambda + Bedrock on-demand: simplest, pay-per-use, best for variable traffic.**
-> Zero infrastructure management. Pay only for tokens processed. Accept potential cold starts and shared capacity variability.
+> **1. Lambda + Bedrock on-demand is the starting point for most applications.**
+> Zero infrastructure, pay only for tokens used. Accept shared capacity variability and potential cold starts. Perfect for development and variable-traffic production.
 
-> **2. Provisioned Throughput: committed capacity for predictable production workloads.**
-> Guaranteed capacity, consistent latency, lower per-token costs. Required for custom models. Economics favor 40-60%+ utilization.
+> **2. Provisioned Throughput guarantees capacity for predictable production workloads.**
+> Commit to capacity for consistent latency, no throttling, and lower per-token costs. Required for custom models. Economics favor 40%+ utilization.
 
-> **3. SageMaker: required for custom/fine-tuned models or specific hardware needs.**
-> Full control over infrastructure. Higher operational overhead. Use when Bedrock doesn't offer what you need.
+> **3. SageMaker provides full control when Bedrock doesn't meet requirements.**
+> Custom models, specific instance types, A/B testing, multi-model endpoints. Higher operational overhead justified by flexibility.
 
-> **4. Model cascading routes simple queries to cheap models, saving 50-70% on costs.**
-> Most queries don't need your most capable model. Classify complexity, route accordingly, escalate when needed.
+> **4. Model cascading can reduce costs by 50-70% through intelligent routing.**
+> Most queries don't need your most capable model. Classify complexity, route to appropriate tier, escalate when confidence is low.
 
-> **5. Inference profiles enable cross-region failover for high availability.**
-> Automatic routing to healthy regions. Geographic prefixes control routing scope. Not the same as provisioned throughput.
+> **5. Inference profiles provide geographic redundancy for high availability.**
+> Automatic cross-region routing to healthy capacity. Not the same as provisioned throughput—solves availability, not capacity guarantees.
 
-> **6. Batch inference saves ~50% for bulk processing via JSONL in S3.**
-> Trade latency for cost efficiency. Use for any workload where real-time response isn't required.
+> **6. Batch inference saves ~50% for any workload that doesn't require real-time response.**
+> Prepare JSONL in S3, create job, retrieve results. Use for document processing, data enrichment, content generation at scale.
 
 ---
 
@@ -424,10 +1169,11 @@ CloudWatch custom metrics tracking **tokens per second** and **queue depth** pro
 
 | Mistake | Why It Matters |
 |---------|----------------|
-| **Using provisioned throughput for variable traffic** | Overpaying for unused capacity. On-demand is better for unpredictable workloads. |
+| **Using provisioned throughput for variable traffic** | Paying for unused capacity. On-demand is better for unpredictable workloads. |
 | **Using SageMaker when Bedrock would suffice** | Unnecessary operational overhead. Use managed services when they meet requirements. |
 | **Not implementing model cascading** | Missing 50-70% cost savings when query complexity varies. |
-| **Confusing inference profiles with provisioned throughput** | Different purposes: availability vs. committed capacity. |
-| **Using on-demand for bulk processing** | Batch inference saves 50%. Always consider for non-real-time workloads. |
-| **Under-provisioning container memory** | LLMs need substantial memory. OOM errors cause failed requests. |
-| **Scaling on request count instead of token throughput** | A few long-output requests can saturate capacity. Scale on tokens/second. |
+| **Confusing inference profiles with provisioned throughput** | Different purposes: availability (geographic redundancy) vs. capacity (dedicated resources). |
+| **Using on-demand for bulk processing** | Batch inference saves 50%. Always evaluate for non-real-time workloads. |
+| **Under-provisioning container memory for LLMs** | Models need ~2 bytes per parameter (FP16) plus overhead. OOM errors cause failed requests. |
+| **Scaling containers on request count instead of tokens** | A few long-output requests can saturate capacity. Scale on tokens/second or queue depth. |
+| **Not considering commitment discounts at scale** | 1-month and 6-month commitments offer 15-30% savings on provisioned throughput. |

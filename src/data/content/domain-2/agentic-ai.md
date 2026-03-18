@@ -1,342 +1,815 @@
 # Agentic AI Solutions
 
-**Domain 2 | Task 2.1 | ~40 minutes**
+**Domain 2 | Task 2.1 | ~45 minutes**
 
 ---
 
 ## Why This Matters
 
-Agentic AI represents the next evolution of GenAI applications. Instead of simple request-response patterns where a user asks and the model answers, agents can autonomously plan, use tools, and take multi-step actions to complete complex tasks. This is where AI becomes genuinely useful for real-world business problems that require reasoning, tool use, and decision-making.
+Agentic AI represents a fundamental shift in what AI systems can accomplish. The GenAI applications most people are familiar with follow a simple pattern: user asks a question, model generates text, interaction ends. This works for chatbots, writing assistants, and content generation—but it barely scratches the surface of what's possible. The real power of foundation models emerges when they can **take action in the world**, not just generate text about it.
 
-Think about the difference between asking a chatbot "What's the weather in Seattle?" versus asking "Book me the cheapest flight to Seattle next week, preferably in the morning." The first is a simple lookup. The second requires searching flight databases, comparing prices, understanding your preferences, considering constraints, and potentially making a purchase—all while handling the inevitable edge cases and failures that occur in real systems.
+Think about the difference between asking a chatbot "What's the weather in Seattle?" versus asking "Book me the cheapest flight to Seattle next week, preferably in the morning, and add it to my calendar." The first is a simple lookup—the model retrieves or generates information and you're done. The second is a **multi-step task** that requires searching flight databases, comparing prices across airlines, understanding your preferences (morning flights, cheapest option), considering constraints (your calendar availability), making a purchase decision, interacting with a payment system, and finally updating your calendar. Each step might reveal new information that changes the approach. The flight search might show that afternoon flights are $200 cheaper—should the agent ask you, or just book the morning flight as requested? The calendar might show a conflict—what then?
 
-This topic matters because agents are how you build AI systems that actually *do* things rather than just *say* things. Every major AI capability being deployed in enterprises—from customer service automation to document processing to software development assistance—relies on agentic patterns. Master these concepts and you'll understand how production AI systems actually work.
+This is **agentic AI**: systems that can autonomously plan, reason, use tools, and take multi-step actions to accomplish goals. These aren't hypothetical capabilities—they're what powers the most sophisticated AI deployments in enterprises today. Customer service agents that can actually resolve issues by accessing order systems, processing refunds, and scheduling callbacks. Document processing systems that read contracts, extract key terms, validate against business rules, and route for appropriate approval. Software development assistants that don't just suggest code but can run tests, commit changes, and create pull requests.
+
+The business impact is substantial. A traditional chatbot might deflect 30% of customer inquiries to self-service. An agentic system that can actually resolve issues—check order status, process returns, update account information—might handle 70% or more without human intervention. The difference isn't just efficiency; it's capability. Problems that previously required human judgment and system access become automatable.
+
+But agentic systems also introduce risks that simpler AI applications don't face. An agent that can take actions can take **wrong actions**. An agent with access to payment systems can process fraudulent refunds. An agent with email access can send inappropriate messages. The same autonomy that makes agents powerful makes them dangerous if not properly constrained. Understanding how to build agents that are both capable and safe is essential for anyone working with production AI systems.
 
 ---
 
 ## What Makes AI "Agentic"
 
-Traditional AI applications are reactive. A user asks a question, the model responds, and the interaction ends. Agentic AI fundamentally changes this dynamic by introducing **autonomy** into the system. An agent doesn't just answer questions—it actively works to accomplish goals.
+The word "agent" gets used loosely in AI discussions, so let's be precise about what distinguishes agentic systems from other AI applications.
 
-The defining characteristic of an agent is its ability to take **independent action**. When you ask an agent to "find the cheapest flight to Tokyo next week," it doesn't simply generate text about flights. Instead, it formulates a plan, searches flight databases, compares prices, considers your preferences, and returns with actual options. The agent makes decisions about what tools to use, what information to gather, and how to combine results—all without step-by-step human guidance.
+**Traditional AI applications are reactive.** A user submits input, the model processes it, and returns output. The model has no goals beyond generating a response to the immediate input. It doesn't remember what happened before (beyond what's in the context window), it doesn't plan for what comes next, and it can't take any action beyond producing text. This is the model most people think of when they imagine AI—a sophisticated autocomplete that generates plausible-sounding text.
 
-This autonomy is powered by several key capabilities working together:
+**Agentic AI is proactive.** An agent has a **goal** it's trying to achieve and actively works toward that goal. It reasons about what actions would help accomplish the goal, takes those actions, observes the results, and adjusts its approach based on what it learns. The agent loop continues until the goal is achieved or the agent determines it can't proceed.
 
-**Tool use** transforms agents from sophisticated chatbots into systems that can interact with the real world. An agent with access to APIs can check inventory, process payments, send emails, or query databases. Without tools, agents can only generate text. With tools, they can take action.
+The defining characteristics of agentic systems are:
 
-**Planning** enables agents to decompose complex goals into manageable steps. Rather than attempting everything at once, a well-designed agent breaks down "book a complete vacation package" into searching for flights, finding hotels, checking availability, and confirming reservations. Each step builds on the previous one.
+**Autonomy**: The agent makes decisions about what to do without step-by-step human guidance. You specify the goal ("resolve this customer's issue") not the steps ("first look up the order, then check the return policy, then..."). The agent figures out the steps itself.
 
-**Reasoning** allows agents to evaluate their progress and adjust their approach. If a search returns no results, the agent can try alternative queries or ask for clarification. If an action fails, it can attempt recovery strategies. This adaptive behavior is what makes agents robust in the face of real-world complexity.
+**Tool use**: Agents can interact with external systems through **tools**—APIs, databases, file systems, web services. Without tools, an agent can only generate text. With tools, it can check inventory, process payments, send emails, query knowledge bases, or interact with any system that exposes an API. Tools are what transform agents from sophisticated chatbots into systems that can actually do things.
 
-### Strands Agents SDK and Agent Squad
+**Planning**: Complex tasks require breaking goals into sub-goals. An agent trying to "book a vacation" needs to decompose that into searching flights, finding hotels, checking availability, comparing prices, and confirming reservations. Good agents develop plans and execute them systematically.
 
-**Strands Agents SDK** is AWS's framework for building production-ready agents. Think of it as the scaffolding that handles the complexity of agent loops, tool definitions, memory management, and orchestration. You define what your agent should do and what tools it has access to; Strands handles how the agent executes its reasoning loop.
+**Reasoning**: Agents need to evaluate their progress, handle unexpected situations, and adjust their approach when things don't go as expected. If a flight search returns no results, the agent might try different dates, different airports, or ask the user to clarify constraints. This adaptive behavior is what makes agents robust in real-world conditions where things rarely go exactly as planned.
 
-For scenarios requiring multiple specialized agents working together, **AWS Agent Squad** enables coordination between agents. One agent might handle customer inquiries while another manages inventory and a third processes orders—Agent Squad orchestrates their collaboration to solve problems no single agent could handle alone.
+**Memory**: Effective agents maintain context across interactions. They remember what tools they've called, what results they've received, what the user has said, and what their current plan is. This memory enables coherent multi-step behavior rather than treating each action in isolation.
+
+### The Agent Loop
+
+All agentic systems share a common structure, often called the **agent loop**:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        THE AGENT LOOP                             │
+│                                                                   │
+│   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐      │
+│   │ PERCEIVE│───►│  REASON │───►│   ACT   │───►│ OBSERVE │      │
+│   │         │    │         │    │         │    │         │      │
+│   │ User    │    │ What    │    │ Execute │    │ Process │      │
+│   │ request,│    │ action  │    │ tool    │    │ results,│      │
+│   │ context │    │ helps?  │    │ call    │    │ update  │      │
+│   │         │    │         │    │         │    │ state   │      │
+│   └─────────┘    └─────────┘    └─────────┘    └────┬────┘      │
+│                                                      │           │
+│        ┌─────────────────────────────────────────────┘           │
+│        │                                                         │
+│        ▼                                                         │
+│   ┌─────────┐                                                    │
+│   │  GOAL   │    YES: Return final response to user             │
+│   │ACHIEVED?│───────────────────────────────────────────────────►│
+│   │         │    NO: Loop back to REASON                        │
+│   └────┬────┘                                                    │
+│        │                                                         │
+│        └────────────────────────► REASON                        │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+1. **Perceive**: The agent receives input—user request, current state, available tools, any constraints
+2. **Reason**: The agent thinks about what action would help achieve the goal given current knowledge
+3. **Act**: The agent executes an action, typically calling a tool
+4. **Observe**: The agent processes the result of the action, updating its understanding
+5. **Evaluate**: The agent determines whether the goal is achieved or more actions are needed
+6. **Repeat or Respond**: Either loop back to reason about the next action, or provide a final response
+
+### AWS Tools for Building Agents
+
+AWS provides several services and frameworks for building agentic systems:
+
+**Amazon Bedrock Agents** is the managed service approach. You define the agent's purpose, configure available action groups (tools backed by Lambda functions), optionally connect knowledge bases for RAG, and Bedrock handles the agent loop orchestration. The model reasons about which actions to take and calls your Lambda functions automatically.
+
+**Strands Agents SDK** is AWS's framework for building custom agents with more control. It handles the complexity of the agent loop—prompt construction, tool calling, result parsing, conversation management—while letting you customize behavior. Strands works with any model that supports tool use.
+
+**AWS Agent Squad** enables multi-agent systems where specialized agents collaborate. A supervisor agent coordinates, routing tasks to specialist agents with domain expertise. This pattern scales capabilities without making any single agent impossibly complex.
 
 ---
 
 ## The ReAct Pattern: Reasoning + Acting
 
-ReAct stands for **Reasoning + Acting**, and it's the fundamental pattern behind most effective AI agents. The core insight is simple but powerful: instead of having an AI try to solve a problem in one shot, let it alternate between thinking about what to do and actually doing it. This creates a feedback loop where each action informs the next thought.
+**ReAct** (Reasoning + Acting) has become the dominant pattern for building effective agents. The key insight is elegant: instead of asking a model to solve a problem in one shot, let it **alternate between thinking and doing**. Each action provides new information that informs the next thought.
+
+The pattern emerged from research showing that models perform better when they "think out loud" before acting, and that interleaving reasoning with actions produces better results than either alone. Reasoning without actions leaves the model unable to gather new information. Actions without reasoning lead to haphazard, uncoordinated behavior.
+
+### The ReAct Structure
+
+A ReAct agent generates a sequence of **Thought**, **Action**, and **Observation** steps:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    ReAct Agent Loop                          │
-│                                                              │
-│  THOUGHT ──→ ACTION ──→ OBSERVATION ──→ (repeat or respond) │
-│  "I need     Call        Tool returns                        │
-│   order      getOrder()   result                             │
-│   status"                                                    │
-└─────────────────────────────────────────────────────────────┘
+User: What's the status of order #12345 and when will it arrive?
+
+Thought: I need to look up order #12345 in the order management system
+         to find its current status and shipping information.
+
+Action: getOrderStatus(orderId="12345")
+
+Observation: {"status": "shipped", "carrier": "UPS",
+              "trackingNumber": "1Z999AA10123456784", "shipDate": "2024-03-10"}
+
+Thought: The order has shipped via UPS. I have the tracking number.
+         Now I need to get the delivery estimate from UPS.
+
+Action: getTrackingInfo(carrier="UPS", trackingNumber="1Z999AA10123456784")
+
+Observation: {"status": "In Transit", "estimatedDelivery": "2024-03-15",
+              "lastLocation": "Chicago, IL", "lastUpdate": "2024-03-12 14:30"}
+
+Thought: I now have all the information needed. The order shipped on March 10,
+         is currently in transit through Chicago, and is estimated to arrive
+         March 15.
+
+Answer: Your order #12345 shipped on March 10 via UPS and is currently in
+        transit. It was last scanned in Chicago, IL on March 12 at 2:30 PM.
+        The estimated delivery date is March 15.
 ```
 
-The ReAct loop works through four repeating phases:
+The explicit **Thought** steps serve multiple purposes:
+- **Transparency**: You can see exactly what the agent is reasoning about
+- **Debuggability**: When things go wrong, the thought trace shows where reasoning failed
+- **Grounding**: The model articulates its plan before acting, reducing hallucination
+- **Control**: Thoughts can reveal if the agent is going off track before it takes action
 
-1. **Thought** — The agent reasons about the current state and decides what action would help achieve the goal
-2. **Action** — The agent executes that action—typically calling a tool or API
-3. **Observation** — The agent receives the result of that action, gaining new information
-4. **Repeat or Respond** — The agent loops back to Thought, or if it has enough information, responds to the user
+### Implementing ReAct with Bedrock
 
-### A Concrete Example
-
-A user asks: "What's the status of order #12345 and when will it arrive?"
-
-The agent begins by thinking: "I need to look up order #12345 in the order system." It then acts by calling `getOrderStatus` with the order ID. The observation comes back: "Order shipped, tracking number ABC123."
-
-The agent thinks again: "Now I need the delivery estimate from the tracking system." It acts by calling `getTrackingInfo` with the tracking number. The observation returns: "Estimated delivery March 15."
-
-Finally, the agent thinks: "I have all the information needed" and responds to the user with a complete answer.
-
-### Implementing ReAct with Bedrock Converse API
-
-Here's how this translates to code using Python and the Bedrock Converse API:
+Here's a complete implementation using the Bedrock Converse API:
 
 ```python
 import boto3
 import json
+from typing import Any, Callable
 
-client = boto3.client('bedrock-runtime')
+class ReActAgent:
+    def __init__(self, model_id: str = 'anthropic.claude-3-sonnet-20240229-v1:0'):
+        self.client = boto3.client('bedrock-runtime')
+        self.model_id = model_id
+        self.tools: dict[str, Callable] = {}
+        self.tool_specs: list[dict] = []
 
-tools = [{
-    'toolSpec': {
-        'name': 'getOrderStatus',
-        'description': 'Look up an order by ID',
-        'inputSchema': {
-            'json': {
-                'type': 'object',
-                'properties': {
-                    'orderId': {'type': 'string', 'description': 'Order ID'}
-                },
-                'required': ['orderId']
+    def register_tool(self, name: str, description: str,
+                      parameters: dict, handler: Callable):
+        """Register a tool the agent can use."""
+        self.tools[name] = handler
+        self.tool_specs.append({
+            'toolSpec': {
+                'name': name,
+                'description': description,
+                'inputSchema': {'json': parameters}
             }
-        }
-    }
-}]
-
-messages = [{'role': 'user', 'content': [{'text': user_query}]}]
-
-while True:
-    response = client.converse(
-        modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-        messages=messages,
-        toolConfig={'tools': tools}
-    )
-
-    if response['stopReason'] == 'tool_use':
-        tool_use = next(c['toolUse'] for c in response['output']['message']['content']
-                       if 'toolUse' in c)
-        result = execute_tool_call(tool_use)
-
-        messages.append(response['output']['message'])
-        messages.append({
-            'role': 'user',
-            'content': [{'toolResult': {
-                'toolUseId': tool_use['toolUseId'],
-                'content': [{'json': result}]
-            }}]
         })
-    else:
-        return response['output']['message']['content'][0]['text']
+
+    def run(self, user_message: str, system_prompt: str = None,
+            max_iterations: int = 10) -> str:
+        """Execute the agent loop until goal is achieved or limit reached."""
+
+        messages = [{'role': 'user', 'content': [{'text': user_message}]}]
+        system = [{'text': system_prompt}] if system_prompt else None
+
+        for iteration in range(max_iterations):
+            # Call the model
+            response = self.client.converse(
+                modelId=self.model_id,
+                messages=messages,
+                system=system,
+                toolConfig={'tools': self.tool_specs} if self.tool_specs else None
+            )
+
+            assistant_message = response['output']['message']
+            messages.append(assistant_message)
+
+            # Check if model wants to use a tool
+            if response['stopReason'] == 'tool_use':
+                tool_results = self._execute_tools(assistant_message['content'])
+                messages.append({
+                    'role': 'user',
+                    'content': tool_results
+                })
+            else:
+                # Model is done—extract final response
+                for content in assistant_message['content']:
+                    if 'text' in content:
+                        return content['text']
+
+        return "Maximum iterations reached without completing the task."
+
+    def _execute_tools(self, content: list) -> list:
+        """Execute all tool calls and return results."""
+        results = []
+        for item in content:
+            if 'toolUse' in item:
+                tool_use = item['toolUse']
+                tool_name = tool_use['name']
+                tool_input = tool_use['input']
+
+                try:
+                    result = self.tools[tool_name](**tool_input)
+                    results.append({
+                        'toolResult': {
+                            'toolUseId': tool_use['toolUseId'],
+                            'content': [{'json': result}]
+                        }
+                    })
+                except Exception as e:
+                    results.append({
+                        'toolResult': {
+                            'toolUseId': tool_use['toolUseId'],
+                            'content': [{'json': {'error': str(e)}}],
+                            'status': 'error'
+                        }
+                    })
+        return results
+
+
+# Usage example
+agent = ReActAgent()
+
+# Register tools
+agent.register_tool(
+    name='getOrderStatus',
+    description='Look up the status of an order by order ID',
+    parameters={
+        'type': 'object',
+        'properties': {
+            'orderId': {'type': 'string', 'description': 'The order ID to look up'}
+        },
+        'required': ['orderId']
+    },
+    handler=lambda orderId: order_database.get(orderId)
+)
+
+agent.register_tool(
+    name='getTrackingInfo',
+    description='Get delivery tracking information for a shipment',
+    parameters={
+        'type': 'object',
+        'properties': {
+            'carrier': {'type': 'string', 'description': 'Shipping carrier (UPS, FedEx, etc.)'},
+            'trackingNumber': {'type': 'string', 'description': 'Tracking number'}
+        },
+        'required': ['carrier', 'trackingNumber']
+    },
+    handler=lambda carrier, trackingNumber: tracking_api.get(carrier, trackingNumber)
+)
+
+# Run the agent
+response = agent.run(
+    user_message="What's the status of order #12345?",
+    system_prompt="You are a helpful customer service agent. Use the available tools to help customers with their orders."
+)
 ```
 
-The loop continues until `stopReason` is no longer `tool_use`, indicating the model is ready to respond.
+### Production Considerations
 
-### Step Functions for Production ReAct
+In production, the simple loop above needs additional capabilities:
 
-**AWS Step Functions** provides an excellent foundation for implementing ReAct patterns in production. Each state in a Step Functions workflow can represent a phase of the reasoning cycle, with transitions based on observations. Step Functions adds critical production capabilities:
+**Step Functions for orchestration** provides retry logic, timeout handling, error catching, and audit trails that the simple Python loop lacks:
 
-- **Built-in error handling** with retry policies and catch blocks
-- **Automatic retries** with exponential backoff
-- **Timeout management** to prevent runaway agents
-- **Human approval workflows** for sensitive actions
-- **Full execution history** for debugging and auditing
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   Step Functions ReAct Workflow                  │
+│                                                                  │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
+│  │ Invoke   │───►│ Parse    │───►│ Execute  │───►│ Check    │  │
+│  │ Model    │    │ Response │    │ Tools    │    │ Complete │  │
+│  └──────────┘    └──────────┘    └──────────┘    └────┬─────┘  │
+│       ▲                                                │        │
+│       │                                          ┌─────┴─────┐  │
+│       │                                          │           │  │
+│       └──────────────────────────────────────────┤  NO       │  │
+│                                                  │           │  │
+│                                                  └───────────┘  │
+│                                                        │        │
+│                                                       YES       │
+│                                                        │        │
+│                                                        ▼        │
+│                                                  ┌───────────┐  │
+│                                                  │  Return   │  │
+│                                                  │  Response │  │
+│                                                  └───────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Iteration limits** prevent runaway agents from looping indefinitely. Set reasonable maximums (10-20 iterations for most tasks) and handle the "max iterations exceeded" case gracefully.
+
+**Timeout management** ensures agents don't hang waiting for tools that never respond. Each tool call should have a timeout; the overall agent execution should have a timeout.
+
+**Token tracking** monitors costs. Each iteration consumes tokens; complex agent runs can use substantial amounts. Track and alert on token usage.
 
 ---
 
 ## Model Context Protocol (MCP)
 
-The Model Context Protocol represents an important step toward **standardization** in the AI agent ecosystem. Before MCP, every AI system had its own way of connecting to tools. If you built a tool for one agent framework, you'd have to rebuild it for another. MCP changes this by providing a universal adapter that lets any MCP-compatible AI system talk to any MCP-compatible tool.
+Before the Model Context Protocol, every AI system had its own way of connecting to tools. Building a tool for OpenAI's function calling meant rewriting it for Anthropic's format, and again for Bedrock Agents' action groups. Tool ecosystems were fragmented, and every new AI system required recreating integrations from scratch.
+
+**MCP standardizes how AI systems connect to tools and data sources.** Think of it as a universal adapter—any MCP-compatible agent can use any MCP-compatible tool, regardless of who built either one. This creates network effects: as more tools become MCP-compatible, every MCP-supporting agent gains capabilities. As more agents support MCP, there's more incentive to build MCP-compatible tools.
+
+### MCP Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                Model Context Protocol                        │
-│                                                              │
-│  AI Agent ──→ MCP Client ──→ MCP Server ──→ Tool Execution  │
-│  (Bedrock/    (SDK/         (Lambda/       (Your Logic)     │
-│   Custom)      Library)      ECS)                           │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Model Context Protocol Stack                      │
+│                                                                      │
+│  ┌───────────────┐                        ┌───────────────────────┐ │
+│  │               │                        │      MCP Servers       │ │
+│  │   AI Agent    │   JSON-RPC over        │  (Tool Providers)     │ │
+│  │               │   stdio/HTTP           ├───────────────────────┤ │
+│  │  ┌─────────┐  │◄──────────────────────►│  Database Server      │ │
+│  │  │   MCP   │  │                        │  - query()            │ │
+│  │  │  Client │  │  Tool Discovery:       │  - schema()           │ │
+│  │  │         │  │  "What tools exist?"   ├───────────────────────┤ │
+│  │  └─────────┘  │                        │  Calendar Server      │ │
+│  │               │  Tool Invocation:      │  - getEvents()        │ │
+│  │               │  "Call tool X"         │  - createEvent()      │ │
+│  │               │                        ├───────────────────────┤ │
+│  │               │  Tool Results:         │  Web Search Server    │ │
+│  │               │  "Here's the output"   │  - search()           │ │
+│  │               │                        │  - fetch()            │ │
+│  └───────────────┘                        └───────────────────────┘ │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-The architecture consists of three main components:
+**MCP Client**: Runs within the agent runtime. It handles connecting to MCP servers, discovering available tools, translating agent requests to MCP format, and parsing responses.
 
-- **MCP Client** runs within the agent runtime—whether that's Bedrock Agents, a custom agent built with Strands, or another MCP-compatible system
-- **MCP Server** exposes your tools and data sources through a standardized interface
-- **Protocol** uses JSON-RPC for communication with well-defined message types for tool discovery, invocation, and response handling
+**MCP Server**: Exposes tools and resources through a standardized interface. Each server can provide multiple tools. A "database server" might expose query, schema inspection, and write operations. A "calendar server" might expose event retrieval, creation, and modification.
 
-### The Value of Standardization
+**Protocol**: Uses JSON-RPC for communication. The client sends requests; the server sends responses. The protocol defines message types for tool discovery, invocation, and result handling.
 
-Without MCP, changing AI providers means rewriting all your tool integrations. With MCP, tools are portable. Build a tool once, and it works with any agent that speaks MCP. This creates a growing ecosystem of pre-built MCP servers for common services, reducing the work required to give your agents new capabilities.
+### Why Standardization Matters
 
-### Lambda vs ECS for MCP Servers
+Without MCP, you build tools for specific AI systems:
+- Bedrock Agents: Action groups with OpenAPI specs and Lambda functions
+- OpenAI: Function definitions in their specific JSON format
+- Anthropic: Tool definitions in their format
+- LangChain: Custom tool classes
 
-When deciding where to host MCP servers, consider the nature of your tools:
+Switching AI providers means rewriting all your tool integrations. Testing a new model requires building new integrations.
 
-| Requirement | Lambda | ECS |
-|------------|--------|-----|
-| Stateless operations | Excellent | Overkill |
-| API calls, database queries | Excellent | Works |
-| Persistent connections | Not possible | Required |
-| Operations > 15 minutes | Not possible | Required |
-| Large memory needs | Limited | Flexible |
-| Cost model | Pay per invocation | Pay for capacity |
+With MCP:
+- Build a tool once as an MCP server
+- Use it with any MCP-compatible agent
+- Switch AI providers without touching tool code
+- Access a growing ecosystem of pre-built MCP servers
 
-**Lambda** excels for stateless operations like API calls, database queries, and calculations. The serverless model means you pay only for actual tool invocations, and Lambda scales instantly to handle traffic spikes.
+### Hosting MCP Servers on AWS
 
-**Amazon ECS** becomes necessary for more complex requirements—persistent connections to external systems, large memory needs, or long-running operations. ECS provides full control over your container environment while still integrating smoothly with AWS infrastructure.
+**Lambda for stateless tools**: Most tools are stateless—receive a request, do some work, return a response. Lambda is perfect for this:
+
+```python
+# Lambda MCP Server for order lookups
+import json
+
+def handler(event, context):
+    method = event.get('method')
+    params = event.get('params', {})
+
+    if method == 'tools/list':
+        return {
+            'tools': [
+                {
+                    'name': 'getOrderStatus',
+                    'description': 'Look up order status by order ID',
+                    'inputSchema': {
+                        'type': 'object',
+                        'properties': {
+                            'orderId': {'type': 'string'}
+                        },
+                        'required': ['orderId']
+                    }
+                }
+            ]
+        }
+
+    elif method == 'tools/call':
+        tool_name = params.get('name')
+        arguments = params.get('arguments', {})
+
+        if tool_name == 'getOrderStatus':
+            order = get_order_from_database(arguments['orderId'])
+            return {'content': [{'type': 'text', 'text': json.dumps(order)}]}
+
+    return {'error': {'code': -32601, 'message': 'Method not found'}}
+```
+
+**ECS for stateful tools**: Some tools need persistent connections—database connection pools, WebSocket connections to external services, or long-running operations. ECS provides the container runtime for these:
+
+| Use Case | Lambda | ECS |
+|----------|--------|-----|
+| API calls to external services | Best choice | Overkill |
+| Database queries | Works well | Needed for connection pooling |
+| File processing < 15 min | Works | Works |
+| File processing > 15 min | Not possible | Required |
+| WebSocket connections | Not possible | Required |
+| Large memory (> 10GB) | Not possible | Required |
+| GPU acceleration | Not available | Available |
 
 ---
 
 ## Agent Collaboration Patterns
 
-When multiple agents work together, the collaboration pattern determines how they coordinate. Two primary patterns dominate: **hierarchical (supervisor)** and **peer-to-peer**. Understanding when to use each pattern is essential for designing multi-agent systems.
+Complex tasks often exceed what any single agent can handle effectively. A customer service agent that's expert at order inquiries might struggle with technical troubleshooting. A research agent might excel at finding information but not at synthesizing it into reports. **Multi-agent systems** address this by having specialized agents collaborate.
 
-### Supervisor Pattern (Hierarchical)
+### The Supervisor Pattern
 
-A supervisor agent acts as the coordinator, receiving user requests and delegating to specialist agents. The supervisor decides which agent handles each subtask, aggregates results, and maintains conversation continuity.
+The most common multi-agent architecture uses a **supervisor agent** that coordinates specialists:
 
 ```
-              ┌──────────────────┐
-              │  Supervisor      │
-              │  Agent           │
-              └────────┬─────────┘
-         ┌────────────┼────────────┐
-         ▼            ▼            ▼
-    ┌─────────┐  ┌─────────┐  ┌─────────┐
-    │Research │  │Analysis │  │Writing  │
-    │ Agent   │  │ Agent   │  │ Agent   │
-    └─────────┘  └─────────┘  └─────────┘
+                         User Request
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │   SUPERVISOR    │
+                    │     AGENT       │
+                    │                 │
+                    │ "Who should     │
+                    │  handle this?"  │
+                    └────────┬────────┘
+                             │
+           ┌─────────────────┼─────────────────┐
+           │                 │                 │
+           ▼                 ▼                 ▼
+    ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+    │   ORDER     │   │   TECH      │   │  BILLING    │
+    │   AGENT     │   │   AGENT     │   │   AGENT     │
+    │             │   │             │   │             │
+    │ - Status    │   │ - Trouble-  │   │ - Invoices  │
+    │ - Returns   │   │   shoot     │   │ - Payments  │
+    │ - Tracking  │   │ - Config    │   │ - Refunds   │
+    └─────────────┘   └─────────────┘   └─────────────┘
 ```
 
-**Characteristics:**
-- Single entry point for all requests
+**How it works:**
+1. User request arrives at the supervisor
+2. Supervisor analyzes the request and determines which specialist(s) to involve
+3. Supervisor delegates to the appropriate specialist
+4. Specialist handles the task, potentially calling tools
+5. Specialist returns results to supervisor
+6. Supervisor synthesizes results and responds to user (or delegates to another specialist)
+
+**Advantages:**
 - Clear accountability—supervisor owns the outcome
-- Specialists focus on narrow domains
-- Natural fit for **AWS Agent Squad**
+- Specialists can be optimized for their domain
+- Easy to add new specialists without modifying existing ones
+- Natural fit for organizational structures
 
-### Peer-to-Peer Pattern (Collaborative)
+**AWS Agent Squad** implements this pattern. You define a supervisor agent and register specialist agents. The supervisor automatically routes requests based on agent descriptions and capabilities.
 
-Agents communicate directly with each other without a central coordinator. Each agent decides when to involve others based on its assessment of the task.
+### The Peer-to-Peer Pattern
+
+In some scenarios, decentralized coordination works better. Agents communicate directly with each other, sharing information and delegating work as needed:
 
 ```
-    ┌─────────┐     ┌─────────┐
-    │Agent A  │◄───►│Agent B  │
-    └────┬────┘     └────┬────┘
-         │               │
-         └───────┬───────┘
-                 │
-         ┌───────▼───────┐
-         │ Shared State  │
-         │ (EventBridge) │
-         └───────────────┘
+    ┌─────────────┐         ┌─────────────┐
+    │  RESEARCH   │◄───────►│  ANALYSIS   │
+    │   AGENT     │         │   AGENT     │
+    └──────┬──────┘         └──────┬──────┘
+           │                       │
+           │    ┌─────────────┐    │
+           └───►│ SHARED      │◄───┘
+                │ STATE       │
+                │             │
+                │ EventBridge │
+                │ or DynamoDB │
+                └─────────────┘
 ```
 
-**Characteristics:**
-- Decentralized decision-making
-- Agents self-organize based on capabilities
-- More resilient—no single point of failure
-- Implemented via **EventBridge** or shared state in **DynamoDB**
+**How it works:**
+1. Agents publish events describing their work, needs, or findings
+2. Other agents subscribe to relevant event types
+3. When an agent needs help, it publishes a request event
+4. Capable agents pick up the request and respond
+5. Results flow back through events or shared state
 
-### When to Use Each Pattern
+**Advantages:**
+- No single point of failure
+- Agents can self-organize based on capabilities
+- Scales horizontally—add agents without bottlenecks
+- Natural for exploratory or creative tasks
+
+**AWS Implementation**: Use EventBridge for event routing and DynamoDB for shared state:
+
+```python
+import boto3
+import json
+
+events = boto3.client('events')
+
+def research_agent_handler(event, context):
+    """Research agent that can request help from other agents."""
+    research_results = perform_research(event['query'])
+
+    # If we need financial analysis, request help
+    if needs_financial_analysis(research_results):
+        events.put_events(
+            Entries=[{
+                'Source': 'agent.research',
+                'DetailType': 'AnalysisRequest',
+                'EventBusName': 'agent-collaboration',
+                'Detail': json.dumps({
+                    'correlationId': event['correlationId'],
+                    'requestType': 'financial_analysis',
+                    'data': research_results
+                })
+            }]
+        )
+
+    return research_results
+
+
+def finance_agent_handler(event, context):
+    """Finance agent that responds to analysis requests."""
+    detail = json.loads(event['detail'])
+
+    if detail['requestType'] == 'financial_analysis':
+        analysis = perform_financial_analysis(detail['data'])
+
+        # Publish results back
+        events.put_events(
+            Entries=[{
+                'Source': 'agent.finance',
+                'DetailType': 'AnalysisComplete',
+                'EventBusName': 'agent-collaboration',
+                'Detail': json.dumps({
+                    'correlationId': detail['correlationId'],
+                    'analysis': analysis
+                })
+            }]
+        )
+```
+
+### Choosing a Pattern
 
 | Factor | Supervisor | Peer-to-Peer |
 |--------|------------|--------------|
-| Accountability | Clear single owner | Distributed |
-| Complexity | Lower, predictable | Higher, emergent |
-| Scalability | Supervisor bottleneck | Scales horizontally |
-| Debugging | Easier to trace | Harder to follow |
-| Best for | Customer service, workflows | Research, creative tasks |
-| AWS implementation | Agent Squad | EventBridge + Lambda |
+| Accountability | Single owner (supervisor) | Distributed |
+| Single point of failure | Yes (supervisor) | No |
+| Coordination overhead | Lower | Higher |
+| Debugging complexity | Easier to trace | Harder to follow |
+| Scaling | Supervisor bottleneck | Horizontal |
+| Best for | Structured workflows, customer service | Research, creative tasks, resilient systems |
+| AWS Service | Agent Squad | EventBridge + Lambda |
 
-Many production systems use a **hybrid approach**: a supervisor handles routing at the top level, but specialist agents may collaborate peer-to-peer within their domain.
+Many production systems use **hybrid approaches**: a supervisor handles high-level routing, but specialist agents collaborate peer-to-peer within their domain.
 
 ---
 
 ## Agent Safety and Guardrails
 
-Autonomous agents introduce risks that don't exist in simpler AI applications. An agent that can take actions can also take **wrong actions** or **harmful actions**. When an agent has access to customer databases, payment systems, or communication tools, the consequences of errors or manipulation extend beyond bad text into the real world.
+The same autonomy that makes agents powerful makes them dangerous. An agent that can take actions can take **wrong actions** or **harmful actions**. When agents have access to customer databases, payment systems, or communication channels, mistakes don't just produce bad text—they cause real-world harm.
 
-Production agents require robust safety mechanisms implemented in **depth**—multiple layers, each catching what others might miss.
+Consider what can go wrong:
+- An agent processing refunds gets manipulated through prompt injection and issues fraudulent refunds
+- An agent stuck in a loop makes thousands of API calls, accumulating massive costs
+- An agent with email access sends inappropriate messages to customers
+- An agent accessing customer data exposes PII through its responses
+
+Production agents require **defense in depth**—multiple safety layers, each catching what others might miss.
 
 ### Layer 1: IAM Resource Boundaries
 
-**Principle of least privilege** applies doubly for agents—they should only have access to the specific tools and resources they need for their defined purpose. An agent built to look up order status shouldn't have permissions to modify orders, issue refunds, or access other customer data.
+**Principle of least privilege** is your hard boundary. An agent can only do what its IAM role permits, regardless of what it tries to do. Design agent IAM roles narrowly:
 
-Even if the agent's reasoning is manipulated through prompt injection, it cannot exceed its IAM permissions. IAM is your hard boundary.
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowOrderLookup",
+      "Effect": "Allow",
+      "Action": ["dynamodb:GetItem", "dynamodb:Query"],
+      "Resource": "arn:aws:dynamodb:*:*:table/orders"
+    },
+    {
+      "Sid": "DenyOrderModification",
+      "Effect": "Deny",
+      "Action": ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyOtherTables",
+      "Effect": "Deny",
+      "Action": ["dynamodb:*"],
+      "Resource": "arn:aws:dynamodb:*:*:table/customers"
+    }
+  ]
+}
+```
 
-### Layer 2: Operational Controls via Step Functions
+Even if the agent's reasoning is compromised through prompt injection, it cannot exceed IAM permissions. This is your last line of defense.
 
-Agents can get stuck in loops, repeatedly calling the same tools without making progress. They can encounter errors that cause them to retry indefinitely. Without controls, a malfunctioning agent can accumulate significant costs or take repeated unintended actions.
+### Layer 2: Operational Controls
 
-Step Functions provides the mechanisms to prevent this:
-- **Maximum iteration limits** stop infinite loops
-- **Timeouts** prevent runaway executions
-- **Circuit breakers** halt operations when error rates exceed thresholds
+Agents can malfunction in ways that aren't security breaches but still cause problems:
+
+**Infinite loops**: Agent gets stuck, repeatedly calling tools without progress
+**Retry storms**: Agent keeps retrying failed operations indefinitely
+**Cost runaway**: Agent makes thousands of expensive API calls
+
+Step Functions provides operational controls:
+
+```yaml
+# Step Functions state machine with safety controls
+States:
+  AgentLoop:
+    Type: Task
+    Resource: arn:aws:lambda:*:*:function:agent-reasoning
+    Retry:
+      - ErrorEquals: ["TransientError"]
+        MaxAttempts: 3
+        IntervalSeconds: 1
+        BackoffRate: 2
+    Catch:
+      - ErrorEquals: ["States.ALL"]
+        ResultPath: "$.error"
+        Next: HandleError
+    TimeoutSeconds: 300  # 5 minute timeout per iteration
+    Next: CheckCompletion
+
+  CheckCompletion:
+    Type: Choice
+    Choices:
+      - Variable: "$.iterationCount"
+        NumericGreaterThan: 20  # Maximum iterations
+        Next: MaxIterationsExceeded
+      - Variable: "$.complete"
+        BooleanEquals: true
+        Next: ReturnResponse
+    Default: AgentLoop
+```
 
 ### Layer 3: Human-in-the-Loop
 
-Not every action should be autonomous. Refunds above a certain threshold, communications sent to customers, data deletions, and other irreversible or high-stakes actions warrant human oversight.
+Some actions should never be fully autonomous. Define thresholds:
 
-Step Functions integrates naturally with approval workflows—the workflow pauses at a designated state, sends a notification through SNS or triggers an API Gateway callback, and waits for human response. Upon approval, execution continues; on rejection, it routes to an alternative path.
+| Action | Threshold | Requires Approval |
+|--------|-----------|-------------------|
+| Refund | > $100 | Yes |
+| Account deletion | Always | Yes |
+| Customer email | Always | Yes |
+| Data export | > 1000 records | Yes |
+| Order modification | After shipping | Yes |
+
+Step Functions integrates with approval workflows:
+
+```python
+# Human approval state in Step Functions
+{
+    "Type": "Task",
+    "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+    "Parameters": {
+        "FunctionName": "SendApprovalRequest",
+        "Payload": {
+            "taskToken.$": "$$.Task.Token",
+            "action.$": "$.pendingAction",
+            "context.$": "$.context"
+        }
+    },
+    "TimeoutSeconds": 86400,  # 24 hour timeout
+    "Next": "ExecuteApprovedAction"
+}
+```
 
 ### Layer 4: Tool Parameter Validation
 
-Even when an agent has permission to call a tool, the specific parameters matter. Is the order ID in the correct format? Is the refund amount within reasonable bounds for this order?
+Even with IAM permissions, not all parameter values are valid. Validate within tools:
 
-Lambda functions implementing tools can include **business-rule validation** that catches problematic requests regardless of whether they originated from agent error or manipulation.
+```python
+def process_refund(order_id: str, amount: float, reason: str) -> dict:
+    # Validate order exists
+    order = get_order(order_id)
+    if not order:
+        return {'error': 'ORDER_NOT_FOUND', 'message': 'Order does not exist'}
+
+    # Validate amount is reasonable
+    if amount > order['total']:
+        return {'error': 'INVALID_AMOUNT',
+                'message': f'Refund {amount} exceeds order total {order["total"]}'}
+
+    if amount < 0:
+        return {'error': 'INVALID_AMOUNT', 'message': 'Refund amount must be positive'}
+
+    # Validate order is refundable
+    if order['status'] == 'refunded':
+        return {'error': 'ALREADY_REFUNDED', 'message': 'Order already refunded'}
+
+    if order['age_days'] > 30:
+        return {'error': 'REFUND_WINDOW_EXPIRED',
+                'message': 'Refund window has expired'}
+
+    # Process the refund
+    return execute_refund(order_id, amount, reason)
+```
 
 ### Layer 5: Bedrock Guardrails
 
-Bedrock Guardrails adds content filtering as a final layer, applying to both agent inputs and outputs. This helps catch prompt injection attempts designed to manipulate agent behavior, as well as ensuring agent responses meet content policies.
+Guardrails filter both inputs and outputs:
+
+**Input filtering**:
+- Block prompt injection attempts
+- Filter harmful content before it reaches the agent
+- Prevent PII from being sent to the model
+
+**Output filtering**:
+- Block harmful or inappropriate responses
+- Prevent PII from being returned to users
+- Enforce topic boundaries
+
+```python
+# Apply guardrails to agent
+agent_config = {
+    'agentId': 'AGENT_ID',
+    'guardrailConfiguration': {
+        'guardrailIdentifier': 'my-guardrail-id',
+        'guardrailVersion': 'DRAFT'
+    }
+}
+```
 
 ---
 
-## Tool Design and Implementation
+## Tool Design Best Practices
 
-The tools available to an agent define its capabilities. A well-designed tool has three essential properties:
+The tools you give an agent define its capabilities. Poorly designed tools lead to confused agents, failed actions, and frustrated users. Well-designed tools enable reliable, predictable behavior.
 
-1. **Clear interface** that the agent can understand
-2. **Predictable behavior** that produces consistent results
-3. **Robust error handling** that provides useful information when things go wrong
+### Clear, Unambiguous Descriptions
 
-### Standardized Function Definitions
-
-Use **OpenAPI** or **JSON Schema** to describe exactly what inputs a tool expects, what outputs it produces, and what the tool does. These specifications serve multiple purposes:
-
-- Help the model understand how to call the tool correctly
-- Enable automatic validation of tool calls
-- Generate documentation
-- Support client code generation
+The agent decides which tool to use based on descriptions. Make them specific:
 
 ```python
-tool_spec = {
-    'toolSpec': {
-        'name': 'processRefund',
-        'description': 'Process a refund for an order. Returns refund confirmation.',
-        'inputSchema': {
-            'json': {
-                'type': 'object',
-                'properties': {
-                    'orderId': {
-                        'type': 'string',
-                        'description': 'The order ID to refund'
-                    },
-                    'amount': {
-                        'type': 'number',
-                        'description': 'Refund amount in dollars'
-                    },
-                    'reason': {
-                        'type': 'string',
-                        'description': 'Reason for the refund'
-                    }
-                },
-                'required': ['orderId', 'amount']
-            }
+# Bad: Vague description
+{
+    'name': 'getInfo',
+    'description': 'Gets information'  # Too vague—what information?
+}
+
+# Good: Specific description
+{
+    'name': 'getOrderStatus',
+    'description': 'Retrieves the current status, shipping information, and '
+                   'estimated delivery date for a customer order. Use when '
+                   'a customer asks about their order status, delivery timing, '
+                   'or tracking information. Requires the order ID.'
+}
+```
+
+### Predictable Return Formats
+
+Agents need to understand tool outputs. Use consistent, documented structures:
+
+```python
+# Define a clear return schema
+{
+    'name': 'getOrderStatus',
+    'description': '...',
+    'outputSchema': {
+        'type': 'object',
+        'properties': {
+            'orderId': {'type': 'string'},
+            'status': {
+                'type': 'string',
+                'enum': ['pending', 'processing', 'shipped', 'delivered', 'cancelled']
+            },
+            'trackingNumber': {'type': 'string', 'nullable': True},
+            'estimatedDelivery': {'type': 'string', 'format': 'date', 'nullable': True}
         }
     }
 }
 ```
 
-### Structured Error Responses
+### Actionable Error Responses
 
-Error handling in tools should return structured information that helps the agent decide what to do next. Rather than returning a generic failure, return error codes and descriptions that the agent can reason about:
+When things go wrong, help the agent recover:
 
-| Error Code | Meaning | Agent Should |
-|------------|---------|--------------|
-| `ORDER_NOT_FOUND` | Order doesn't exist | Ask user to verify order number |
-| `SERVICE_UNAVAILABLE` | Temporary failure | Retry after delay |
-| `PERMISSION_DENIED` | Cannot perform action | Inform user, don't retry |
-| `INVALID_AMOUNT` | Amount exceeds order value | Ask for correct amount |
+```python
+def get_order_status(order_id: str) -> dict:
+    try:
+        order = database.get(order_id)
+        if not order:
+            return {
+                'error': 'ORDER_NOT_FOUND',
+                'message': f'No order found with ID {order_id}',
+                'suggestion': 'Ask customer to verify the order number'
+            }
+        return {'success': True, 'data': order}
+
+    except DatabaseConnectionError:
+        return {
+            'error': 'SERVICE_UNAVAILABLE',
+            'message': 'Unable to access order database',
+            'suggestion': 'Retry after a short delay',
+            'retryable': True
+        }
+
+    except Exception as e:
+        return {
+            'error': 'INTERNAL_ERROR',
+            'message': str(e),
+            'suggestion': 'Escalate to human agent',
+            'retryable': False
+        }
+```
 
 ---
 
@@ -344,37 +817,39 @@ Error handling in tools should return structured information that helps the agen
 
 | When you see... | Think... |
 |-----------------|----------|
-| "autonomous" or "multi-step" or "tool use" | Bedrock Agents or Strands SDK |
-| "coordinate multiple specialized agents" | Supervisor pattern via Agent Squad |
-| "self-organizing" or "decentralized agents" | Peer-to-peer via EventBridge |
+| "autonomous" or "multi-step tasks" | Bedrock Agents or Strands Agents SDK |
+| "tool use" or "API integration" | Action Groups with Lambda |
+| "coordinate multiple specialized agents" | Supervisor pattern with Agent Squad |
+| "self-organizing agents" or "decentralized" | Peer-to-peer with EventBridge |
 | "standardized tool interface" or "portable tools" | Model Context Protocol (MCP) |
-| "prevent agent from harmful actions" | IAM boundaries + Step Functions timeouts |
+| "prevent harmful actions" or "agent safety" | IAM least privilege + guardrails |
 | "human approval for sensitive actions" | Step Functions callback pattern |
+| "reasoning loop" or "Thought-Action-Observation" | ReAct pattern |
 | "stateless tool hosting" | Lambda |
 | "persistent connections" or "stateful tools" | ECS |
-| "reasoning loop" or "thought-action-observation" | ReAct pattern |
+| "iteration limits" or "prevent runaway" | Step Functions with MaxAttempts |
 
 ---
 
 ## Key Takeaways
 
 > **1. Agents are autonomous systems that plan, use tools, reason, and iterate to achieve goals.**
-> This is fundamentally different from simple prompt-response interactions. Agents actively work toward objectives.
+> This is fundamentally different from simple prompt-response interactions. Agents don't just generate text—they take actions in the world.
 
 > **2. The ReAct pattern (Thought → Action → Observation → Repeat) is foundational.**
-> Most effective agents alternate between reasoning about what to do and actually doing it, using observations to inform next steps.
+> Interleaving reasoning with actions produces better results than either alone. The thought trace provides transparency and debuggability.
 
 > **3. MCP standardizes tool interfaces for portability across AI systems.**
-> Build tools once, use them with any MCP-compatible agent. The ecosystem is growing.
+> Build tools once as MCP servers, use them with any MCP-compatible agent. The ecosystem is growing and network effects compound.
 
-> **4. Supervisor pattern for coordinated specialists; peer-to-peer for self-organizing collaboration.**
-> Agent Squad implements supervisor; EventBridge enables peer-to-peer. Many systems use hybrid approaches.
+> **4. Supervisor pattern for coordinated specialists; peer-to-peer for resilient collaboration.**
+> Agent Squad implements supervisor pattern. EventBridge enables peer-to-peer. Choose based on accountability needs and failure tolerance.
 
-> **5. Lambda for stateless tools, ECS for complex/stateful MCP servers.**
-> Start with Lambda for simplicity. Move to ECS only when specific requirements demand it.
+> **5. Lambda for stateless tools, ECS for stateful or long-running tools.**
+> Most tools are stateless API calls—Lambda is perfect. Move to ECS for persistent connections, large memory, or operations exceeding 15 minutes.
 
 > **6. Agent safety requires defense in depth.**
-> IAM boundaries, Step Functions timeouts and circuit breakers, human-in-the-loop for sensitive actions, parameter validation, and Guardrails content filtering.
+> IAM boundaries, Step Functions operational controls, human-in-the-loop for sensitive actions, tool parameter validation, and Guardrails content filtering. No single layer is sufficient.
 
 ---
 
@@ -382,9 +857,11 @@ Error handling in tools should return structured information that helps the agen
 
 | Mistake | Why It Matters |
 |---------|----------------|
-| **Building agents when simple prompting would suffice** | Agents add complexity. If you just need a response to a question, you don't need an agent loop. |
-| **Giving agents broader IAM permissions than needed** | Violates least privilege. If an agent is compromised, damage is limited to its permissions. |
-| **No timeout or iteration limits on agent loops** | Agents can get stuck, accumulating costs and taking repeated unintended actions. |
-| **Skipping human-in-the-loop for sensitive actions** | Some actions are too consequential for full autonomy. Build in approval workflows. |
-| **Implementing custom tool protocols instead of MCP** | Reinventing the wheel. MCP provides standardization and portability. |
-| **Ignoring tool parameter validation** | Just because an agent has permission to call a tool doesn't mean every parameter value is valid. |
+| **Building agents when simple prompting suffices** | Agents add complexity. If you just need Q&A, a ReAct loop is overkill. |
+| **Broad IAM permissions for agents** | Violates least privilege. Compromised agents can only do what IAM permits. |
+| **No iteration limits on agent loops** | Agents can get stuck, accumulating costs and taking repeated actions. |
+| **Skipping human-in-the-loop for high-stakes actions** | Some actions are too consequential for full autonomy. |
+| **Custom tool protocols instead of MCP** | Reinventing the wheel. MCP provides standardization and ecosystem. |
+| **Vague tool descriptions** | Agent can't determine which tool to use, leading to wrong choices. |
+| **No error handling in tools** | Agent can't recover from failures or help users when things go wrong. |
+| **Ignoring tool parameter validation** | Valid IAM permissions don't mean valid parameter values. |
