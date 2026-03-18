@@ -10,28 +10,37 @@ Building a GenAI proof-of-concept that impresses stakeholders is surprisingly ea
 
 **The Production Reality**: Most GenAI failures in production aren't model failures—they're **system failures**. Token limits hit unexpectedly, rate limits cause cascading timeouts, costs spiral due to retry storms, and users abandon apps waiting for responses.
 
-```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                        PoC vs Production Gap                             ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║   PROOF OF CONCEPT                        PRODUCTION SYSTEM              ║
-║   ══════════════════                      ══════════════════             ║
-║                                                                          ║
-║   ┌─────────────────────┐                 ┌─────────────────────┐        ║
-║   │ • Single model call │                 │ • Fallback chains   │        ║
-║   │ • No error handling │                 │ • Circuit breakers  │        ║
-║   │ • Unlimited budget  │                 │ • Token quotas      │        ║
-║   │ • One happy path    │    ═══════►     │ • Graceful degrade  │        ║
-║   │ • Manual testing    │    THE GAP      │ • Auto quality QA   │        ║
-║   │ • Dev machine only  │                 │ • Auto-scaling      │        ║
-║   │ • Print debugging   │                 │ • Distributed trace │        ║
-║   │ • No security       │                 │ • Defense in depth  │        ║
-║   └─────────────────────┘                 └─────────────────────┘        ║
-║                                                                          ║
-║   ◀───────────────── This section bridges that gap ─────────────────▶   ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
+```mermaid
+flowchart LR
+    subgraph PoC["PROOF OF CONCEPT"]
+        P1["• Single model call"]
+        P2["• No error handling"]
+        P3["• Unlimited budget"]
+        P4["• One happy path"]
+        P5["• Manual testing"]
+        P6["• Dev machine only"]
+        P7["• Print debugging"]
+        P8["• No security"]
+    end
+
+    Gap["THE GAP<br/>This section<br/>bridges it"]
+
+    subgraph Prod["PRODUCTION SYSTEM"]
+        R1["• Fallback chains"]
+        R2["• Circuit breakers"]
+        R3["• Token quotas"]
+        R4["• Graceful degrade"]
+        R5["• Auto quality QA"]
+        R6["• Auto-scaling"]
+        R7["• Distributed trace"]
+        R8["• Defense in depth"]
+    end
+
+    PoC --> Gap --> Prod
+
+    style PoC fill:#ffcdd2
+    style Gap fill:#fff3e0
+    style Prod fill:#c8e6c9
 ```
 
 This deep dive bridges that gap. We'll explore the patterns that distinguish prototype code from production-grade systems, with specific AWS implementations for each.
@@ -46,39 +55,26 @@ Every interaction with a foundation model is an API call that can fail. Producti
 
 When a model endpoint starts failing, continuing to send requests **makes things worse**. Circuit breakers prevent cascade failures by "opening" when failures exceed a threshold.
 
-```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                      Circuit Breaker State Machine                       ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║              ┌──────────────── success ────────────────┐                ║
-║              │                                         │                ║
-║              ▼                                         │                ║
-║    ╔═══════════════════╗    failure_threshold    ╔═══════════════════╗  ║
-║    ║                   ║      exceeded           ║                   ║  ║
-║    ║      CLOSED       ║ ══════════════════════► ║       OPEN        ║  ║
-║    ║                   ║                         ║                   ║  ║
-║    ║  ┌─────────────┐  ║                         ║  ┌─────────────┐  ║  ║
-║    ║  │   Normal    │  ║                         ║  │  Fast-fail  │  ║  ║
-║    ║  │  operation  │  ║                         ║  │  all calls  │  ║  ║
-║    ║  └─────────────┘  ║                         ║  └─────────────┘  ║  ║
-║    ╚═══════════════════╝                         ╚═════════╤═════════╝  ║
-║              ▲                                             │            ║
-║              │                                   timeout   │            ║
-║              │                                   expires   │            ║
-║              │                                             ▼            ║
-║              │   success                         ╔═══════════════════╗  ║
-║              └─────────────────────────────────  ║    HALF-OPEN      ║  ║
-║                                                  ║                   ║  ║
-║                                     failure      ║  ┌─────────────┐  ║  ║
-║                                  ┌────────────── ║  │  Test with  │  ║  ║
-║                                  │               ║  │  one call   │  ║  ║
-║                                  │               ║  └─────────────┘  ║  ║
-║                                  │ (back to      ╚═══════════════════╝  ║
-║                                  │  OPEN)                               ║
-║                                  └──────────────────────────────────┘   ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
+```mermaid
+stateDiagram-v2
+    [*] --> CLOSED
+
+    CLOSED --> OPEN : failure_threshold exceeded
+    CLOSED --> CLOSED : success (reset counter)
+
+    OPEN --> HALF_OPEN : timeout expires
+
+    HALF_OPEN --> CLOSED : success
+    HALF_OPEN --> OPEN : failure
+
+    CLOSED : Normal operation
+    CLOSED : Process all requests
+
+    OPEN : Fast-fail mode
+    OPEN : Reject all requests
+
+    HALF_OPEN : Test mode
+    HALF_OPEN : Allow one request
 ```
 
 **Circuit Breaker Implementation**:
@@ -221,52 +217,36 @@ def invoke_bedrock_with_circuit_breaker(prompt: str) -> str:
 
 Retrying failed requests is essential, but naive retries create **retry storms** that overwhelm both your system and the model endpoint.
 
+```mermaid
+flowchart TB
+    subgraph Naive["Naive Retry - Synchronized Storm"]
+        direction LR
+        N1["0s: All clients retry"] --> N2["1s: All clients retry"] --> N3["2s: All clients retry"]
+        N4["Server OVERWHELMED"]
+    end
+
+    subgraph Jitter["Exponential Backoff with Jitter"]
+        direction LR
+        J1["0s: Initial failures"]
+        J2["Retries spread across time"]
+        J3["Server can recover"]
+    end
+
+    Naive -.->|"Problem"| N4
+    Jitter -.->|"Solution"| J3
+
+    style Naive fill:#ffcdd2
+    style Jitter fill:#c8e6c9
 ```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                    Retry Storm vs Jittered Backoff                       ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║  ┌─────────────────────────────────────────────────────────────────────┐ ║
-║  │ ❌ NAIVE RETRY (Synchronized Storm)                                 │ ║
-║  ├─────────────────────────────────────────────────────────────────────┤ ║
-║  │                                                                     │ ║
-║  │  Time:    0s      1s      2s      3s      4s      5s               │ ║
-║  │           │       │       │       │       │       │                │ ║
-║  │  Client A: ├──X────├──X────├──X────├──X────├──X────►               │ ║
-║  │  Client B: ├──X────├──X────├──X────├──X────├──X────►               │ ║
-║  │  Client C: ├──X────├──X────├──X────├──X────├──X────►               │ ║
-║  │            ▲                                                        │ ║
-║  │            └── All retry at same time = SERVER OVERWHELMED 💥       │ ║
-║  └─────────────────────────────────────────────────────────────────────┘ ║
-║                                                                          ║
-║  ┌─────────────────────────────────────────────────────────────────────┐ ║
-║  │ ✅ EXPONENTIAL BACKOFF WITH JITTER                                  │ ║
-║  ├─────────────────────────────────────────────────────────────────────┤ ║
-║  │                                                                     │ ║
-║  │  Time:    0s      1s      2s      3s      4s      5s      6s       │ ║
-║  │           │       │       │       │       │       │       │        │ ║
-║  │  Client A: ├──X────┼───────┼──X────┼───────┼───────┼───X───►       │ ║
-║  │  Client B: ├──X────┼──X────┼───────┼───────┼──X────┼───────►       │ ║
-║  │  Client C: ├──X────┼───────┼───X───┼───────┼───────┼──X────►       │ ║
-║  │            ▲                                                        │ ║
-║  │            └── Retries spread out = SERVER CAN RECOVER ✓            │ ║
-║  └─────────────────────────────────────────────────────────────────────┘ ║
-║                                                                          ║
-║  ┌─────────────────────────────────────────────────────────────────────┐ ║
-║  │  FORMULA: delay = base_delay × (2 ^ attempt) × random(0.5, 1.5)    │ ║
-║  ├─────────────────────────────────────────────────────────────────────┤ ║
-║  │                                                                     │ ║
-║  │   Attempt │ Base Delay │ Jitter Range │ Actual Delay               │ ║
-║  │   ────────┼────────────┼──────────────┼─────────────               │ ║
-║  │      1    │    1s      │  × 0.5-1.5   │  0.5s - 1.5s               │ ║
-║  │      2    │    2s      │  × 0.5-1.5   │  1.0s - 3.0s               │ ║
-║  │      3    │    4s      │  × 0.5-1.5   │  2.0s - 6.0s               │ ║
-║  │      4    │    8s      │  × 0.5-1.5   │  4.0s - 12.0s              │ ║
-║  │                                                                     │ ║
-║  └─────────────────────────────────────────────────────────────────────┘ ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
-```
+
+**Formula:** `delay = base_delay × (2 ^ attempt) × random(0.5, 1.5)`
+
+| Attempt | Base Delay | Jitter Range | Actual Delay |
+|---------|------------|--------------|--------------|
+| 1 | 1s | × 0.5-1.5 | 0.5s - 1.5s |
+| 2 | 2s | × 0.5-1.5 | 1.0s - 3.0s |
+| 3 | 4s | × 0.5-1.5 | 2.0s - 6.0s |
+| 4 | 8s | × 0.5-1.5 | 4.0s - 12.0s |
 
 **Implementation with Decorators**:
 
@@ -372,58 +352,43 @@ def invoke_model_with_retry(prompt: str, model_id: str) -> str:
 
 Production systems shouldn't depend on a single model:
 
+```mermaid
+flowchart TD
+    Request[/"Request"/]
+    Primary["Primary Model<br/>(Claude Sonnet)"]
+    Secondary["Secondary Model<br/>(Claude Haiku)"]
+    Tertiary["Tertiary Model<br/>(Amazon Titan)"]
+    Cache["Semantic Cache"]
+    Fallback["Static Fallback"]
+    Response[/"Return Response"/]
+
+    Request --> Primary
+    Primary -->|Success| Response
+    Primary -->|Failure| Secondary
+    Secondary -->|Success| Response
+    Secondary -->|Failure| Tertiary
+    Tertiary -->|Success| Response
+    Tertiary -->|Failure| Cache
+    Cache -->|Hit| Response
+    Cache -->|Miss| Fallback
+    Fallback --> Response
+
+    style Primary fill:#e3f2fd
+    style Secondary fill:#fff3e0
+    style Tertiary fill:#e8f5e9
+    style Cache fill:#fce4ec
+    style Fallback fill:#f5f5f5
 ```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                        Model Fallback Chain                              ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║     ┌─────────┐      ╔═══════════════════╗      ┌─────────────────┐     ║
-║     │ Request │ ───► ║   Primary Model   ║ ───► │ Success? ─► Yes │──┐  ║
-║     └─────────┘      ║  (Claude Sonnet)  ║      └────────┬────────┘  │  ║
-║                      ╚═══════════════════╝               │           │  ║
-║                                                     Failure          │  ║
-║                                                          ▼           │  ║
-║                      ╔═══════════════════╗      ┌─────────────────┐  │  ║
-║                      ║  Secondary Model  ║ ───► │ Success? ─► Yes │──┤  ║
-║                      ║  (Claude Haiku)   ║      └────────┬────────┘  │  ║
-║                      ╚═══════════════════╝               │           │  ║
-║                                                     Failure          │  ║
-║                                                          ▼           │  ║
-║                      ╔═══════════════════╗      ┌─────────────────┐  │  ║
-║                      ║   Tertiary Model  ║ ───► │ Success? ─► Yes │──┤  ║
-║                      ║  (Amazon Titan)   ║      └────────┬────────┘  │  ║
-║                      ╚═══════════════════╝               │           │  ║
-║                                                     Failure          │  ║
-║                                                          ▼           │  ║
-║                      ╔═══════════════════╗      ┌─────────────────┐  │  ║
-║                      ║   Semantic Cache  ║ ───► │ Cache Hit? ─► Y │──┤  ║
-║                      ║  (Similar Query)  ║      └────────┬────────┘  │  ║
-║                      ╚═══════════════════╝               │           │  ║
-║                                                      No Hit          │  ║
-║                                                          ▼           │  ║
-║                      ╔═══════════════════╗               │           │  ║
-║                      ║  Static Fallback  ║───────────────┘           │  ║
-║                      ║  (Error Message)  ║                           │  ║
-║                      ╚═══════════════════╝                           │  ║
-║                                                                      ▼  ║
-║  ┌─────────────────────────────────────────────────────────────────────┐║
-║  │                     ✅ RETURN RESPONSE                              │║
-║  └─────────────────────────────────────────────────────────────────────┘║
-║                                                                          ║
-║  ┌─────────────────────────────────────────────────────────────────────┐║
-║  │  MODEL PRIORITY CONFIGURATION                                       │║
-║  ├────┬────────────────────┬───────────────────────────────────────────┤║
-║  │  # │ Model              │ Characteristics                          │║
-║  ├────┼────────────────────┼───────────────────────────────────────────┤║
-║  │  1 │ Claude 3 Sonnet    │ Primary - best quality/cost balance      │║
-║  │  2 │ Claude 3 Haiku     │ Secondary - faster, cheaper              │║
-║  │  3 │ Amazon Titan       │ Tertiary - different provider            │║
-║  │  4 │ Semantic Cache     │ If similar query exists (< 100ms)        │║
-║  │  5 │ Static Fallback    │ "Service temporarily unavailable"        │║
-║  └────┴────────────────────┴───────────────────────────────────────────┘║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
-```
+
+**Model Priority Configuration:**
+
+| # | Model | Characteristics |
+|---|-------|-----------------|
+| 1 | Claude 3 Sonnet | Primary - best quality/cost balance |
+| 2 | Claude 3 Haiku | Secondary - faster, cheaper |
+| 3 | Amazon Titan | Tertiary - different provider |
+| 4 | Semantic Cache | If similar query exists (< 100ms) |
+| 5 | Static Fallback | "Service temporarily unavailable" |
 
 ```python
 from dataclasses import dataclass
@@ -547,51 +512,43 @@ LLM calls are expensive and slow. Traditional caching requires exact matches, bu
 
 ### Why Semantic Caching?
 
+```mermaid
+flowchart LR
+    subgraph Exact["Exact Cache (Hash-based)<br/>Hit Rate: ~20%"]
+        E1["Only exact string matches"]
+        E2["Most queries = MISS"]
+    end
+
+    subgraph Semantic["Semantic Cache (Embedding-based)<br/>Hit Rate: 60-80%"]
+        S1["Vector similarity matching"]
+        S2["Similar intent = HIT"]
+    end
+
+    Exact -.->|"Problem"| E2
+    Semantic -.->|"Solution"| S2
+
+    style Exact fill:#ffcdd2
+    style Semantic fill:#c8e6c9
 ```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                     Exact vs Semantic Caching                            ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║  ┌────────────────────────────────────────────────────────────────────┐ ║
-║  │  ❌ EXACT CACHE (Hash-based)                      Hit Rate: ~20%   │ ║
-║  ├────────────────────────────────────────────────────────────────────┤ ║
-║  │                                                                    │ ║
-║  │  Query                           │ Result                         │ ║
-║  │  ────────────────────────────────┼────────────────────────────────│ ║
-║  │  "What's the weather in NYC?"    │ ❌ CACHE MISS (first query)    │ ║
-║  │  "What's the weather in NYC?"    │ ✅ CACHE HIT  (exact match)    │ ║
-║  │  "Tell me NYC weather"           │ ❌ CACHE MISS (different str)  │ ║
-║  │  "NYC weather?"                  │ ❌ CACHE MISS (different str)  │ ║
-║  │  "What is the weather in NYC"    │ ❌ CACHE MISS (different str)  │ ║
-║  │                                                                    │ ║
-║  │  Problem: Only exact string duplicates hit the cache               │ ║
-║  └────────────────────────────────────────────────────────────────────┘ ║
-║                                                                          ║
-║  ┌────────────────────────────────────────────────────────────────────┐ ║
-║  │  ✅ SEMANTIC CACHE (Embedding-based)            Hit Rate: ~60-80%  │ ║
-║  ├────────────────────────────────────────────────────────────────────┤ ║
-║  │                                                                    │ ║
-║  │  Query                           │ Result                         │ ║
-║  │  ────────────────────────────────┼────────────────────────────────│ ║
-║  │  "What's the weather in NYC?"    │ ❌ MISS (store + embedding)    │ ║
-║  │  "Tell me NYC weather"           │ ✅ HIT  (similarity: 0.94)     │ ║
-║  │  "NYC weather?"                  │ ✅ HIT  (similarity: 0.91)     │ ║
-║  │  "What is the weather in NYC"    │ ✅ HIT  (similarity: 0.97)     │ ║
-║  │  "How's the weather in New York?"│ ✅ HIT  (similarity: 0.89)     │ ║
-║  │                                                                    │ ║
-║  │  Benefit: Similar intent queries share cached responses            │ ║
-║  └────────────────────────────────────────────────────────────────────┘ ║
-║                                                                          ║
-║  ╔════════════════════════════════════════════════════════════════════╗ ║
-║  ║  IMPACT                                                            ║ ║
-║  ║  ─────────────────────────────────────────────────────────────     ║ ║
-║  ║  💰 Cost savings:    60-80% reduction in model invocations         ║ ║
-║  ║  ⚡ Latency:         Cache hits < 100ms vs 2-5s model calls        ║ ║
-║  ║  📈 Scalability:     Handle 10x traffic without proportional cost  ║ ║
-║  ╚════════════════════════════════════════════════════════════════════╝ ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
-```
+
+**Exact Cache Example:**
+| Query | Result |
+|-------|--------|
+| "What's the weather in NYC?" | MISS (first query) |
+| "What's the weather in NYC?" | HIT (exact match) |
+| "Tell me NYC weather" | MISS (different string) |
+
+**Semantic Cache Example:**
+| Query | Result |
+|-------|--------|
+| "What's the weather in NYC?" | MISS (store + embedding) |
+| "Tell me NYC weather" | HIT (similarity: 0.94) |
+| "NYC weather?" | HIT (similarity: 0.91) |
+
+**Impact:**
+- **Cost savings:** 60-80% reduction in model invocations
+- **Latency:** Cache hits < 100ms vs 2-5s model calls
+- **Scalability:** Handle 10x traffic without proportional cost
 
 ### Implementation with OpenSearch
 
@@ -775,56 +732,32 @@ Token costs can spiral without proper guardrails. Production systems need token 
 
 ### Token Budget Architecture
 
+```mermaid
+flowchart TB
+    subgraph L4["Level 4: ACCOUNT (AWS Budgets)"]
+        subgraph L3["Level 3: APPLICATION"]
+            subgraph L2["Level 2: USER"]
+                subgraph L1["Level 1: REQUEST"]
+                    R1["Token estimation"]
+                end
+            end
+        end
+    end
+
+    style L4 fill:#e3f2fd
+    style L3 fill:#fff3e0
+    style L2 fill:#e8f5e9
+    style L1 fill:#fce4ec
 ```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                      Token Budget Levels                                 ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║                     ┌─────────────────────────────┐                      ║
-║                     │     LEVEL 4: ACCOUNT        │  ← AWS Budgets      ║
-║                     │    ┌───────────────────┐    │                      ║
-║                     │    │  LEVEL 3: APP     │    │  ← Per-application  ║
-║                     │    │  ┌─────────────┐  │    │                      ║
-║                     │    │  │ LEVEL 2:    │  │    │  ← Per-user quotas  ║
-║                     │    │  │    USER     │  │    │                      ║
-║                     │    │  │ ┌─────────┐ │  │    │                      ║
-║                     │    │  │ │LEVEL 1: │ │  │    │  ← Per-request      ║
-║                     │    │  │ │ REQUEST │ │  │    │                      ║
-║                     │    │  │ └─────────┘ │  │    │                      ║
-║                     │    │  └─────────────┘  │    │                      ║
-║                     │    └───────────────────┘    │                      ║
-║                     └─────────────────────────────┘                      ║
-║                                                                          ║
-║  ┌────────────────────────────────────────────────────────────────────┐ ║
-║  │  LEVEL 1: REQUEST-LEVEL                                            │ ║
-║  ├────────────────────────────────────────────────────────────────────┤ ║
-║  │  ✓ Estimate tokens before sending      ✓ Set appropriate max_tkns │ ║
-║  │  ✓ Truncate context if needed          ✓ Reject oversized requests│ ║
-║  └────────────────────────────────────────────────────────────────────┘ ║
-║                                                                          ║
-║  ┌────────────────────────────────────────────────────────────────────┐ ║
-║  │  LEVEL 2: USER-LEVEL                                               │ ║
-║  ├────────────────────────────────────────────────────────────────────┤ ║
-║  │  ✓ Daily/monthly quotas per user       ✓ Real-time quota tracking │ ║
-║  │  ✓ Tiered limits (free/pro/enterprise) ✓ Graceful exhaustion      │ ║
-║  └────────────────────────────────────────────────────────────────────┘ ║
-║                                                                          ║
-║  ┌────────────────────────────────────────────────────────────────────┐ ║
-║  │  LEVEL 3: APPLICATION-LEVEL                                        │ ║
-║  ├────────────────────────────────────────────────────────────────────┤ ║
-║  │  ✓ Total budget per application        ✓ Anomaly detection        │ ║
-║  │  ✓ Cost allocation by feature          ✓ Kill switch for runaway  │ ║
-║  └────────────────────────────────────────────────────────────────────┘ ║
-║                                                                          ║
-║  ┌────────────────────────────────────────────────────────────────────┐ ║
-║  │  LEVEL 4: ACCOUNT-LEVEL                                            │ ║
-║  ├────────────────────────────────────────────────────────────────────┤ ║
-║  │  ✓ AWS Budgets alerts                  ✓ Cost Explorer monitoring │ ║
-║  │  ✓ Service quotas                      ✓ Billing alarms           │ ║
-║  └────────────────────────────────────────────────────────────────────┘ ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
-```
+
+**Level Details:**
+
+| Level | Scope | Controls |
+|-------|-------|----------|
+| **Level 1: Request** | Per-request | Estimate tokens, truncate context, set max_tokens, reject oversized |
+| **Level 2: User** | Per-user | Daily/monthly quotas, tiered limits, real-time tracking |
+| **Level 3: Application** | Per-app | Total budget, cost allocation, anomaly detection, kill switch |
+| **Level 4: Account** | AWS account | AWS Budgets, Service Quotas, Cost Explorer, billing alarms |
 
 ### Request-Level Token Budgets
 
@@ -1050,54 +983,39 @@ class UserQuotaManager:
 
 Users perceive streaming responses as **significantly faster**, even when total time is similar. Production apps should always stream long-form responses.
 
+```mermaid
+gantt
+    title Response Timeline Comparison
+    dateFormat X
+    axisFormat %s
+
+    section Buffered
+    Waiting (blank screen)    :0, 5
+    Response arrives          :5, 5
+
+    section Streaming
+    First token (200ms)       :0, 0.2
+    25% complete              :0.2, 1.5
+    50% complete              :1.5, 3
+    75% complete              :3, 4
+    100% complete             :4, 5
 ```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                Perceived Latency: Buffered vs Streaming                  ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║  ┌────────────────────────────────────────────────────────────────────┐ ║
-║  │  ❌ BUFFERED RESPONSE (Total: 5 seconds)                           │ ║
-║  ├────────────────────────────────────────────────────────────────────┤ ║
-║  │                                                                    │ ║
-║  │  Timeline:                                                         │ ║
-║  │  0s        1s        2s        3s        4s        5s              │ ║
-║  │  ├─────────┼─────────┼─────────┼─────────┼─────────┤              │ ║
-║  │  │░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│──► Response  │ ║
-║  │  └─────────────────── WAITING ─────────────────────┘              │ ║
-║  │                                                                    │ ║
-║  │  User sees: [          BLANK SCREEN FOR 5 SECONDS          ]      │ ║
-║  │  User thinks: "Is it broken?" 😕 → Abandons after 2-3 seconds     │ ║
-║  │                                                                    │ ║
-║  └────────────────────────────────────────────────────────────────────┘ ║
-║                                                                          ║
-║  ┌────────────────────────────────────────────────────────────────────┐ ║
-║  │  ✅ STREAMING RESPONSE (Total: 5 seconds)                          │ ║
-║  ├────────────────────────────────────────────────────────────────────┤ ║
-║  │                                                                    │ ║
-║  │  Timeline:                                                         │ ║
-║  │  0s        1s        2s        3s        4s        5s              │ ║
-║  │  ├─────────┼─────────┼─────────┼─────────┼─────────┤              │ ║
-║  │  │░░▓▓▓▓▓▓▓│▓▓▓▓████│█████████│██████████│█████████│──► Complete  │ ║
-║  │  ↑         ↑         ↑         ↑          ↑                        │ ║
-║  │  First     25%       50%       75%        100%                     │ ║
-║  │  token                                                             │ ║
-║  │  (200ms)                                                           │ ║
-║  │                                                                    │ ║
-║  │  User sees: Words appearing in real-time, like human typing        │ ║
-║  │  User thinks: "It's fast and responsive!" 😊 → Stays engaged      │ ║
-║  │                                                                    │ ║
-║  └────────────────────────────────────────────────────────────────────┘ ║
-║                                                                          ║
-║  ╔════════════════════════════════════════════════════════════════════╗ ║
-║  ║  KEY METRICS                                                       ║ ║
-║  ╠════════════════════════════════════════════════════════════════════╣ ║
-║  ║  ⚡ Time to first token:  ~200ms (vs 5000ms buffered)              ║ ║
-║  ║  📈 User engagement:      +40% completion rate with streaming      ║ ║
-║  ║  🧠 Perceived speed:      Users rate streaming 3x faster           ║ ║
-║  ╚════════════════════════════════════════════════════════════════════╝ ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
-```
+
+**Buffered Response:**
+- User sees blank screen for 5 seconds
+- User thinks: "Is it broken?" - abandons after 2-3 seconds
+
+**Streaming Response:**
+- First token appears at ~200ms
+- Words appear in real-time like human typing
+- User stays engaged throughout
+
+**Key Metrics:**
+| Metric | Improvement |
+|--------|-------------|
+| Time to first token | ~200ms (vs 5000ms buffered) |
+| User engagement | +40% completion rate |
+| Perceived speed | Users rate streaming 3x faster |
 
 ### Full Streaming Implementation
 
@@ -1241,54 +1159,54 @@ You can't improve what you can't measure. Production GenAI systems need comprehe
 
 ### GenAI Observability Architecture
 
+```mermaid
+flowchart TD
+    subgraph App["Application Layer"]
+        Request["Request Handler"]
+        RAG["RAG Retrieval"]
+        LLM["LLM Invocation"]
+        Response["Response"]
+
+        Request --> RAG --> LLM --> Response
+    end
+
+    Instrumentation["Instrumentation Layer"]
+
+    App --> Instrumentation
+
+    subgraph Outputs["Observability Outputs"]
+        XRay["X-Ray Traces"]
+        Metrics["CloudWatch Metrics"]
+        Logs["CloudWatch Logs"]
+    end
+
+    Instrumentation --> XRay
+    Instrumentation --> Metrics
+    Instrumentation --> Logs
+
+    subgraph Views["Analysis Views"]
+        ServiceMap["Service Map<br/>Trace paths, bottlenecks"]
+        Dashboard["Dashboards<br/>Request vol, P99 latency"]
+        Alarms["Alarms<br/>Error rate, cost limits"]
+    end
+
+    XRay --> ServiceMap
+    Metrics --> Dashboard
+    Logs --> Alarms
+
+    style App fill:#e3f2fd
+    style Instrumentation fill:#fff3e0
+    style Outputs fill:#e8f5e9
+    style Views fill:#fce4ec
 ```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                     Observability Architecture                           ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║  ┌────────────────────────────────────────────────────────────────────┐ ║
-║  │                        APPLICATION LAYER                           │ ║
-║  ├────────────────────────────────────────────────────────────────────┤ ║
-║  │                                                                    │ ║
-║  │  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────┐│ ║
-║  │  │   Request    │   │     RAG      │   │     LLM      │   │  Res ││ ║
-║  │  │   Handler    │──►│  Retrieval   │──►│  Invocation  │──►│ ponse││ ║
-║  │  └──────┬───────┘   └──────┬───────┘   └──────┬───────┘   └──┬───┘│ ║
-║  │         │                  │                  │               │    │ ║
-║  │         ▼                  ▼                  ▼               ▼    │ ║
-║  │  ┌─────────────────────────────────────────────────────────────┐  │ ║
-║  │  │                 📊 INSTRUMENTATION LAYER                    │  │ ║
-║  │  └─────────────────────────────────────────────────────────────┘  │ ║
-║  └────────────────────────────────────────────────────────────────────┘ ║
-║                          │            │           │                      ║
-║          ┌───────────────┘            │           └───────────────┐      ║
-║          ▼                            ▼                           ▼      ║
-║  ┌───────────────┐           ┌───────────────┐           ┌───────────────┐
-║  │   X-RAY       │           │  CLOUDWATCH   │           │  CLOUDWATCH   │
-║  │   Traces      │           │    Metrics    │           │     Logs      │
-║  └───────┬───────┘           └───────┬───────┘           └───────┬───────┘
-║          │                           │                           │        ║
-║          ▼                           ▼                           ▼        ║
-║  ╔═══════════════╗           ╔═══════════════╗           ╔═══════════════╗
-║  ║ SERVICE MAP   ║           ║  DASHBOARDS   ║           ║    ALARMS     ║
-║  ╠═══════════════╣           ╠═══════════════╣           ╠═══════════════╣
-║  ║ • Trace paths ║           ║ • Request vol ║           ║ • Error rate  ║
-║  ║ • Bottlenecks ║           ║ • P99 latency ║           ║ • Cost limit  ║
-║  ║ • Error flows ║           ║ • Cache hits  ║           ║ • Latency SLA ║
-║  ║ • Dependencies║           ║ • Token usage ║           ║ • Quality     ║
-║  ╚═══════════════╝           ╚═══════════════╝           ╚═══════════════╝
-║                                                                          ║
-║  ┌────────────────────────────────────────────────────────────────────┐ ║
-║  │  INSTRUMENTATION CAPTURES:                                         │ ║
-║  │  ─────────────────────────────────────────────────────────────     │ ║
-║  │  • X-Ray traces ─────────────► Distributed request tracing         │ ║
-║  │  • CloudWatch metrics ───────► Latency, tokens, errors, costs      │ ║
-║  │  • CloudWatch Logs ──────────► Prompts, responses, quality scores  │ ║
-║  │  • Custom dimensions ────────► User, model, feature segmentation   │ ║
-║  └────────────────────────────────────────────────────────────────────┘ ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
-```
+
+**Instrumentation Captures:**
+| Source | Data Collected |
+|--------|----------------|
+| X-Ray traces | Distributed request tracing |
+| CloudWatch metrics | Latency, tokens, errors, costs |
+| CloudWatch Logs | Prompts, responses, quality scores |
+| Custom dimensions | User, model, feature segmentation |
 
 ### Comprehensive Metrics Implementation
 
@@ -1584,64 +1502,35 @@ When systems fail—and they will—production apps should degrade gracefully ra
 
 ### Degradation Levels
 
+```mermaid
+flowchart TD
+    L0["Level 0: NORMAL<br/>100% - All systems operational"]
+    L1["Level 1: DEGRADED_RAG<br/>75% - KB unavailable"]
+    L2["Level 2: DEGRADED_MODEL<br/>50% - Using fallback model"]
+    L3["Level 3: CACHE_ONLY<br/>25% - Cached responses only"]
+    L4["Level 4: OFFLINE<br/>0% - Static messages only"]
+
+    L0 -->|"RAG system degraded"| L1
+    L1 -->|"Primary model unavailable"| L2
+    L2 -->|"All models unavailable"| L3
+    L3 -->|"Cache unavailable"| L4
+
+    style L0 fill:#c8e6c9
+    style L1 fill:#fff3e0
+    style L2 fill:#fff3e0
+    style L3 fill:#ffecb3
+    style L4 fill:#ffcdd2
 ```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                     Graceful Degradation Levels                          ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║  ╔══════════════════════════════════════════════════════════════════╗   ║
-║  ║  LEVEL 0: NORMAL                                      ✅ 100%    ║   ║
-║  ╠══════════════════════════════════════════════════════════════════╣   ║
-║  ║  Status:   All systems operational                               ║   ║
-║  ║  Features: Full RAG + streaming + citations + personalization    ║   ║
-║  ║  Latency:  < 3 seconds                                           ║   ║
-║  ╚══════════════════════════════════════════════════════════════════╝   ║
-║                              │                                           ║
-║                              │ RAG system degraded                       ║
-║                              ▼                                           ║
-║  ╔══════════════════════════════════════════════════════════════════╗   ║
-║  ║  LEVEL 1: DEGRADED_RAG                                ⚠️  75%    ║   ║
-║  ╠══════════════════════════════════════════════════════════════════╣   ║
-║  ║  Status:   Knowledge base unavailable                            ║   ║
-║  ║  Features: Direct model response (no retrieval) + streaming      ║   ║
-║  ║  Notice:   "Response generated without knowledge base context"   ║   ║
-║  ║  Latency:  < 2 seconds                                           ║   ║
-║  ╚══════════════════════════════════════════════════════════════════╝   ║
-║                              │                                           ║
-║                              │ Primary model unavailable                 ║
-║                              ▼                                           ║
-║  ╔══════════════════════════════════════════════════════════════════╗   ║
-║  ║  LEVEL 2: DEGRADED_MODEL                              ⚠️  50%    ║   ║
-║  ╠══════════════════════════════════════════════════════════════════╣   ║
-║  ║  Status:   Using fallback (simpler/faster) model                 ║   ║
-║  ║  Features: Basic responses + streaming                           ║   ║
-║  ║  Notice:   "Using backup model. Quality may vary."               ║   ║
-║  ║  Latency:  < 1 second                                            ║   ║
-║  ╚══════════════════════════════════════════════════════════════════╝   ║
-║                              │                                           ║
-║                              │ All models unavailable                    ║
-║                              ▼                                           ║
-║  ╔══════════════════════════════════════════════════════════════════╗   ║
-║  ║  LEVEL 3: CACHE_ONLY                                  🟡  25%    ║   ║
-║  ╠══════════════════════════════════════════════════════════════════╣   ║
-║  ║  Status:   Only cached responses available                       ║   ║
-║  ║  Features: Semantic cache lookup only                            ║   ║
-║  ║  Notice:   "Showing a similar previous response."                ║   ║
-║  ║  Latency:  < 100ms                                               ║   ║
-║  ╚══════════════════════════════════════════════════════════════════╝   ║
-║                              │                                           ║
-║                              │ Cache unavailable                         ║
-║                              ▼                                           ║
-║  ╔══════════════════════════════════════════════════════════════════╗   ║
-║  ║  LEVEL 4: OFFLINE                                     ❌  0%     ║   ║
-║  ╠══════════════════════════════════════════════════════════════════╣   ║
-║  ║  Status:   Complete service failure                              ║   ║
-║  ║  Features: Static fallback messages only                         ║   ║
-║  ║  Notice:   "Service temporarily unavailable. Please try later."  ║   ║
-║  ╚══════════════════════════════════════════════════════════════════╝   ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
-```
+
+**Degradation Level Details:**
+
+| Level | Status | Features | Latency |
+|-------|--------|----------|---------|
+| **0: NORMAL** | All operational | Full RAG + streaming + citations | < 3s |
+| **1: DEGRADED_RAG** | KB unavailable | Direct model (no retrieval) | < 2s |
+| **2: DEGRADED_MODEL** | Using fallback | Basic responses + streaming | < 1s |
+| **3: CACHE_ONLY** | Models unavailable | Semantic cache lookup only | < 100ms |
+| **4: OFFLINE** | Complete failure | Static fallback messages | immediate |
 
 ### Implementation
 
@@ -1802,69 +1691,57 @@ Production GenAI systems face unique security challenges including prompt inject
 
 ### Security Layers
 
+```mermaid
+flowchart TD
+    Internet["INTERNET"]
+
+    subgraph L1["Layer 1: Network Security"]
+        N1["VPC endpoints for Bedrock"]
+        N2["Security groups, WAF, private subnets"]
+    end
+
+    subgraph L2["Layer 2: Identity & Access"]
+        I1["IAM roles with least privilege"]
+        I2["Cognito auth, API key rotation"]
+    end
+
+    subgraph L3["Layer 3: Input Validation"]
+        V1["Length limits, content validation"]
+        V2["Prompt injection detection, rate limiting"]
+    end
+
+    LLM["BEDROCK / LLM"]
+
+    subgraph L4["Layer 4: Output Filtering"]
+        O1["Bedrock Guardrails"]
+        O2["PII detection, harmful content filtering"]
+    end
+
+    subgraph L5["Layer 5: Audit & Monitoring"]
+        A1["CloudTrail, CloudWatch Logs"]
+        A2["Anomaly detection, incident response"]
+    end
+
+    User["USER"]
+
+    Internet --> L1 --> L2 --> L3 --> LLM --> L4 --> L5 --> User
+
+    style L1 fill:#ffcdd2
+    style L2 fill:#fff3e0
+    style L3 fill:#e8f5e9
+    style L4 fill:#e3f2fd
+    style L5 fill:#f3e5f5
 ```
-╔══════════════════════════════════════════════════════════════════════════╗
-║                      Security Defense in Depth                           ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║        ┌──────────────────────────────────────────────────────────┐      ║
-║        │                    INTERNET                              │      ║
-║        └────────────────────────┬─────────────────────────────────┘      ║
-║                                 │                                        ║
-║                                 ▼                                        ║
-║  ╔══════════════════════════════════════════════════════════════════╗   ║
-║  ║  LAYER 1: NETWORK SECURITY                                  🔒   ║   ║
-║  ╠══════════════════════════════════════════════════════════════════╣   ║
-║  ║  • VPC endpoints for Bedrock (no internet exposure)              ║   ║
-║  ║  • Security groups limiting access                               ║   ║
-║  ║  • WAF for API protection        • Private subnets for compute   ║   ║
-║  ╚══════════════════════════════════════════════════════════════════╝   ║
-║                                 │                                        ║
-║                                 ▼                                        ║
-║  ╔══════════════════════════════════════════════════════════════════╗   ║
-║  ║  LAYER 2: IDENTITY & ACCESS                                 🔑   ║   ║
-║  ╠══════════════════════════════════════════════════════════════════╣   ║
-║  ║  • IAM roles with least privilege                                ║   ║
-║  ║  • Resource-based policies on models                             ║   ║
-║  ║  • Cognito for user auth         • API keys rotation             ║   ║
-║  ╚══════════════════════════════════════════════════════════════════╝   ║
-║                                 │                                        ║
-║                                 ▼                                        ║
-║  ╔══════════════════════════════════════════════════════════════════╗   ║
-║  ║  LAYER 3: INPUT VALIDATION                                  🛡️   ║   ║
-║  ╠══════════════════════════════════════════════════════════════════╣   ║
-║  ║  • Length limits                 • Prompt injection detection    ║   ║
-║  ║  • Content type validation       • Rate limiting per user        ║   ║
-║  ╚══════════════════════════════════════════════════════════════════╝   ║
-║                                 │                                        ║
-║                                 ▼                                        ║
-║          ┌──────────────────────────────────────────────┐                ║
-║          │             🤖 BEDROCK / LLM                 │                ║
-║          └──────────────────────────────────────────────┘                ║
-║                                 │                                        ║
-║                                 ▼                                        ║
-║  ╔══════════════════════════════════════════════════════════════════╗   ║
-║  ║  LAYER 4: OUTPUT FILTERING                                  🔍   ║   ║
-║  ╠══════════════════════════════════════════════════════════════════╣   ║
-║  ║  • Bedrock Guardrails            • Harmful content filtering     ║   ║
-║  ║  • PII detection & redaction     • Response validation           ║   ║
-║  ╚══════════════════════════════════════════════════════════════════╝   ║
-║                                 │                                        ║
-║                                 ▼                                        ║
-║  ╔══════════════════════════════════════════════════════════════════╗   ║
-║  ║  LAYER 5: AUDIT & MONITORING                                📊   ║   ║
-║  ╠══════════════════════════════════════════════════════════════════╣   ║
-║  ║  • CloudTrail for API calls      • Anomaly detection             ║   ║
-║  ║  • CloudWatch Logs               • Incident response procedures  ║   ║
-║  ╚══════════════════════════════════════════════════════════════════╝   ║
-║                                 │                                        ║
-║                                 ▼                                        ║
-║        ┌──────────────────────────────────────────────────────────┐      ║
-║        │                      USER                                │      ║
-║        └──────────────────────────────────────────────────────────┘      ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
-```
+
+**Security Layer Details:**
+
+| Layer | Purpose | Key Controls |
+|-------|---------|--------------|
+| **1: Network** | Perimeter defense | VPC endpoints, security groups, WAF, private subnets |
+| **2: Identity** | Access control | IAM least privilege, Cognito, API key rotation |
+| **3: Input** | Request validation | Length limits, prompt injection detection, rate limiting |
+| **4: Output** | Response safety | Guardrails, PII redaction, harmful content filtering |
+| **5: Audit** | Visibility | CloudTrail, CloudWatch Logs, anomaly detection |
 
 ### Input Validation Pipeline
 

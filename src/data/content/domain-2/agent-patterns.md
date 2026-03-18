@@ -11,26 +11,45 @@ Agentic AI represents the next evolution of GenAI—systems that can reason, pla
 The difference between a demo that impresses in a presentation and a system that reliably handles production traffic lies in how you design agent reasoning loops, manage memory, coordinate multiple agents, and implement safety controls.
 
 **The Agent Evolution**:
+
+```mermaid
+graph LR
+    subgraph Level1["Level 1: Chatbot"]
+        C1[Static responses]
+        C2[No memory]
+        C3[Single turn]
+        C4[Training data only]
+    end
+
+    subgraph Level2["Level 2: RAG"]
+        R1[Knowledge access]
+        R2[Context grounding]
+        R3[Citations]
+        R4[Still reactive]
+    end
+
+    subgraph Level3["Level 3: Agent"]
+        A1[Autonomous action]
+        A2[Tool usage]
+        A3[Multi-step planning]
+        A4[Memory persistence]
+        A5[Goal-directed]
+        A6[Self-correcting]
+    end
+
+    Level1 -->|Evolution| Level2
+    Level2 -->|Evolution| Level3
+
+    Q1["'What is AWS?'"] -.-> Level1
+    Q2["'Find our policy'"] -.-> Level2
+    Q3["'Book flight & notify team'"] -.-> Level3
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        AI System Capabilities                           │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  Level 1: Chatbot          Level 2: RAG           Level 3: Agent        │
-│  ────────────────          ──────────            ─────────────          │
-│  • Static responses        • Knowledge access    • Autonomous action    │
-│  • No memory              • Context grounding   • Tool usage            │
-│  • Single turn            • Citations           • Multi-step planning   │
-│  • Training data only     • Still reactive      • Memory persistence    │
-│                                                  • Goal-directed         │
-│                                                  • Self-correcting       │
-│                                                                          │
-│  "What is AWS?"  ──►   "Find our policy" ──►   "Book me a flight and   │
-│                                                  notify my team"         │
-│                                                                          │
-│  Text Generation         Information Retrieval   Task Completion        │
-└────────────────────────────────────────────────────────────────────────┘
-```
+
+| Level | Primary Function | Example |
+|-------|------------------|---------|
+| **Chatbot** | Text Generation | "What is AWS?" |
+| **RAG** | Information Retrieval | "Find our policy on refunds" |
+| **Agent** | Task Completion | "Book me a flight and notify my team" |
 
 This deep dive builds on foundational agent concepts to explore the patterns that make production agents robust, debuggable, and safe.
 
@@ -59,44 +78,29 @@ When a user asks a chatbot about the weather in Seattle, it can only respond wit
 
 The agent loop describes how these characteristics combine into a working system:
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                           Agent Loop                                    │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│   User Input                                                            │
-│       │                                                                  │
-│       ▼                                                                  │
-│   ┌─────────┐     "What do I need to do?                               │
-│   │ REASON  │◄───  What information do I have?                         │
-│   └────┬────┘      What tools are available?"                          │
-│        │                                                                 │
-│        ▼                                                                 │
-│   ┌─────────┐     "I'll first check X, then do Y.                      │
-│   │  PLAN   │      If Y fails, I'll try Z."                            │
-│   └────┬────┘                                                           │
-│        │                                                                 │
-│        ▼                                                                 │
-│   ┌─────────┐     Tool call: get_weather(location="Seattle")           │
-│   │   ACT   │     → Execute action via Lambda                          │
-│   └────┬────┘                                                           │
-│        │                                                                 │
-│        ▼                                                                 │
-│   ┌─────────┐     "API returned: 55°F, cloudy.                         │
-│   │ OBSERVE │      This answers the user's question."                  │
-│   └────┬────┘                                                           │
-│        │                                                                 │
-│        ▼                                                                 │
-│   ┌─────────┐     Task complete?                                       │
-│   │  DONE?  │────► NO ────► Return to REASON                          │
-│   └────┬────┘                                                           │
-│        │                                                                 │
-│       YES                                                               │
-│        │                                                                 │
-│        ▼                                                                 │
-│   Final Response to User                                                │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Input[/"User Input"/]
+    Reason["REASON<br/>What do I need to do?<br/>What tools are available?"]
+    Plan["PLAN<br/>First check X, then do Y<br/>If Y fails, try Z"]
+    Act["ACT<br/>Execute tool call<br/>e.g., get_weather('Seattle')"]
+    Observe["OBSERVE<br/>Process result<br/>API returned: 55°F, cloudy"]
+    Done{"Task<br/>Complete?"}
+    Output[/"Final Response"/]
+
+    Input --> Reason
+    Reason --> Plan
+    Plan --> Act
+    Act --> Observe
+    Observe --> Done
+    Done -->|No| Reason
+    Done -->|Yes| Output
+
+    style Reason fill:#e1f5fe
+    style Plan fill:#fff3e0
+    style Act fill:#e8f5e9
+    style Observe fill:#fce4ec
+    style Done fill:#f3e5f5
 ```
 
 ### Concrete Example: Meeting Booking
@@ -150,38 +154,30 @@ ANSWER:  "I've booked a 30-minute meeting with Sarah for Tuesday,
 
 ### The ReAct Structure
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                          ReAct Pattern                                  │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  THOUGHT ──► ACTION ──► OBSERVATION ──► THOUGHT ──► ... ──► ANSWER     │
-│                                                                          │
-│  ┌────────────────────────────────────────────────────────────────┐    │
-│  │ Thought: "I need to find the customer's order history"         │    │
-│  └────────────────────────────────────────────────────────────────┘    │
-│                              │                                          │
-│                              ▼                                          │
-│  ┌────────────────────────────────────────────────────────────────┐    │
-│  │ Action: get_customer_orders(customer_id="CUST-789")            │    │
-│  └────────────────────────────────────────────────────────────────┘    │
-│                              │                                          │
-│                              ▼                                          │
-│  ┌────────────────────────────────────────────────────────────────┐    │
-│  │ Observation: [{"order_id": "ORD-123", "status": "shipped"},    │    │
-│  │               {"order_id": "ORD-456", "status": "delivered"}]  │    │
-│  └────────────────────────────────────────────────────────────────┘    │
-│                              │                                          │
-│                              ▼                                          │
-│  ┌────────────────────────────────────────────────────────────────┐    │
-│  │ Thought: "I see the customer has 2 orders. ORD-123 is still    │    │
-│  │          shipping. Let me get tracking details for that one."  │    │
-│  └────────────────────────────────────────────────────────────────┘    │
-│                              │                                          │
-│                              ▼                                          │
-│                           (continues...)                                │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Loop["ReAct Loop"]
+        T1["THOUGHT<br/>'I need to find customer order history'"]
+        A1["ACTION<br/>get_customer_orders(customer_id='CUST-789')"]
+        O1["OBSERVATION<br/>[{order_id: 'ORD-123', status: 'shipped'}]"]
+        T2["THOUGHT<br/>'Customer has 2 orders. ORD-123 is shipping.<br/>Let me get tracking details.'"]
+        A2["ACTION<br/>get_tracking(order_id='ORD-123')"]
+        O2["OBSERVATION<br/>{carrier: 'UPS', eta: '2024-03-20'}"]
+        T3["THOUGHT<br/>'I have all the info to answer.'"]
+    end
+
+    Answer["ANSWER<br/>'Your order ORD-123 is shipped via UPS,<br/>arriving March 20th.'"]
+
+    T1 --> A1 --> O1 --> T2 --> A2 --> O2 --> T3 --> Answer
+
+    style T1 fill:#e3f2fd
+    style T2 fill:#e3f2fd
+    style T3 fill:#e3f2fd
+    style A1 fill:#fff3e0
+    style A2 fill:#fff3e0
+    style O1 fill:#e8f5e9
+    style O2 fill:#e8f5e9
+    style Answer fill:#f3e5f5
 ```
 
 ### Why ReAct Works
@@ -315,47 +311,45 @@ for trace in result['traces']:
 
 ### Action Group Architecture
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                      Action Group Architecture                          │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  Bedrock Agent                                                          │
-│       │                                                                  │
-│       │  "I need to check order status"                                 │
-│       │                                                                  │
-│       ▼                                                                  │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │                    Action Groups                                  │  │
-│  │                                                                    │  │
-│  │  ┌──────────────────────┐    ┌──────────────────────┐           │  │
-│  │  │  Order Management    │    │   Customer Service    │           │  │
-│  │  │                      │    │                      │           │  │
-│  │  │ • getOrderStatus     │    │ • createTicket       │           │  │
-│  │  │ • cancelOrder        │    │ • escalateIssue      │           │  │
-│  │  │ • listOrders         │    │ • getTicketHistory   │           │  │
-│  │  │ • trackShipment      │    │ • updateCustomer     │           │  │
-│  │  │                      │    │                      │           │  │
-│  │  │   OpenAPI Schema     │    │   OpenAPI Schema     │           │  │
-│  │  │        +             │    │        +             │           │  │
-│  │  │   Lambda Handler     │    │   Lambda Handler     │           │  │
-│  │  └──────────┬───────────┘    └──────────┬───────────┘           │  │
-│  │             │                           │                        │  │
-│  └─────────────┼───────────────────────────┼────────────────────────┘  │
-│                │                           │                            │
-│                ▼                           ▼                            │
-│         ┌───────────┐               ┌───────────┐                      │
-│         │  Lambda   │               │  Lambda   │                      │
-│         │ Function  │               │ Function  │                      │
-│         └─────┬─────┘               └─────┬─────┘                      │
-│               │                           │                            │
-│               ▼                           ▼                            │
-│         ┌───────────┐               ┌───────────┐                      │
-│         │  Order    │               │ Ticketing │                      │
-│         │ Database  │               │  System   │                      │
-│         └───────────┘               └───────────┘                      │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Agent["Bedrock Agent<br/>'I need to check order status'"]
+
+    subgraph ActionGroups["Action Groups"]
+        subgraph OrderMgmt["Order Management"]
+            O1[getOrderStatus]
+            O2[cancelOrder]
+            O3[listOrders]
+            O4[trackShipment]
+            OS["OpenAPI Schema + Lambda"]
+        end
+
+        subgraph CustService["Customer Service"]
+            C1[createTicket]
+            C2[escalateIssue]
+            C3[getTicketHistory]
+            C4[updateCustomer]
+            CS["OpenAPI Schema + Lambda"]
+        end
+    end
+
+    Lambda1["Lambda Function"]
+    Lambda2["Lambda Function"]
+    DB1[("Order Database")]
+    DB2[("Ticketing System")]
+
+    Agent --> ActionGroups
+    OS --> Lambda1
+    CS --> Lambda2
+    Lambda1 --> DB1
+    Lambda2 --> DB2
+
+    style Agent fill:#e3f2fd
+    style ActionGroups fill:#fff3e0
+    style Lambda1 fill:#e8f5e9
+    style Lambda2 fill:#e8f5e9
+    style DB1 fill:#fce4ec
+    style DB2 fill:#fce4ec
 ```
 
 ### OpenAPI Schema Definition
@@ -788,48 +782,47 @@ Complex problems often benefit from **multiple specialized agents** working toge
 
 A coordinating agent routes subtasks to appropriate specialists:
 
+```mermaid
+flowchart TD
+    User[/"User Request<br/>'Write a market analysis report for Q1 2024'"/]
+
+    subgraph Supervisor["Supervisor Agent"]
+        S1[Route requests]
+        S2[Aggregate results]
+        S3[Synthesize response]
+    end
+
+    subgraph Specialists["Specialist Agents"]
+        Research["Research Agent<br/>• Web search<br/>• Doc lookup<br/>• Summarize"]
+        Analysis["Analysis Agent<br/>• Data crunch<br/>• Statistics<br/>• Trends"]
+        Writing["Writing Agent<br/>• Draft text<br/>• Format<br/>• Edit"]
+    end
+
+    Response[/"Final Synthesized Report"/]
+
+    User --> Supervisor
+    Supervisor --> Research
+    Supervisor --> Analysis
+    Supervisor --> Writing
+    Research --> Supervisor
+    Analysis --> Supervisor
+    Writing --> Supervisor
+    Supervisor --> Response
+
+    style Supervisor fill:#e3f2fd
+    style Research fill:#fff3e0
+    style Analysis fill:#e8f5e9
+    style Writing fill:#fce4ec
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Supervisor Pattern                               │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│                        User Request                                      │
-│                             │                                            │
-│                             ▼                                            │
-│                   ┌─────────────────┐                                   │
-│                   │    Supervisor    │                                   │
-│                   │      Agent       │                                   │
-│                   │                  │                                   │
-│                   │ • Route requests │                                   │
-│                   │ • Aggregate      │                                   │
-│                   │ • Synthesize     │                                   │
-│                   └────────┬────────┘                                   │
-│                            │                                             │
-│          ┌─────────────────┼─────────────────┐                          │
-│          │                 │                 │                           │
-│          ▼                 ▼                 ▼                           │
-│   ┌──────────────┐ ┌──────────────┐ ┌──────────────┐                   │
-│   │   Research    │ │   Analysis   │ │   Writing    │                   │
-│   │    Agent      │ │    Agent     │ │    Agent     │                   │
-│   │               │ │               │ │               │                   │
-│   │ • Web search  │ │ • Data crunch │ │ • Draft text │                   │
-│   │ • Doc lookup  │ │ • Statistics  │ │ • Format     │                   │
-│   │ • Summarize   │ │ • Trends      │ │ • Edit       │                   │
-│   └──────────────┘ └──────────────┘ └──────────────┘                   │
-│                                                                          │
-│   Example Flow:                                                         │
-│   "Write a market analysis report for Q1 2024"                          │
-│                                                                          │
-│   1. Supervisor → Research Agent: "Find Q1 2024 market data"           │
-│   2. Research Agent returns: Market data, competitor info               │
-│   3. Supervisor → Analysis Agent: "Analyze trends in this data"        │
-│   4. Analysis Agent returns: Key insights, statistics                   │
-│   5. Supervisor → Writing Agent: "Write report with these findings"    │
-│   6. Writing Agent returns: Formatted report                            │
-│   7. Supervisor → User: Final synthesized report                        │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
-```
+
+**Example Flow:**
+1. Supervisor → Research Agent: "Find Q1 2024 market data"
+2. Research Agent returns: Market data, competitor info
+3. Supervisor → Analysis Agent: "Analyze trends in this data"
+4. Analysis Agent returns: Key insights, statistics
+5. Supervisor → Writing Agent: "Write report with these findings"
+6. Writing Agent returns: Formatted report
+7. Supervisor → User: Final synthesized report
 
 **AWS Agent Squad Implementation**:
 
@@ -903,44 +896,33 @@ async def handle_request(user_input: str, user_id: str, session_id: str):
 
 Agents arranged in sequence where each transforms output and passes it forward:
 
+```mermaid
+flowchart LR
+    Input[/"Input"/]
+
+    subgraph Pipeline["Sequential Pipeline"]
+        direction LR
+        Gather["Gather Agent<br/>Extract raw data<br/>→ Structured data"]
+        Process["Process Agent<br/>Transform & enrich<br/>→ Processed results"]
+        Validate["Validate Agent<br/>Check quality<br/>→ Confidence scores"]
+        Format["Format Agent<br/>Structure output<br/>→ Final deliverable"]
+    end
+
+    Output[/"Output"/]
+
+    Input --> Gather --> Process --> Validate --> Format --> Output
+
+    style Gather fill:#e3f2fd
+    style Process fill:#fff3e0
+    style Validate fill:#e8f5e9
+    style Format fill:#fce4ec
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                      Sequential Pipeline                                │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│   Input ──► [Gather] ──► [Process] ──► [Validate] ──► [Format] ──► Out │
-│                                                                          │
-│   ┌────────────┐                                                        │
-│   │  Gather    │  Extract raw data from sources                        │
-│   │  Agent     │  → Structured data package                            │
-│   └─────┬──────┘                                                        │
-│         │                                                                │
-│         ▼                                                                │
-│   ┌────────────┐                                                        │
-│   │  Process   │  Transform, calculate, enrich                         │
-│   │  Agent     │  → Processed results                                  │
-│   └─────┬──────┘                                                        │
-│         │                                                                │
-│         ▼                                                                │
-│   ┌────────────┐                                                        │
-│   │  Validate  │  Check quality, flag issues                           │
-│   │  Agent     │  → Validated + confidence scores                      │
-│   └─────┬──────┘                                                        │
-│         │                                                                │
-│         ▼                                                                │
-│   ┌────────────┐                                                        │
-│   │  Format    │  Structure for output                                 │
-│   │  Agent     │  → Final deliverable                                  │
-│   └────────────┘                                                        │
-│                                                                          │
-│   Benefits:                                                             │
-│   • Clear data flow                                                     │
-│   • Each stage testable independently                                   │
-│   • Easy to add/remove stages                                           │
-│   • Natural checkpoints for human review                                │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
-```
+
+**Benefits:**
+- Clear data flow
+- Each stage testable independently
+- Easy to add/remove stages
+- Natural checkpoints for human review
 
 ### Debate/Consensus Pattern
 
@@ -1377,45 +1359,39 @@ Agents need memory to maintain context across interactions. Without memory, ever
 
 ### Memory Architecture
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                         Agent Memory Types                              │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │                    Session Memory (Short-term)                    │  │
-│  │                                                                    │  │
-│  │  • Current conversation context                                   │  │
-│  │  • Bedrock session ID maintains automatically                     │  │
-│  │  • Lost when session ends                                         │  │
-│  │  • Size limited by context window                                 │  │
-│  │                                                                    │  │
-│  │  Implementation: sessionId parameter in invoke_agent              │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │                  Persistent Memory (Long-term)                    │  │
-│  │                                                                    │  │
-│  │  • User preferences and history                                   │  │
-│  │  • Past interactions summary                                      │  │
-│  │  • Survives across sessions                                       │  │
-│  │  • Requires explicit storage and retrieval                        │  │
-│  │                                                                    │  │
-│  │  Implementation: DynamoDB + retrieval before each request         │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │                   Semantic Memory (Knowledge)                     │  │
-│  │                                                                    │  │
-│  │  • Product catalogs, policies, documentation                     │  │
-│  │  • Shared across all users                                        │  │
-│  │  • Retrieved via RAG based on relevance                           │  │
-│  │  • Updated independently of conversations                         │  │
-│  │                                                                    │  │
-│  │  Implementation: Knowledge Bases with vector search               │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Agent["Agent Memory Types"]
+        direction TB
+
+        subgraph Session["Session Memory (Short-term)"]
+            S1["• Current conversation context"]
+            S2["• Bedrock session ID maintained automatically"]
+            S3["• Lost when session ends"]
+            S4["• Size limited by context window"]
+            S5["Implementation: sessionId in invoke_agent"]
+        end
+
+        subgraph Persistent["Persistent Memory (Long-term)"]
+            P1["• User preferences and history"]
+            P2["• Past interactions summary"]
+            P3["• Survives across sessions"]
+            P4["• Requires explicit storage/retrieval"]
+            P5["Implementation: DynamoDB + retrieval"]
+        end
+
+        subgraph Semantic["Semantic Memory (Knowledge)"]
+            K1["• Product catalogs, policies, docs"]
+            K2["• Shared across all users"]
+            K3["• Retrieved via RAG"]
+            K4["• Updated independently"]
+            K5["Implementation: Knowledge Bases"]
+        end
+    end
+
+    style Session fill:#e3f2fd
+    style Persistent fill:#fff3e0
+    style Semantic fill:#e8f5e9
 ```
 
 ### Session Memory Implementation
@@ -1615,53 +1591,48 @@ Autonomous agents introduce safety concerns that don't exist with simple text ge
 
 ### Defense in Depth Architecture
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                    Agent Safety Layers                                  │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │  Layer 1: Bedrock Guardrails                                      │ │
-│  │                                                                    │ │
-│  │  • Content filtering (input and output)                          │ │
-│  │  • Prompt injection detection                                     │ │
-│  │  • Harmful content blocking                                       │ │
-│  │  • Topic restrictions                                             │ │
-│  │  • PII detection and redaction                                    │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-│                              │                                          │
-│                              ▼                                          │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │  Layer 2: IAM Policies                                            │ │
-│  │                                                                    │ │
-│  │  • Action-level permissions                                       │ │
-│  │  • Resource restrictions                                          │ │
-│  │  • Condition-based access                                         │ │
-│  │  • Deny rules for sensitive operations                            │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-│                              │                                          │
-│                              ▼                                          │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │  Layer 3: Human-in-the-Loop                                       │ │
-│  │                                                                    │ │
-│  │  • Approval workflows for sensitive actions                       │ │
-│  │  • Threshold-based escalation                                     │ │
-│  │  • Audit trail requirements                                       │ │
-│  │  • Manual override capabilities                                   │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-│                              │                                          │
-│                              ▼                                          │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │  Layer 4: Operational Controls                                    │ │
-│  │                                                                    │ │
-│  │  • Session timeouts                                               │ │
-│  │  • Iteration limits                                               │ │
-│  │  • Rate limiting                                                  │ │
-│  │  • Anomaly detection and alerting                                 │ │
-│  │  • Cost controls                                                  │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Input[/"User Input"/]
+
+    subgraph Layer1["Layer 1: Bedrock Guardrails"]
+        G1["• Content filtering (input/output)"]
+        G2["• Prompt injection detection"]
+        G3["• Harmful content blocking"]
+        G4["• Topic restrictions"]
+        G5["• PII detection and redaction"]
+    end
+
+    subgraph Layer2["Layer 2: IAM Policies"]
+        I1["• Action-level permissions"]
+        I2["• Resource restrictions"]
+        I3["• Condition-based access"]
+        I4["• Deny rules for sensitive ops"]
+    end
+
+    subgraph Layer3["Layer 3: Human-in-the-Loop"]
+        H1["• Approval workflows"]
+        H2["• Threshold-based escalation"]
+        H3["• Audit trail requirements"]
+        H4["• Manual override"]
+    end
+
+    subgraph Layer4["Layer 4: Operational Controls"]
+        O1["• Session timeouts"]
+        O2["• Iteration limits"]
+        O3["• Rate limiting"]
+        O4["• Anomaly detection"]
+        O5["• Cost controls"]
+    end
+
+    Output[/"Safe Agent Action"/]
+
+    Input --> Layer1 --> Layer2 --> Layer3 --> Layer4 --> Output
+
+    style Layer1 fill:#ffcdd2
+    style Layer2 fill:#fff3e0
+    style Layer3 fill:#e8f5e9
+    style Layer4 fill:#e3f2fd
 ```
 
 ### Guardrails Configuration
