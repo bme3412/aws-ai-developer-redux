@@ -39,28 +39,26 @@ Before diving into specific patterns, understand the key dimensions that differe
 
 ### The Deployment Spectrum
 
-```
-                    OPERATIONAL COMPLEXITY
-       Low ◄────────────────────────────────────────► High
-         │                                             │
-         │  Lambda +        Bedrock         SageMaker  │
-         │  On-Demand       Provisioned     Endpoints  │
-         │      │               │               │      │
-         │      │               │               │      │
-         │      ▼               ▼               ▼      │
-         │  ┌───────┐       ┌───────┐       ┌───────┐  │
-         │  │ Zero  │       │ Some  │       │ Full  │  │
-         │  │ Infra │       │ Commit│       │Control│  │
-         │  └───────┘       └───────┘       └───────┘  │
-         │      │               │               │      │
-         │      │               │               ▼      │
-         │      │               │           ┌───────┐  │
-         │      │               │           │ECS/EKS│  │
-         │      │               │           │Custom │  │
-         │      │               │           └───────┘  │
-         │                                             │
-       Low ◄────────────────────────────────────────► High
-                         FLEXIBILITY
+```mermaid
+flowchart LR
+    subgraph Low["Low Complexity"]
+        Lambda["Lambda +<br/>On-Demand"]
+        Lambda --> ZeroInfra["Zero<br/>Infrastructure"]
+    end
+
+    subgraph Medium["Medium Complexity"]
+        Provisioned["Bedrock<br/>Provisioned"]
+        Provisioned --> Commit["Some<br/>Commitment"]
+    end
+
+    subgraph High["High Complexity"]
+        SageMaker["SageMaker<br/>Endpoints"]
+        SageMaker --> Control["Full<br/>Control"]
+        Control --> Custom["ECS/EKS<br/>Custom"]
+    end
+
+    Low -->|"More Flexibility →"| Medium
+    Medium -->|"More Flexibility →"| High
 ```
 
 ---
@@ -71,28 +69,21 @@ The simplest deployment pattern combines **AWS Lambda** with Bedrock's **on-dema
 
 ### Architecture Pattern
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         API Gateway                                  │
-│                              │                                       │
-│              ┌───────────────┼───────────────┐                      │
-│              ▼               ▼               ▼                      │
-│         ┌─────────┐     ┌─────────┐     ┌─────────┐                 │
-│         │ Lambda  │     │ Lambda  │     │ Lambda  │                 │
-│         │ (Chat)  │     │ (Search)│     │ (Summ.) │                 │
-│         └────┬────┘     └────┬────┘     └────┬────┘                 │
-│              │               │               │                      │
-│              └───────────────┴───────────────┘                      │
-│                              │                                       │
-│                              ▼                                       │
-│              ┌─────────────────────────────────┐                    │
-│              │       Bedrock (On-Demand)       │                    │
-│              │    ┌─────────────────────────┐  │                    │
-│              │    │    Shared Capacity      │  │                    │
-│              │    │  (Pay per token only)   │  │                    │
-│              │    └─────────────────────────┘  │                    │
-│              └─────────────────────────────────┘                    │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    API["API Gateway"]
+
+    API --> Chat["Lambda<br/>(Chat)"]
+    API --> Search["Lambda<br/>(Search)"]
+    API --> Summ["Lambda<br/>(Summarization)"]
+
+    Chat --> Bedrock
+    Search --> Bedrock
+    Summ --> Bedrock
+
+    subgraph Bedrock["Bedrock (On-Demand)"]
+        Shared["Shared Capacity<br/>(Pay per token only)"]
+    end
 ```
 
 ### Implementation
@@ -199,30 +190,24 @@ At this volume, on-demand is clearly correct. The break-even with provisioned th
 
 ### How Provisioned Throughput Works
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                     Provisioned Throughput                          │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                    Your Dedicated Capacity                   │   │
-│  │                                                              │   │
-│  │     Model Unit 1      Model Unit 2      Model Unit 3        │   │
-│  │    ┌──────────┐      ┌──────────┐      ┌──────────┐         │   │
-│  │    │ Reserved │      │ Reserved │      │ Reserved │         │   │
-│  │    │ Compute  │      │ Compute  │      │ Compute  │         │   │
-│  │    └──────────┘      └──────────┘      └──────────┘         │   │
-│  │                                                              │   │
-│  │    ✓ No throttling    ✓ Consistent latency                  │   │
-│  │    ✓ Guaranteed       ✓ Lower per-token cost                │   │
-│  │                                                              │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                    Shared Pool (Others)                      │   │
-│  │         You don't compete with this capacity                 │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph PT["Provisioned Throughput"]
+        subgraph Dedicated["Your Dedicated Capacity"]
+            MU1["Model Unit 1<br/>Reserved Compute"]
+            MU2["Model Unit 2<br/>Reserved Compute"]
+            MU3["Model Unit 3<br/>Reserved Compute"]
+        end
+        Benefits["✓ No throttling<br/>✓ Consistent latency<br/>✓ Guaranteed capacity<br/>✓ Lower per-token cost"]
+
+        subgraph Shared["Shared Pool (Others)"]
+            NoCompete["You don't compete<br/>with this capacity"]
+        end
+    end
+
+    Dedicated --> Benefits
+    style Dedicated fill:#90EE90
+    style Shared fill:#FFB6C1
 ```
 
 ### Creating Provisioned Throughput
@@ -309,59 +294,41 @@ You **must** deploy on provisioned throughput. Factor this into any customizatio
 
 ### When SageMaker Is Required
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                   SageMaker Decision Tree                           │
-│                                                                     │
-│   ┌─────────────────────────────────────────────────────────────┐   │
-│   │ Do you need any of the following?                           │   │
-│   │                                                             │   │
-│   │ □ Custom model (not available in Bedrock)                   │   │
-│   │ □ Specific instance types (GPU, memory)                     │   │
-│   │ □ A/B testing between model versions                        │   │
-│   │ □ Multi-model endpoints (multiple models, shared infra)     │   │
-│   │ □ Model version management and rollbacks                    │   │
-│   │ □ Custom inference containers                               │   │
-│   │ □ Integration with SageMaker ML pipelines                   │   │
-│   │                                                             │   │
-│   │           ┌────────────────┬────────────────┐               │   │
-│   │           │                │                │               │   │
-│   │          Yes               No               │               │   │
-│   │           │                │                │               │   │
-│   │           ▼                ▼                │               │   │
-│   │    ┌──────────┐     ┌──────────┐           │               │   │
-│   │    │SageMaker │     │ Consider │           │               │   │
-│   │    │Endpoints │     │ Bedrock  │           │               │   │
-│   │    └──────────┘     └──────────┘           │               │   │
-│   │                                             │               │   │
-│   └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Q{"Do you need any of these?<br/><br/>• Custom model (not in Bedrock)<br/>• Specific instance types<br/>• A/B testing between versions<br/>• Multi-model endpoints<br/>• Version management/rollbacks<br/>• Custom inference containers<br/>• ML pipeline integration"}
+
+    Q -->|Yes| SM["SageMaker<br/>Endpoints"]
+    Q -->|No| BR["Consider<br/>Bedrock"]
+
+    style SM fill:#FFD700
+    style BR fill:#87CEEB
 ```
 
 ### SageMaker Endpoint Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                      SageMaker Endpoint                             │
-│                                                                     │
-│  ┌───────────────────────────────────────────────────────────────┐ │
-│  │                    Endpoint Configuration                      │ │
-│  │                                                                │ │
-│  │   Production Variant A (90%)    Production Variant B (10%)    │ │
-│  │  ┌────────────────────────┐    ┌────────────────────────┐    │ │
-│  │  │  Model v2.1            │    │  Model v2.2 (canary)   │    │ │
-│  │  │  ┌─────────────────┐   │    │  ┌─────────────────┐   │    │ │
-│  │  │  │ ml.g5.2xlarge   │   │    │  │ ml.g5.2xlarge   │   │    │ │
-│  │  │  │ × 2 instances   │   │    │  │ × 1 instance    │   │    │ │
-│  │  │  └─────────────────┘   │    │  └─────────────────┘   │    │ │
-│  │  └────────────────────────┘    └────────────────────────┘    │ │
-│  │                                                                │ │
-│  │   Auto Scaling: 2-10 instances based on InvocationsPerInstance │ │
-│  │                                                                │ │
-│  └───────────────────────────────────────────────────────────────┘ │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Endpoint["SageMaker Endpoint"]
+        subgraph Config["Endpoint Configuration"]
+            subgraph VariantA["Production Variant A (90%)"]
+                ModelA["Model v2.1"]
+                InstanceA["ml.g5.2xlarge<br/>× 2 instances"]
+            end
+            subgraph VariantB["Production Variant B (10%)"]
+                ModelB["Model v2.2 (canary)"]
+                InstanceB["ml.g5.2xlarge<br/>× 1 instance"]
+            end
+        end
+        AutoScale["Auto Scaling: 2-10 instances<br/>based on InvocationsPerInstance"]
+    end
+
+    ModelA --> InstanceA
+    ModelB --> InstanceB
+    Config --> AutoScale
+
+    style VariantA fill:#90EE90
+    style VariantB fill:#FFD700
 ```
 
 ### Deploying a Model to SageMaker
@@ -477,68 +444,45 @@ autoscaling.put_scaling_policy(
 
 ### The Power Law of Query Complexity
 
+```mermaid
+pie title Query Complexity Distribution
+    "Simple (70%)" : 70
+    "Medium (20%)" : 20
+    "Complex (10%)" : 10
 ```
-                    Query Complexity Distribution
 
-  Frequency
-      │
-  70% │████████████████████████████████████████████████████
-      │                 │
-  20% │                 │██████████████████
-      │                 │        │
-  10% │                 │        │█████████
-      │                 │        │    │
-      └─────────────────┴────────┴────┴───────────────────►
-                 Simple     Medium    Complex     Complexity
-
-   Simple (70%): FAQ lookups, basic generation, formatting
-   Medium (20%): Multi-step reasoning, analysis, longer generation
-   Complex (10%): Expert reasoning, nuanced understanding, creativity
-```
+**Complexity Breakdown:**
+- **Simple (70%)**: FAQ lookups, basic generation, formatting
+- **Medium (20%)**: Multi-step reasoning, analysis, longer generation
+- **Complex (10%)**: Expert reasoning, nuanced understanding, creativity
 
 ### Cascading Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                     Model Cascading Pipeline                        │
-│                                                                     │
-│                        ┌────────────────┐                          │
-│                        │  User Query    │                          │
-│                        └───────┬────────┘                          │
-│                                │                                    │
-│                                ▼                                    │
-│              ┌─────────────────────────────────────┐               │
-│              │     Query Complexity Classifier     │               │
-│              │                                     │               │
-│              │  • Keyword analysis                 │               │
-│              │  • Query length                     │               │
-│              │  • Required reasoning depth         │               │
-│              │  • Domain complexity                │               │
-│              └─────────────────┬───────────────────┘               │
-│                    ┌───────────┼───────────┐                       │
-│                    │           │           │                       │
-│                 Simple      Medium      Complex                    │
-│                    │           │           │                       │
-│                    ▼           ▼           ▼                       │
-│              ┌─────────┐ ┌─────────┐ ┌─────────┐                   │
-│              │  Haiku  │ │ Sonnet  │ │  Opus   │                   │
-│              │ $0.25/M │ │ $3.00/M │ │ $15/M   │                   │
-│              └────┬────┘ └────┬────┘ └────┬────┘                   │
-│                   │           │           │                        │
-│                   ▼           │           │                        │
-│         ┌─────────────────┐   │           │                        │
-│         │ Confidence Check│   │           │                        │
-│         └────────┬────────┘   │           │                        │
-│             ┌────┴────┐       │           │                        │
-│           High       Low──────┴───────────┤                        │
-│             │                             │                        │
-│             ▼                             ▼                        │
-│       ┌───────────┐                ┌───────────┐                   │
-│       │  Response │                │  Response │                   │
-│       │ (Fast/Low)│                │(Quality)  │                   │
-│       └───────────┘                └───────────┘                   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Query["User Query"]
+
+    Query --> Classifier
+
+    subgraph Classifier["Query Complexity Classifier"]
+        Analysis["• Keyword analysis<br/>• Query length<br/>• Required reasoning depth<br/>• Domain complexity"]
+    end
+
+    Classifier -->|Simple| Haiku["Haiku<br/>$0.25/M tokens"]
+    Classifier -->|Medium| Sonnet["Sonnet<br/>$3.00/M tokens"]
+    Classifier -->|Complex| Opus["Opus<br/>$15/M tokens"]
+
+    Haiku --> Confidence{"Confidence<br/>Check"}
+    Confidence -->|High| FastResponse["Response<br/>(Fast/Low Cost)"]
+    Confidence -->|Low| Escalate["Escalate"]
+    Escalate --> Sonnet
+
+    Sonnet --> QualityResponse["Response<br/>(Quality)"]
+    Opus --> QualityResponse
+
+    style Haiku fill:#90EE90
+    style Sonnet fill:#FFD700
+    style Opus fill:#FF6B6B
 ```
 
 ### Complete Cascading Implementation
@@ -704,38 +648,26 @@ result = cascade.process("Analyze the economic implications...")  # Complex -> O
 
 ### How Inference Profiles Work
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Inference Profile Routing                        │
-│                                                                     │
-│                     ┌───────────────────┐                          │
-│                     │  Inference Profile │                          │
-│                     │  us.claude-sonnet  │                          │
-│                     └─────────┬─────────┘                          │
-│                               │                                     │
-│              ┌────────────────┼────────────────┐                   │
-│              │                │                │                   │
-│              ▼                ▼                ▼                   │
-│       ┌──────────┐     ┌──────────┐     ┌──────────┐              │
-│       │us-east-1 │     │us-west-2 │     │us-east-2 │              │
-│       │          │     │          │     │          │              │
-│       │ ✓ Healthy│     │ ✓ Healthy│     │ ⚠ Busy   │              │
-│       └──────────┘     └──────────┘     └──────────┘              │
-│              │                │                                    │
-│              └────────────────┤                                    │
-│                               │                                    │
-│                     ┌─────────▼─────────┐                          │
-│                     │  Route to healthy │                          │
-│                     │  region with      │                          │
-│                     │  available capacity│                          │
-│                     └───────────────────┘                          │
-│                                                                     │
-│  Geographic Scopes:                                                 │
-│  • us.* - Routes within US regions                                 │
-│  • eu.* - Routes within EU regions                                 │
-│  • Respects data residency requirements                            │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Profile["Inference Profile<br/>us.claude-sonnet"]
+
+    Profile --> East1["us-east-1<br/>✓ Healthy"]
+    Profile --> West2["us-west-2<br/>✓ Healthy"]
+    Profile --> East2["us-east-2<br/>⚠ Busy"]
+
+    East1 --> Route["Route to healthy<br/>region with<br/>available capacity"]
+    West2 --> Route
+
+    subgraph Scopes["Geographic Scopes"]
+        US["us.* → Routes within US regions"]
+        EU["eu.* → Routes within EU regions"]
+        Residency["Respects data residency requirements"]
+    end
+
+    style East1 fill:#90EE90
+    style West2 fill:#90EE90
+    style East2 fill:#FFD700
 ```
 
 ### Using Inference Profiles
@@ -790,54 +722,29 @@ This distinction is a common exam topic:
 
 ### Batch Inference Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                      Batch Inference Pipeline                       │
-│                                                                     │
-│   ┌────────────────────────────────────────────────────────────┐   │
-│   │ 1. Prepare Input (JSONL)                                    │   │
-│   │                                                             │   │
-│   │    s3://bucket/input/batch-job-001.jsonl                   │   │
-│   │    ┌───────────────────────────────────────────────────┐   │   │
-│   │    │ {"recordId":"1","modelInput":{...}}               │   │   │
-│   │    │ {"recordId":"2","modelInput":{...}}               │   │   │
-│   │    │ {"recordId":"3","modelInput":{...}}               │   │   │
-│   │    │ ... (thousands of records)                        │   │   │
-│   │    └───────────────────────────────────────────────────┘   │   │
-│   └────────────────────────────────────────────────────────────┘   │
-│                                │                                    │
-│                                ▼                                    │
-│   ┌────────────────────────────────────────────────────────────┐   │
-│   │ 2. Create Batch Job                                        │   │
-│   │                                                             │   │
-│   │    CreateModelInvocationJob                                 │   │
-│   │    • jobName: "document-summarization"                      │   │
-│   │    • modelId: "claude-3-haiku"                              │   │
-│   │    • inputDataConfig: s3://bucket/input/                    │   │
-│   │    • outputDataConfig: s3://bucket/output/                  │   │
-│   └────────────────────────────────────────────────────────────┘   │
-│                                │                                    │
-│                                ▼                                    │
-│   ┌────────────────────────────────────────────────────────────┐   │
-│   │ 3. Processing (Asynchronous)                                │   │
-│   │                                                             │   │
-│   │    Status: InProgress ─────► Completed                      │   │
-│   │    (Monitor via GetModelInvocationJob)                      │   │
-│   └────────────────────────────────────────────────────────────┘   │
-│                                │                                    │
-│                                ▼                                    │
-│   ┌────────────────────────────────────────────────────────────┐   │
-│   │ 4. Retrieve Results                                         │   │
-│   │                                                             │   │
-│   │    s3://bucket/output/batch-job-001/                        │   │
-│   │    ┌───────────────────────────────────────────────────┐   │   │
-│   │    │ {"recordId":"1","modelOutput":{...}}              │   │   │
-│   │    │ {"recordId":"2","modelOutput":{...}}              │   │   │
-│   │    │ {"recordId":"3","modelOutput":{...}}              │   │   │
-│   │    └───────────────────────────────────────────────────┘   │   │
-│   └────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Step1["1. Prepare Input (JSONL)"]
+        S3Input["s3://bucket/input/batch-job-001.jsonl"]
+        Records1["{'recordId':'1','modelInput':{...}}<br/>{'recordId':'2','modelInput':{...}}<br/>{'recordId':'3','modelInput':{...}}<br/>... (thousands of records)"]
+    end
+
+    subgraph Step2["2. Create Batch Job"]
+        API["CreateModelInvocationJob"]
+        Config["• jobName: 'document-summarization'<br/>• modelId: 'claude-3-haiku'<br/>• inputDataConfig: s3://input/<br/>• outputDataConfig: s3://output/"]
+    end
+
+    subgraph Step3["3. Processing (Asynchronous)"]
+        Status["Status: InProgress → Completed"]
+        Monitor["Monitor via GetModelInvocationJob"]
+    end
+
+    subgraph Step4["4. Retrieve Results"]
+        S3Output["s3://bucket/output/batch-job-001/"]
+        Records2["{'recordId':'1','modelOutput':{...}}<br/>{'recordId':'2','modelOutput':{...}}<br/>{'recordId':'3','modelOutput':{...}}"]
+    end
+
+    Step1 --> Step2 --> Step3 --> Step4
 ```
 
 ### Complete Batch Processing Example
@@ -997,33 +904,30 @@ For workloads requiring complete control over infrastructure, **ECS** or **EKS**
 
 LLMs have unique resource requirements:
 
+```mermaid
+flowchart LR
+    subgraph Memory["LLM Memory Requirements (FP16)"]
+        M7["7B params → ~14 GB"]
+        M13["13B params → ~26 GB"]
+        M33["33B params → ~66 GB"]
+        M70["70B params → ~140 GB"]
+    end
+
+    subgraph Formula["Memory Formula"]
+        F1["Parameters × 2 bytes (FP16)"]
+        F2["+ Activation overhead"]
+        F3["+ KV cache (grows with seq length)"]
+    end
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    LLM Memory Requirements                          │
-│                                                                     │
-│   Model Size (Parameters)  →  Memory Requirement (FP16)             │
-│                                                                     │
-│   7B parameters  ────────────────►  ~14 GB GPU memory               │
-│   13B parameters ────────────────►  ~26 GB GPU memory               │
-│   33B parameters ────────────────►  ~66 GB GPU memory               │
-│   70B parameters ────────────────►  ~140 GB GPU memory              │
-│                                                                     │
-│   Formula: Memory ≈ Parameters × 2 bytes (FP16)                    │
-│            + Activation overhead (varies with context length)       │
-│            + KV cache (grows with sequence length)                  │
-│                                                                     │
-│   Optimization Techniques:                                          │
-│   ┌─────────────┬─────────────┬─────────────────────────────────┐  │
-│   │ Technique   │ Reduction   │ Trade-off                       │  │
-│   ├─────────────┼─────────────┼─────────────────────────────────┤  │
-│   │ INT8 quant  │ ~50%        │ Minor quality impact            │  │
-│   │ INT4 quant  │ ~75%        │ Noticeable quality impact       │  │
-│   │ Model shard │ Distributed │ Requires multi-GPU              │  │
-│   │ Paged attn  │ Dynamic     │ Better memory efficiency        │  │
-│   └─────────────┴─────────────┴─────────────────────────────────┘  │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
+
+**Optimization Techniques:**
+
+| Technique | Memory Reduction | Trade-off |
+|-----------|------------------|-----------|
+| INT8 quantization | ~50% | Minor quality impact |
+| INT4 quantization | ~75% | Noticeable quality impact |
+| Model sharding | Distributed | Requires multi-GPU |
+| Paged attention | Dynamic | Better memory efficiency |
 
 ### ECS Task Definition for LLM Serving
 

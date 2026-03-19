@@ -42,31 +42,14 @@ The defining characteristics of agentic systems are:
 
 All agentic systems share a common structure, often called the **agent loop**:
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        THE AGENT LOOP                             │
-│                                                                   │
-│   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐      │
-│   │ PERCEIVE│───►│  REASON │───►│   ACT   │───►│ OBSERVE │      │
-│   │         │    │         │    │         │    │         │      │
-│   │ User    │    │ What    │    │ Execute │    │ Process │      │
-│   │ request,│    │ action  │    │ tool    │    │ results,│      │
-│   │ context │    │ helps?  │    │ call    │    │ update  │      │
-│   │         │    │         │    │         │    │ state   │      │
-│   └─────────┘    └─────────┘    └─────────┘    └────┬────┘      │
-│                                                      │           │
-│        ┌─────────────────────────────────────────────┘           │
-│        │                                                         │
-│        ▼                                                         │
-│   ┌─────────┐                                                    │
-│   │  GOAL   │    YES: Return final response to user             │
-│   │ACHIEVED?│───────────────────────────────────────────────────►│
-│   │         │    NO: Loop back to REASON                        │
-│   └────┬────┘                                                    │
-│        │                                                         │
-│        └────────────────────────► REASON                        │
-│                                                                   │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    Perceive["PERCEIVE<br/>User request,<br/>context"] --> Reason["REASON<br/>What action<br/>helps?"]
+    Reason --> Act["ACT<br/>Execute<br/>tool call"]
+    Act --> Observe["OBSERVE<br/>Process results,<br/>update state"]
+    Observe --> Goal{"GOAL<br/>ACHIEVED?"}
+    Goal -->|YES| Response["Return final<br/>response to user"]
+    Goal -->|NO| Reason
 ```
 
 1. **Perceive**: The agent receives input—user request, current state, available tools, any constraints
@@ -266,29 +249,13 @@ In production, the simple loop above needs additional capabilities:
 
 **Step Functions for orchestration** provides retry logic, timeout handling, error catching, and audit trails that the simple Python loop lacks:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   Step Functions ReAct Workflow                  │
-│                                                                  │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
-│  │ Invoke   │───►│ Parse    │───►│ Execute  │───►│ Check    │  │
-│  │ Model    │    │ Response │    │ Tools    │    │ Complete │  │
-│  └──────────┘    └──────────┘    └──────────┘    └────┬─────┘  │
-│       ▲                                                │        │
-│       │                                          ┌─────┴─────┐  │
-│       │                                          │           │  │
-│       └──────────────────────────────────────────┤  NO       │  │
-│                                                  │           │  │
-│                                                  └───────────┘  │
-│                                                        │        │
-│                                                       YES       │
-│                                                        │        │
-│                                                        ▼        │
-│                                                  ┌───────────┐  │
-│                                                  │  Return   │  │
-│                                                  │  Response │  │
-│                                                  └───────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Invoke["Invoke Model"] --> Parse["Parse Response"]
+    Parse --> Execute["Execute Tools"]
+    Execute --> Check{"Check Complete"}
+    Check -->|NO| Invoke
+    Check -->|YES| Return["Return Response"]
 ```
 
 **Iteration limits** prevent runaway agents from looping indefinitely. Set reasonable maximums (10-20 iterations for most tasks) and handle the "max iterations exceeded" case gracefully.
@@ -307,28 +274,21 @@ Before the Model Context Protocol, every AI system had its own way of connecting
 
 ### MCP Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Model Context Protocol Stack                      │
-│                                                                      │
-│  ┌───────────────┐                        ┌───────────────────────┐ │
-│  │               │                        │      MCP Servers       │ │
-│  │   AI Agent    │   JSON-RPC over        │  (Tool Providers)     │ │
-│  │               │   stdio/HTTP           ├───────────────────────┤ │
-│  │  ┌─────────┐  │◄──────────────────────►│  Database Server      │ │
-│  │  │   MCP   │  │                        │  - query()            │ │
-│  │  │  Client │  │  Tool Discovery:       │  - schema()           │ │
-│  │  │         │  │  "What tools exist?"   ├───────────────────────┤ │
-│  │  └─────────┘  │                        │  Calendar Server      │ │
-│  │               │  Tool Invocation:      │  - getEvents()        │ │
-│  │               │  "Call tool X"         │  - createEvent()      │ │
-│  │               │                        ├───────────────────────┤ │
-│  │               │  Tool Results:         │  Web Search Server    │ │
-│  │               │  "Here's the output"   │  - search()           │ │
-│  │               │                        │  - fetch()            │ │
-│  └───────────────┘                        └───────────────────────┘ │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph Agent["AI Agent"]
+        Client["MCP Client"]
+    end
+
+    subgraph Servers["MCP Servers (Tool Providers)"]
+        DB["Database Server<br/>• query()<br/>• schema()"]
+        Cal["Calendar Server<br/>• getEvents()<br/>• createEvent()"]
+        Web["Web Search Server<br/>• search()<br/>• fetch()"]
+    end
+
+    Client <-->|"JSON-RPC over<br/>stdio/HTTP"| DB
+    Client <-->|"Tool Discovery<br/>Tool Invocation<br/>Tool Results"| Cal
+    Client <--> Web
 ```
 
 **MCP Client**: Runs within the agent runtime. It handles connecting to MCP servers, discovering available tools, translating agent requests to MCP format, and parsing responses.
@@ -415,29 +375,15 @@ Complex tasks often exceed what any single agent can handle effectively. A custo
 
 The most common multi-agent architecture uses a **supervisor agent** that coordinates specialists:
 
-```
-                         User Request
-                              │
-                              ▼
-                    ┌─────────────────┐
-                    │   SUPERVISOR    │
-                    │     AGENT       │
-                    │                 │
-                    │ "Who should     │
-                    │  handle this?"  │
-                    └────────┬────────┘
-                             │
-           ┌─────────────────┼─────────────────┐
-           │                 │                 │
-           ▼                 ▼                 ▼
-    ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
-    │   ORDER     │   │   TECH      │   │  BILLING    │
-    │   AGENT     │   │   AGENT     │   │   AGENT     │
-    │             │   │             │   │             │
-    │ - Status    │   │ - Trouble-  │   │ - Invoices  │
-    │ - Returns   │   │   shoot     │   │ - Payments  │
-    │ - Tracking  │   │ - Config    │   │ - Refunds   │
-    └─────────────┘   └─────────────┘   └─────────────┘
+```mermaid
+flowchart TD
+    User["User Request"] --> Supervisor
+
+    Supervisor["SUPERVISOR AGENT<br/>'Who should handle this?'"]
+
+    Supervisor --> Order["ORDER AGENT<br/>• Status<br/>• Returns<br/>• Tracking"]
+    Supervisor --> Tech["TECH AGENT<br/>• Troubleshoot<br/>• Config"]
+    Supervisor --> Billing["BILLING AGENT<br/>• Invoices<br/>• Payments<br/>• Refunds"]
 ```
 
 **How it works:**
@@ -460,19 +406,11 @@ The most common multi-agent architecture uses a **supervisor agent** that coordi
 
 In some scenarios, decentralized coordination works better. Agents communicate directly with each other, sharing information and delegating work as needed:
 
-```
-    ┌─────────────┐         ┌─────────────┐
-    │  RESEARCH   │◄───────►│  ANALYSIS   │
-    │   AGENT     │         │   AGENT     │
-    └──────┬──────┘         └──────┬──────┘
-           │                       │
-           │    ┌─────────────┐    │
-           └───►│ SHARED      │◄───┘
-                │ STATE       │
-                │             │
-                │ EventBridge │
-                │ or DynamoDB │
-                └─────────────┘
+```mermaid
+flowchart TD
+    Research["RESEARCH AGENT"] <--> Analysis["ANALYSIS AGENT"]
+    Research --> Shared["SHARED STATE<br/>EventBridge<br/>or DynamoDB"]
+    Analysis --> Shared
 ```
 
 **How it works:**

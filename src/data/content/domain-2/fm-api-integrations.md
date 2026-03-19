@@ -22,38 +22,19 @@ Bedrock provides two distinct APIs for model invocation. Choosing the right one 
 
 ### The Two API Paradigms
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Bedrock API Comparison                           │
-│                                                                     │
-│   ┌─────────────────────────────┐   ┌─────────────────────────────┐│
-│   │       InvokeModel           │   │        Converse             ││
-│   │                             │   │                             ││
-│   │  Model-Native Interface     │   │  Unified Interface          ││
-│   │                             │   │                             ││
-│   │  ┌─────────────────────┐   │   │  ┌─────────────────────┐   ││
-│   │  │ Claude format       │   │   │  │ Same format         │   ││
-│   │  │ {                   │   │   │  │ {                   │   ││
-│   │  │   anthropic_version │   │   │  │   messages: [...]   │   ││
-│   │  │   messages: [...]   │   │   │  │   inferenceConfig   │   ││
-│   │  │   max_tokens: 1024  │   │   │  │   toolConfig        │   ││
-│   │  │ }                   │   │   │  │ }                   │   ││
-│   │  └─────────────────────┘   │   │  │                     │   ││
-│   │                             │   │  │ Works for ANY model │   ││
-│   │  ┌─────────────────────┐   │   │  └─────────────────────┘   ││
-│   │  │ Titan format        │   │   │                             ││
-│   │  │ {                   │   │   │  Change model ID only       ││
-│   │  │   inputText: "..."  │   │   │  ┌────────────────────────┐││
-│   │  │   textGenerationConfig  │   │  │ Claude Sonnet → Haiku  │││
-│   │  │ }                   │   │   │  │ Titan → Claude         │││
-│   │  └─────────────────────┘   │   │  │ Llama → Mistral        │││
-│   │                             │   │  └────────────────────────┘││
-│   │  Different format per model │   │                             ││
-│   │                             │   │  Same code, different model ││
-│   │                             │   │                             ││
-│   └─────────────────────────────┘   └─────────────────────────────┘│
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph Invoke["InvokeModel (Model-Native)"]
+        Claude["Claude format<br/>{anthropic_version,<br/>messages, max_tokens}"]
+        Titan["Titan format<br/>{inputText,<br/>textGenerationConfig}"]
+        Note1["Different format<br/>per model"]
+    end
+
+    subgraph Converse["Converse (Unified)"]
+        Unified["Same format<br/>{messages,<br/>inferenceConfig,<br/>toolConfig}"]
+        Switch["Change model ID only<br/>Claude ↔ Titan ↔ Llama"]
+        Note2["Same code,<br/>different model"]
+    end
 ```
 
 ### InvokeModel API
@@ -323,51 +304,28 @@ Foundation model APIs operate in fundamentally different modes. Understanding wh
 
 ### Understanding the Patterns
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│            Synchronous vs Asynchronous vs Streaming                 │
-│                                                                     │
-│   SYNCHRONOUS                                                       │
-│   ┌─────────────────────────────────────────────────────────────┐  │
-│   │                                                              │  │
-│   │  Client ─────► Request ─────► Processing ─────► Response    │  │
-│   │     │                            │                    │      │  │
-│   │     │         (connection held)  │                    │      │  │
-│   │     │◄───────────────────────────│◄───────────────────│      │  │
-│   │     │                            │                           │  │
-│   │   WAIT...                   2-30 seconds                     │  │
-│   │                                                              │  │
-│   └─────────────────────────────────────────────────────────────┘  │
-│                                                                     │
-│   ASYNCHRONOUS                                                      │
-│   ┌─────────────────────────────────────────────────────────────┐  │
-│   │                                                              │  │
-│   │  Client ─────► Submit ─────► job_id                         │  │
-│   │     │              │            │                            │  │
-│   │     │◄─────────────│◄───────────│  (returns immediately)    │  │
-│   │     │                                                        │  │
-│   │     │  ... continue other work ...                          │  │
-│   │     │                                                        │  │
-│   │     │◄───────────────────────────────── Result ready!       │  │
-│   │                                         (callback/poll)      │  │
-│   │                                                              │  │
-│   └─────────────────────────────────────────────────────────────┘  │
-│                                                                     │
-│   STREAMING                                                         │
-│   ┌─────────────────────────────────────────────────────────────┐  │
-│   │                                                              │  │
-│   │  Client ─────► Request ─────► Token 1 ◄───┐                 │  │
-│   │     │                         Token 2 ◄───┤                 │  │
-│   │     │                         Token 3 ◄───┤ (progressive)   │  │
-│   │     │                         Token 4 ◄───┤                 │  │
-│   │     │                         ...     ◄───┤                 │  │
-│   │     │◄──────────────────────── DONE  ◄────┘                 │  │
-│   │                                                              │  │
-│   │  Total time same, but UX dramatically better                 │  │
-│   │                                                              │  │
-│   └─────────────────────────────────────────────────────────────┘  │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Sync["SYNCHRONOUS"]
+        S1["Client"] -->|Request| S2["Processing<br/>(2-30 sec)"]
+        S2 -->|Response| S1
+        S3["WAIT... connection held"]
+    end
+
+    subgraph Async["ASYNCHRONOUS"]
+        A1["Client"] -->|Submit| A2["job_id"]
+        A2 -->|Returns immediately| A1
+        A1 -.->|"Continue other work..."| A1
+        A3["Result ready!"] -->|"callback/poll"| A1
+    end
+
+    subgraph Stream["STREAMING"]
+        T1["Client"] -->|Request| T2["Token 1"]
+        T2 --> T3["Token 2"]
+        T3 --> T4["Token 3..."]
+        T4 --> T5["DONE"]
+        T6["Total time same,<br/>UX dramatically better"]
+    end
 ```
 
 ### Synchronous Calls
@@ -809,40 +767,31 @@ Foundation model APIs can experience failures. Models might be temporarily unava
 
 ### Error Types and Handling
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    FM API Error Categories                          │
-│                                                                     │
-│   ┌─────────────────────────────────────────────────────────────┐  │
-│   │  RETRYABLE ERRORS (temporary - retry with backoff)          │  │
-│   │                                                              │  │
-│   │  • ThrottlingException - rate limit exceeded                │  │
-│   │  • ServiceUnavailableException - temporary outage           │  │
-│   │  • ModelTimeoutException - inference took too long          │  │
-│   │  • ReadTimeoutError - connection read timeout               │  │
-│   │  • ModelNotReadyException - model warming up                │  │
-│   │                                                              │  │
-│   └─────────────────────────────────────────────────────────────┘  │
-│                                                                     │
-│   ┌─────────────────────────────────────────────────────────────┐  │
-│   │  NON-RETRYABLE ERRORS (fix before retrying)                 │  │
-│   │                                                              │  │
-│   │  • ValidationException - malformed request                  │  │
-│   │  • AccessDeniedException - IAM permissions                  │  │
-│   │  • ResourceNotFoundException - model doesn't exist          │  │
-│   │  • ModelStreamErrorException - stream corrupted             │  │
-│   │                                                              │  │
-│   └─────────────────────────────────────────────────────────────┘  │
-│                                                                     │
-│   ┌─────────────────────────────────────────────────────────────┐  │
-│   │  INPUT ERRORS (adjust input)                                 │  │
-│   │                                                              │  │
-│   │  • Input token limit exceeded - truncate prompt             │  │
-│   │  • Content filtering triggered - modify input               │  │
-│   │                                                              │  │
-│   └─────────────────────────────────────────────────────────────┘  │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Retryable["RETRYABLE ERRORS<br/>(temporary - retry with backoff)"]
+        R1["ThrottlingException<br/>rate limit exceeded"]
+        R2["ServiceUnavailableException<br/>temporary outage"]
+        R3["ModelTimeoutException<br/>inference took too long"]
+        R4["ReadTimeoutError<br/>connection timeout"]
+        R5["ModelNotReadyException<br/>model warming up"]
+    end
+
+    subgraph NonRetryable["NON-RETRYABLE ERRORS<br/>(fix before retrying)"]
+        N1["ValidationException<br/>malformed request"]
+        N2["AccessDeniedException<br/>IAM permissions"]
+        N3["ResourceNotFoundException<br/>model doesn't exist"]
+        N4["ModelStreamErrorException<br/>stream corrupted"]
+    end
+
+    subgraph Input["INPUT ERRORS<br/>(adjust input)"]
+        I1["Token limit exceeded<br/>→ truncate prompt"]
+        I2["Content filtering<br/>→ modify input"]
+    end
+
+    style Retryable fill:#90EE90
+    style NonRetryable fill:#FFB6C1
+    style Input fill:#FFD700
 ```
 
 ### Exponential Backoff with Jitter
