@@ -215,16 +215,13 @@ AWS offers two types of VPC endpoints, and understanding the difference prevents
 
 When you create an interface endpoint for Bedrock, here's what happens:
 
-```
-Your VPC                          AWS Network
-┌─────────────────────────┐      ┌─────────────────────────┐
-│  Lambda/EC2             │      │                         │
-│       │                 │      │    Bedrock Service      │
-│       ▼                 │      │         ▲               │
-│  ENI (10.0.1.x)    ─────┼──────┼─────────┘               │
-│  (Interface Endpoint)   │      │                         │
-└─────────────────────────┘      └─────────────────────────┘
-```
+**PrivateLink Connection:**
+
+| Your VPC | Connection | AWS Network |
+|----------|------------|-------------|
+| Lambda/EC2 → ENI (10.0.1.x, Interface Endpoint) | → Private Link → | Bedrock Service |
+
+Traffic stays on AWS backbone, never touches public internet.
 
 The ENI appears in your VPC with a private IP. DNS resolution can be configured to automatically resolve `bedrock-runtime.us-east-1.amazonaws.com` to this private IP. Your application code doesn't change—it still calls the same endpoint, but traffic routes privately.
 

@@ -563,11 +563,11 @@ For Bedrock Knowledge Bases with S3 data sources, metadata comes from companion 
 
 ```
 my-docs/
-├── policies/
-│   ├── refund-policy.pdf
-│   ├── refund-policy.pdf.metadata.json
-│   ├── shipping-policy.pdf
-│   └── shipping-policy.pdf.metadata.json
+  policies/
+    refund-policy.pdf
+    refund-policy.pdf.metadata.json
+    shipping-policy.pdf
+    shipping-policy.pdf.metadata.json
 ```
 
 Each metadata file contains attributes for its associated document:

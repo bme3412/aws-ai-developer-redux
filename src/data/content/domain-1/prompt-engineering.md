@@ -352,14 +352,15 @@ Many production systems use both: Prompt Flows for the AI-specific parts, embedd
 
 Smart flows route to different prompts based on model output. A classification stage determines input type—question, complaint, feedback—and subsequent stages use specialized prompts for each:
 
-```
+**Conditional Routing:**
+
 User Input → Classification Prompt → Condition Node
-                                         ↓
-              ┌──────────────────────────┼──────────────────────────┐
-              ↓                          ↓                          ↓
-         Question Path            Complaint Path            Feedback Path
-    (fact-finding prompt)      (empathy + resolution)    (acknowledge + thank)
-```
+
+| Path | Prompt Style |
+|------|--------------|
+| Question | Fact-finding prompt |
+| Complaint | Empathy + resolution |
+| Feedback | Acknowledge + thank |
 
 This creates AI systems that adapt to user needs. A complaint receives empathetic acknowledgment before resolution steps. A question gets direct, informative answers. Feedback receives gratitude and confirmation. One-size-fits-all prompts can't match this sophistication.
 

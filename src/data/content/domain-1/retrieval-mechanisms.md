@@ -85,13 +85,12 @@ Bedrock Knowledge Bases supports semantic chunking with configurable parameters.
 
 Hierarchical chunking is the clever solution that gives you both precision and context by creating parent-child relationships between chunks:
 
-```
-Document
-  └── Section (parent chunk, ~1000 tokens)
-        ├── Paragraph 1 (child chunk, ~300 tokens)
-        ├── Paragraph 2 (child chunk, ~300 tokens)
-        └── Paragraph 3 (child chunk, ~300 tokens)
-```
+**Hierarchical Structure:**
+- Document
+  - Section (parent chunk, ~1000 tokens)
+    - Paragraph 1 (child chunk, ~300 tokens)
+    - Paragraph 2 (child chunk, ~300 tokens)
+    - Paragraph 3 (child chunk, ~300 tokens)
 
 The child chunks are small and specific—they match queries precisely. The parent chunk provides context—the broader topic that the specific paragraphs belong to.
 

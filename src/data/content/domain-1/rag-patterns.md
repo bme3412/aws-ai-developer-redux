@@ -222,12 +222,11 @@ Bedrock Knowledge Bases supports semantic chunking, which analyzes text relation
 
 Hierarchical chunking creates parent-child relationships between chunks:
 
-```
-Document
-  └── Section (parent chunk)
-        ├── Paragraph 1 (child chunk)
-        └── Paragraph 2 (child chunk)
-```
+**Hierarchical Structure:**
+- Document
+  - Section (parent chunk)
+    - Paragraph 1 (child chunk)
+    - Paragraph 2 (child chunk)
 
 When you retrieve a child chunk that matches the query, you can include its parent chunk for additional context. The child provides specificity (it's why this chunk matched the query), and the parent provides context (the broader topic this detail belongs to).
 
