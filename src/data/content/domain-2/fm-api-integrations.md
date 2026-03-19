@@ -22,20 +22,10 @@ Bedrock provides two distinct APIs for model invocation. Choosing the right one 
 
 ### The Two API Paradigms
 
-```mermaid
-flowchart LR
-    subgraph Invoke["InvokeModel (Model-Native)"]
-        Claude["Claude format<br/>{anthropic_version,<br/>messages, max_tokens}"]
-        Titan["Titan format<br/>{inputText,<br/>textGenerationConfig}"]
-        Note1["Different format<br/>per model"]
-    end
-
-    subgraph Converse["Converse (Unified)"]
-        Unified["Same format<br/>{messages,<br/>inferenceConfig,<br/>toolConfig}"]
-        Switch["Change model ID only<br/>Claude ↔ Titan ↔ Llama"]
-        Note2["Same code,<br/>different model"]
-    end
-```
+| API | Format | Switching Models |
+|-----|--------|------------------|
+| **InvokeModel** (Model-Native) | Different per model (Claude: anthropic_version/messages, Titan: inputText/textGenerationConfig) | Requires code changes |
+| **Converse** (Unified) | Same for all (messages, inferenceConfig, toolConfig) | Change model ID only |
 
 ### InvokeModel API
 
@@ -304,29 +294,11 @@ Foundation model APIs operate in fundamentally different modes. Understanding wh
 
 ### Understanding the Patterns
 
-```mermaid
-flowchart TD
-    subgraph Sync["SYNCHRONOUS"]
-        S1["Client"] -->|Request| S2["Processing<br/>(2-30 sec)"]
-        S2 -->|Response| S1
-        S3["WAIT... connection held"]
-    end
-
-    subgraph Async["ASYNCHRONOUS"]
-        A1["Client"] -->|Submit| A2["job_id"]
-        A2 -->|Returns immediately| A1
-        A1 -.->|"Continue other work..."| A1
-        A3["Result ready!"] -->|"callback/poll"| A1
-    end
-
-    subgraph Stream["STREAMING"]
-        T1["Client"] -->|Request| T2["Token 1"]
-        T2 --> T3["Token 2"]
-        T3 --> T4["Token 3..."]
-        T4 --> T5["DONE"]
-        T6["Total time same,<br/>UX dramatically better"]
-    end
-```
+| Pattern | Flow | Behavior |
+|---------|------|----------|
+| **SYNCHRONOUS** | Client → Request → Processing (2-30 sec) → Response | Connection held, client waits |
+| **ASYNCHRONOUS** | Client → Submit → job_id (returns immediately) → Continue work → Result ready (callback/poll) | Non-blocking |
+| **STREAMING** | Client → Request → Token 1 → Token 2 → Token 3... → DONE | Total time same, UX dramatically better |
 
 ### Synchronous Calls
 
@@ -767,32 +739,13 @@ Foundation model APIs can experience failures. Models might be temporarily unava
 
 ### Error Types and Handling
 
-```mermaid
-flowchart TD
-    subgraph Retryable["RETRYABLE ERRORS<br/>(temporary - retry with backoff)"]
-        R1["ThrottlingException<br/>rate limit exceeded"]
-        R2["ServiceUnavailableException<br/>temporary outage"]
-        R3["ModelTimeoutException<br/>inference took too long"]
-        R4["ReadTimeoutError<br/>connection timeout"]
-        R5["ModelNotReadyException<br/>model warming up"]
-    end
+**FM API Error Categories:**
 
-    subgraph NonRetryable["NON-RETRYABLE ERRORS<br/>(fix before retrying)"]
-        N1["ValidationException<br/>malformed request"]
-        N2["AccessDeniedException<br/>IAM permissions"]
-        N3["ResourceNotFoundException<br/>model doesn't exist"]
-        N4["ModelStreamErrorException<br/>stream corrupted"]
-    end
-
-    subgraph Input["INPUT ERRORS<br/>(adjust input)"]
-        I1["Token limit exceeded<br/>→ truncate prompt"]
-        I2["Content filtering<br/>→ modify input"]
-    end
-
-    style Retryable fill:#90EE90
-    style NonRetryable fill:#FFB6C1
-    style Input fill:#FFD700
-```
+| Category | Errors | Action |
+|----------|--------|--------|
+| **RETRYABLE** (temporary) | ThrottlingException, ServiceUnavailableException, ModelTimeoutException, ReadTimeoutError, ModelNotReadyException | Retry with exponential backoff |
+| **NON-RETRYABLE** (fix first) | ValidationException, AccessDeniedException, ResourceNotFoundException, ModelStreamErrorException | Fix the issue before retrying |
+| **INPUT ERRORS** | Token limit exceeded, Content filtering triggered | Truncate prompt or modify input |
 
 ### Exponential Backoff with Jitter
 

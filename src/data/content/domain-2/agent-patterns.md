@@ -12,38 +12,13 @@ The difference between a demo that impresses in a presentation and a system that
 
 **The Agent Evolution**:
 
-```mermaid
-graph LR
-    subgraph Level1["Level 1: Chatbot"]
-        C1[Static responses]
-        C2[No memory]
-        C3[Single turn]
-        C4[Training data only]
-    end
+| Level | Capabilities | Example Query |
+|-------|--------------|---------------|
+| **Level 1: Chatbot** | Static responses, no memory, single turn, training data only | "What is AWS?" |
+| **Level 2: RAG** | Knowledge access, context grounding, citations, still reactive | "Find our policy" |
+| **Level 3: Agent** | Autonomous action, tool usage, multi-step planning, memory, goal-directed, self-correcting | "Book flight & notify team" |
 
-    subgraph Level2["Level 2: RAG"]
-        R1[Knowledge access]
-        R2[Context grounding]
-        R3[Citations]
-        R4[Still reactive]
-    end
-
-    subgraph Level3["Level 3: Agent"]
-        A1[Autonomous action]
-        A2[Tool usage]
-        A3[Multi-step planning]
-        A4[Memory persistence]
-        A5[Goal-directed]
-        A6[Self-correcting]
-    end
-
-    Level1 -->|Evolution| Level2
-    Level2 -->|Evolution| Level3
-
-    Q1["'What is AWS?'"] -.-> Level1
-    Q2["'Find our policy'"] -.-> Level2
-    Q3["'Book flight & notify team'"] -.-> Level3
-```
+**Evolution:** Chatbot → RAG → Agent
 
 | Level | Primary Function | Example |
 |-------|------------------|---------|
@@ -78,30 +53,16 @@ When a user asks a chatbot about the weather in Seattle, it can only respond wit
 
 The agent loop describes how these characteristics combine into a working system:
 
-```mermaid
-flowchart TD
-    Input[/"User Input"/]
-    Reason["REASON<br/>What do I need to do?<br/>What tools are available?"]
-    Plan["PLAN<br/>First check X, then do Y<br/>If Y fails, try Z"]
-    Act["ACT<br/>Execute tool call<br/>e.g., get_weather('Seattle')"]
-    Observe["OBSERVE<br/>Process result<br/>API returned: 55°F, cloudy"]
-    Done{"Task<br/>Complete?"}
-    Output[/"Final Response"/]
+**Agent Loop:**
 
-    Input --> Reason
-    Reason --> Plan
-    Plan --> Act
-    Act --> Observe
-    Observe --> Done
-    Done -->|No| Reason
-    Done -->|Yes| Output
-
-    style Reason fill:#e1f5fe
-    style Plan fill:#fff3e0
-    style Act fill:#e8f5e9
-    style Observe fill:#fce4ec
-    style Done fill:#f3e5f5
-```
+1. **User Input** →
+2. **REASON** (What do I need to do? What tools are available?) →
+3. **PLAN** (First check X, then do Y. If Y fails, try Z) →
+4. **ACT** (Execute tool call, e.g., get_weather('Seattle')) →
+5. **OBSERVE** (Process result: API returned 55°F, cloudy) →
+6. **Task Complete?**
+   - No → Back to REASON
+   - Yes → **Final Response**
 
 ### Concrete Example: Meeting Booking
 
@@ -154,31 +115,16 @@ ANSWER:  "I've booked a 30-minute meeting with Sarah for Tuesday,
 
 ### The ReAct Structure
 
-```mermaid
-flowchart TD
-    subgraph Loop["ReAct Loop"]
-        T1["THOUGHT<br/>'I need to find customer order history'"]
-        A1["ACTION<br/>get_customer_orders(customer_id='CUST-789')"]
-        O1["OBSERVATION<br/>[{order_id: 'ORD-123', status: 'shipped'}]"]
-        T2["THOUGHT<br/>'Customer has 2 orders. ORD-123 is shipping.<br/>Let me get tracking details.'"]
-        A2["ACTION<br/>get_tracking(order_id='ORD-123')"]
-        O2["OBSERVATION<br/>{carrier: 'UPS', eta: '2024-03-20'}"]
-        T3["THOUGHT<br/>'I have all the info to answer.'"]
-    end
+**ReAct Loop Example:**
 
-    Answer["ANSWER<br/>'Your order ORD-123 is shipped via UPS,<br/>arriving March 20th.'"]
-
-    T1 --> A1 --> O1 --> T2 --> A2 --> O2 --> T3 --> Answer
-
-    style T1 fill:#e3f2fd
-    style T2 fill:#e3f2fd
-    style T3 fill:#e3f2fd
-    style A1 fill:#fff3e0
-    style A2 fill:#fff3e0
-    style O1 fill:#e8f5e9
-    style O2 fill:#e8f5e9
-    style Answer fill:#f3e5f5
-```
+1. **THOUGHT**: "I need to find customer order history"
+2. **ACTION**: get_customer_orders(customer_id='CUST-789')
+3. **OBSERVATION**: [{order_id: 'ORD-123', status: 'shipped'}]
+4. **THOUGHT**: "Customer has 2 orders. ORD-123 is shipping. Let me get tracking details."
+5. **ACTION**: get_tracking(order_id='ORD-123')
+6. **OBSERVATION**: {carrier: 'UPS', eta: '2024-03-20'}
+7. **THOUGHT**: "I have all the info to answer."
+8. **ANSWER**: "Your order ORD-123 is shipped via UPS, arriving March 20th."
 
 ### Why ReAct Works
 
@@ -311,32 +257,14 @@ for trace in result['traces']:
 
 ### Action Group Architecture
 
-```mermaid
-flowchart TD
-    Agent["Bedrock Agent<br/>'I need to check order status'"]
+**Bedrock Agent Action Groups:**
 
-    subgraph ActionGroups["Action Groups"]
-        subgraph OrderMgmt["Order Management"]
-            O1[getOrderStatus]
-            O2[cancelOrder]
-            O3[listOrders]
-            O4[trackShipment]
-            OS["OpenAPI Schema + Lambda"]
-        end
+Agent: "I need to check order status"
 
-        subgraph CustService["Customer Service"]
-            C1[createTicket]
-            C2[escalateIssue]
-            C3[getTicketHistory]
-            C4[updateCustomer]
-            CS["OpenAPI Schema + Lambda"]
-        end
-    end
-
-    Lambda1["Lambda Function"]
-    Lambda2["Lambda Function"]
-    DB1[("Order Database")]
-    DB2[("Ticketing System")]
+| Action Group | Tools | Backend |
+|--------------|-------|---------|
+| **Order Management** | getOrderStatus, cancelOrder, listOrders, trackShipment | OpenAPI Schema + Lambda → Order Database |
+| **Customer Service** | createTicket, escalateIssue, getTicketHistory, updateCustomer | OpenAPI Schema + Lambda → Ticketing System |
 
     Agent --> ActionGroups
     OS --> Lambda1
@@ -782,32 +710,23 @@ Complex problems often benefit from **multiple specialized agents** working toge
 
 A coordinating agent routes subtasks to appropriate specialists:
 
-```mermaid
-flowchart TD
-    User[/"User Request<br/>'Write a market analysis report for Q1 2024'"/]
+**Multi-Agent Supervisor Pattern:**
 
-    subgraph Supervisor["Supervisor Agent"]
-        S1[Route requests]
-        S2[Aggregate results]
-        S3[Synthesize response]
-    end
+User Request: "Write a market analysis report for Q1 2024"
 
-    subgraph Specialists["Specialist Agents"]
-        Research["Research Agent<br/>• Web search<br/>• Doc lookup<br/>• Summarize"]
-        Analysis["Analysis Agent<br/>• Data crunch<br/>• Statistics<br/>• Trends"]
-        Writing["Writing Agent<br/>• Draft text<br/>• Format<br/>• Edit"]
-    end
+**Supervisor Agent** (routes requests, aggregates results, synthesizes response)
 
-    Response[/"Final Synthesized Report"/]
+↓ Delegates to Specialist Agents ↓
 
-    User --> Supervisor
-    Supervisor --> Research
-    Supervisor --> Analysis
-    Supervisor --> Writing
-    Research --> Supervisor
-    Analysis --> Supervisor
-    Writing --> Supervisor
-    Supervisor --> Response
+| Specialist | Capabilities |
+|------------|--------------|
+| **Research Agent** | Web search, doc lookup, summarize |
+| **Analysis Agent** | Data crunch, statistics, trends |
+| **Writing Agent** | Draft text, format, edit |
+
+↓ Results aggregated by Supervisor ↓
+
+**Final Synthesized Report**
 
     style Supervisor fill:#e3f2fd
     style Research fill:#fff3e0
@@ -896,27 +815,13 @@ async def handle_request(user_input: str, user_id: str, session_id: str):
 
 Agents arranged in sequence where each transforms output and passes it forward:
 
-```mermaid
-flowchart LR
-    Input[/"Input"/]
+**Sequential Pipeline Pattern:**
 
-    subgraph Pipeline["Sequential Pipeline"]
-        direction LR
-        Gather["Gather Agent<br/>Extract raw data<br/>→ Structured data"]
-        Process["Process Agent<br/>Transform & enrich<br/>→ Processed results"]
-        Validate["Validate Agent<br/>Check quality<br/>→ Confidence scores"]
-        Format["Format Agent<br/>Structure output<br/>→ Final deliverable"]
-    end
-
-    Output[/"Output"/]
-
-    Input --> Gather --> Process --> Validate --> Format --> Output
-
-    style Gather fill:#e3f2fd
-    style Process fill:#fff3e0
-    style Validate fill:#e8f5e9
-    style Format fill:#fce4ec
-```
+Input → **Gather Agent** (Extract raw data → Structured data)
+      → **Process Agent** (Transform & enrich → Processed results)
+      → **Validate Agent** (Check quality → Confidence scores)
+      → **Format Agent** (Structure output → Final deliverable)
+      → Output
 
 **Benefits:**
 - Clear data flow
@@ -1359,32 +1264,13 @@ Agents need memory to maintain context across interactions. Without memory, ever
 
 ### Memory Architecture
 
-```mermaid
-flowchart TB
-    subgraph Agent["Agent Memory Types"]
-        direction TB
+**Agent Memory Types:**
 
-        subgraph Session["Session Memory (Short-term)"]
-            S1["• Current conversation context"]
-            S2["• Bedrock session ID maintained automatically"]
-            S3["• Lost when session ends"]
-            S4["• Size limited by context window"]
-            S5["Implementation: sessionId in invoke_agent"]
-        end
-
-        subgraph Persistent["Persistent Memory (Long-term)"]
-            P1["• User preferences and history"]
-            P2["• Past interactions summary"]
-            P3["• Survives across sessions"]
-            P4["• Requires explicit storage/retrieval"]
-            P5["Implementation: DynamoDB + retrieval"]
-        end
-
-        subgraph Semantic["Semantic Memory (Knowledge)"]
-            K1["• Product catalogs, policies, docs"]
-            K2["• Shared across all users"]
-            K3["• Retrieved via RAG"]
-            K4["• Updated independently"]
+| Memory Type | Characteristics | Implementation |
+|-------------|-----------------|----------------|
+| **Session (Short-term)** | Current conversation, lost when session ends, limited by context window | sessionId in invoke_agent |
+| **Persistent (Long-term)** | User preferences, past interactions, survives across sessions | DynamoDB + retrieval |
+| **Semantic (Knowledge)** | Product catalogs, policies, docs, shared across users, retrieved via RAG | Knowledge Bases |
             K5["Implementation: Knowledge Bases"]
         end
     end
@@ -1591,31 +1477,28 @@ Autonomous agents introduce safety concerns that don't exist with simple text ge
 
 ### Defense in Depth Architecture
 
-```mermaid
-flowchart TD
-    Input[/"User Input"/]
+**Agent Safety Layers:**
 
-    subgraph Layer1["Layer 1: Bedrock Guardrails"]
-        G1["• Content filtering (input/output)"]
-        G2["• Prompt injection detection"]
-        G3["• Harmful content blocking"]
-        G4["• Topic restrictions"]
-        G5["• PII detection and redaction"]
-    end
+User Input ↓
 
-    subgraph Layer2["Layer 2: IAM Policies"]
-        I1["• Action-level permissions"]
-        I2["• Resource restrictions"]
-        I3["• Condition-based access"]
-        I4["• Deny rules for sensitive ops"]
-    end
+**Layer 1: Bedrock Guardrails**
+- Content filtering (input/output)
+- Prompt injection detection
+- Harmful content blocking
+- Topic restrictions
+- PII detection and redaction
 
-    subgraph Layer3["Layer 3: Human-in-the-Loop"]
-        H1["• Approval workflows"]
-        H2["• Threshold-based escalation"]
-        H3["• Audit trail requirements"]
-        H4["• Manual override"]
-    end
+**Layer 2: IAM Policies**
+- Action-level permissions
+- Resource restrictions
+- Condition-based access
+- Deny rules for sensitive ops
+
+**Layer 3: Human-in-the-Loop**
+- Approval workflows
+- Threshold-based escalation
+- Audit trail requirements
+- Manual override
 
     subgraph Layer4["Layer 4: Operational Controls"]
         O1["• Session timeouts"]

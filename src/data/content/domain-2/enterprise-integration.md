@@ -26,41 +26,27 @@ GenAI integrations follow two fundamental patterns that determine how systems co
 
 ### Understanding Integration Patterns
 
-```mermaid
-flowchart TD
-    Q1{"User Interaction?"}
+**Decision Tree:**
 
-    Q1 -->|Interactive<br/>User waiting| Q2{"Can tolerate<br/>10-30s latency?"}
-    Q1 -->|Background<br/>No user waiting| Async["ASYNC Pattern<br/>(EventBridge)"]
+1. **Is there a user waiting?**
+   - **No (background)** → Use ASYNC Pattern (EventBridge)
+   - **Yes (interactive)** → Continue to step 2
 
-    Q2 -->|Yes| Sync["SYNC Pattern<br/>(API Gateway)"]
-    Q2 -->|No| Consider["Consider:<br/>• Streaming responses<br/>• Async with webhooks<br/>• Pre-computed/caching"]
-
-    style Sync fill:#c8e6c9
-    style Async fill:#e3f2fd
-    style Consider fill:#fff3e0
-```
+2. **Can the user tolerate 10-30s latency?**
+   - **Yes** → Use SYNC Pattern (API Gateway)
+   - **No** → Consider: Streaming responses, Async with webhooks, Pre-computed/caching
 
 ### Synchronous (API-Based) Integration
 
 The calling system sends a request, **waits** while the model processes, and receives the response directly. This is the most familiar pattern but has unique challenges for GenAI.
 
-```mermaid
-sequenceDiagram
-    participant CRM as Legacy System (CRM)
-    participant API as API Gateway
-    participant Lambda
-    participant Bedrock
-
-    CRM->>API: 1. HTTP Request
-    API->>Lambda: 2. Invoke
-    Lambda->>Lambda: 3. Process Input
-    Lambda->>Bedrock: 4. Invoke Model
-    Bedrock->>Bedrock: 5. Generate Response (2-10s)
-    Bedrock-->>Lambda: Response
-    Lambda-->>API: Result
-    API-->>CRM: 6. HTTP Response (2-15s total)
-```
+**Synchronous Flow:**
+1. Legacy System (CRM) → HTTP Request → API Gateway
+2. API Gateway → Invoke → Lambda
+3. Lambda → Process Input → Invoke Model → Bedrock
+4. Bedrock → Generate Response (2-10s) → Return to Lambda
+5. Lambda → Result → API Gateway → HTTP Response → CRM
+6. **Total time: 2-15 seconds**
 
 **Timing constraints:**
 - Total latency: 2-15 seconds
@@ -150,25 +136,12 @@ Answer:"""
 
 Systems communicate through **events** without direct coupling. Producers publish events; consumers process them in the background. This pattern is essential for GenAI workloads that take time to complete.
 
-```mermaid
-sequenceDiagram
-    participant Source as Source System
-    participant EB as EventBridge
-    participant Lambda as Lambda (GenAI)
-    participant Bedrock
-    participant Store as DynamoDB/S3
-    participant Callback as Original System
-
-    Source->>EB: 1. Publish Event
-    EB-->>Source: Returns immediately
-    Note over Source: "Request accepted"
-
-    EB->>Lambda: 2. Match Rules & Trigger
-    Lambda->>Bedrock: 3. Invoke Model
-    Bedrock-->>Lambda: Response (async)
-    Lambda->>Store: 4. Store Result
-    Store->>Callback: 5. Notify (SNS/Webhook)
-```
+**Asynchronous Flow:**
+1. Source System → Publish Event → EventBridge → Returns immediately ("Request accepted")
+2. EventBridge → Match Rules & Trigger → Lambda (GenAI)
+3. Lambda → Invoke Model → Bedrock → Response
+4. Lambda → Store Result → DynamoDB/S3
+5. DynamoDB/S3 → Notify via SNS/Webhook → Original System
 
 **Timeline:** Returns immediately, result available minutes later
 
@@ -257,37 +230,18 @@ def process_genai_event(event: dict, context):
 
 **AWS AppFlow** provides managed data transfer from SaaS applications to AWS services. This data feeds knowledge bases, provides context for inference, and populates training datasets.
 
-```mermaid
-flowchart TD
-    subgraph Sources["SaaS Sources"]
-        SF["Salesforce<br/>Customers"]
-        SN["ServiceNow<br/>Incidents"]
-        SAP["SAP<br/>Products"]
-    end
+**AppFlow Data Flow:**
 
-    AppFlow["AppFlow<br/>Extract • Transform • Schedule"]
+| SaaS Sources | | AWS Destinations |
+|--------------|---|------------------|
+| Salesforce (Customers) | → AppFlow → | S3 (Raw Data) |
+| ServiceNow (Incidents) | → AppFlow → | Redshift (Analytics) |
+| SAP (Products) | → AppFlow → | OpenSearch (Search) |
 
-    subgraph Destinations["AWS Destinations"]
-        S3["S3<br/>Raw Data"]
-        RS["Redshift<br/>Analytics"]
-        OS["OpenSearch<br/>Search"]
-    end
-
-    KB["Knowledge Base<br/>• Customer records → RAG context<br/>• Incident data → Training examples<br/>• Product info → Grounding data"]
-
-    SF --> AppFlow
-    SN --> AppFlow
-    SAP --> AppFlow
-
-    AppFlow --> S3
-    AppFlow --> RS
-    AppFlow --> OS
-
-    S3 --> KB
-
-    style AppFlow fill:#fff3e0
-    style KB fill:#e8f5e9
-```
+**S3 feeds Knowledge Base:**
+- Customer records → RAG context
+- Incident data → Training examples
+- Product info → Grounding data
 
 **AppFlow handles:**
 - Connection to 40+ SaaS sources
@@ -320,24 +274,12 @@ Enterprise GenAI systems must integrate with existing security frameworks rather
 
 Users authenticate through their **existing systems**—Okta, Azure AD, corporate LDAP—rather than creating new credentials specifically for GenAI applications.
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant App as GenAI Application
-    participant Cognito as Cognito User Pool
-    participant IdP as Enterprise IdP<br/>(Okta, Azure AD)
-    participant Identity as Cognito Identity Pool
-    participant Bedrock
-
-    User->>App: 1. Access GenAI App
-    App->>Cognito: 2. Redirect to Cognito
-    Cognito->>IdP: 3. SAML/OIDC
-    IdP-->>Cognito: Authentication
-    Cognito->>Identity: 4. Issue AWS Credentials
-    Identity->>Identity: Map to IAM Roles
-    Identity->>Bedrock: 5. Access with scoped permissions
-    Note over Bedrock: Specific models<br/>Knowledge bases
-```
+**Identity Federation Flow:**
+1. User → Access GenAI App
+2. App → Redirect to Cognito User Pool
+3. Cognito → SAML/OIDC → Enterprise IdP (Okta, Azure AD) → Authentication
+4. Cognito → Issue AWS Credentials → Cognito Identity Pool → Map to IAM Roles
+5. Identity Pool → Access Bedrock with scoped permissions (specific models, knowledge bases)
 
 **Amazon Cognito** federates identities:
 - **User Pools**: User directory with federation support (SAML, OIDC)
@@ -395,36 +337,13 @@ def get_bedrock_client_for_user(id_token: str) -> Optional[boto3.client]:
 
 Different user groups need different access levels to GenAI resources:
 
-```mermaid
-flowchart TD
-    subgraph Cognito["Cognito User Pool"]
-        Sales["sales-reps<br/>• Customer KB only<br/>• Haiku model<br/>• No config"]
-        Analysts["analysts<br/>• All KB<br/>• Haiku + Sonnet<br/>• Read-only"]
-        Admins["admins<br/>• All models<br/>• All KB<br/>• Configure guardrails"]
-    end
+**RBAC Structure:**
 
-    SalesRole["IAM: SalesRepRole"]
-    AnalystRole["IAM: AnalystRole"]
-    AdminRole["IAM: AdminRole"]
-
-    Sales --> SalesRole
-    Analysts --> AnalystRole
-    Admins --> AdminRole
-
-    subgraph Policies["IAM Policies"]
-        P1["SalesRepRole:<br/>InvokeModel (Haiku)<br/>Retrieve (customer-kb)"]
-        P2["AnalystRole:<br/>*Model (Haiku, Sonnet)<br/>Retrieve (all KB)"]
-        P3["AdminRole:<br/>bedrock:*<br/>bedrock-agent:*"]
-    end
-
-    SalesRole --> P1
-    AnalystRole --> P2
-    AdminRole --> P3
-
-    style Sales fill:#e3f2fd
-    style Analysts fill:#fff3e0
-    style Admins fill:#ffcdd2
-```
+| Cognito Group | IAM Role | Permissions |
+|---------------|----------|-------------|
+| **sales-reps** | SalesRepRole | InvokeModel (Haiku only), Retrieve (customer-kb only) |
+| **analysts** | AnalystRole | InvokeModel (Haiku + Sonnet), Retrieve (all KB), Read-only |
+| **admins** | AdminRole | bedrock:*, bedrock-agent:*, Configure guardrails |
 
 **Sample IAM Policies:**
 
@@ -476,31 +395,15 @@ Least privilege applies doubly to GenAI systems because **both models and data p
 
 **VPC endpoints** keep GenAI traffic within your network perimeter, never traversing the public internet.
 
-```mermaid
-flowchart TB
-    subgraph VPC["Your VPC"]
-        subgraph Private["Private Subnet"]
-            Lambda["Lambda<br/>GenAI App"]
-            EC2["EC2 App<br/>ML Service"]
-            VPCEndpoint1["VPC Endpoint<br/>bedrock-runtime"]
-            VPCEndpoint2["VPC Endpoint<br/>sagemaker.runtime"]
-        end
-    end
+**VPC Integration:**
 
-    subgraph AWS["AWS Services"]
-        Bedrock["Bedrock"]
-        SageMaker["SageMaker"]
-        S3["S3 (gateway)"]
-    end
+| Your VPC (Private Subnet) | VPC Endpoint | AWS Service |
+|---------------------------|--------------|-------------|
+| Lambda (GenAI App) | bedrock-runtime | → Bedrock (via PrivateLink) |
+| EC2 App (ML Service) | sagemaker.runtime | → SageMaker (via PrivateLink) |
+| Any resource | S3 Gateway | → S3 |
 
-    Lambda --> VPCEndpoint1
-    EC2 --> VPCEndpoint2
-    VPCEndpoint1 -->|"PrivateLink<br/>(AWS backbone)"| Bedrock
-    VPCEndpoint2 -->|"PrivateLink<br/>(AWS backbone)"| SageMaker
-
-    style Private fill:#e3f2fd
-    style AWS fill:#e8f5e9
-```
+**Traffic stays on AWS backbone - never public internet**
 
 **Creating VPC Endpoints:**
 
@@ -539,26 +442,14 @@ Not all GenAI workloads can run in standard AWS regions. Some organizations have
 
 **Outposts** brings AWS infrastructure to your data center. Run SageMaker endpoints locally, keeping sensitive data on-premises while using familiar AWS APIs and tools.
 
-```mermaid
-flowchart LR
-    subgraph DataCenter["Your Data Center"]
-        subgraph Outpost["AWS Outpost"]
-            SM["SageMaker Endpoint<br/>Custom Model for<br/>Sensitive Data"]
-            LocalS3["Local S3<br/>Sensitive docs"]
-        end
-        Note1["Data never leaves premises"]
-    end
+**Hybrid Architecture with Outposts:**
 
-    subgraph Cloud["AWS Cloud"]
-        Bedrock["Bedrock<br/>Non-sensitive queries"]
-        Control["Control Plane<br/>Management, Monitoring"]
-    end
+| Location | Components | Data Type |
+|----------|------------|-----------|
+| **Your Data Center (Outpost)** | SageMaker Endpoint, Local S3 | Sensitive data (never leaves premises) |
+| **AWS Cloud** | Bedrock, Control Plane | Non-sensitive queries, Management/Monitoring |
 
-    Outpost <-->|"Hybrid"| Cloud
-
-    style Outpost fill:#e3f2fd
-    style Cloud fill:#e8f5e9
-```
+**Hybrid connectivity** links on-premises Outpost to cloud services
 
 **Outposts Use Cases:**
 - **Regulatory requirements**: Data must stay on-premises
@@ -570,25 +461,13 @@ flowchart LR
 
 **Wavelength** delivers inference at the **network edge** for applications requiring single-digit millisecond latency. Wavelength zones exist within carrier (5G) networks, putting compute physically close to mobile and IoT devices.
 
-```mermaid
-flowchart TD
-    subgraph Mobile["5G/Mobile Network"]
-        Device1["Mobile Device"]
-        Device2["IoT Sensor"]
-        Device3["AR/VR Device"]
-    end
+**Wavelength Edge Architecture:**
 
-    subgraph Wavelength["Wavelength Zone (Carrier Edge)"]
-        EC2["EC2 Instance<br/>Real-time Inference"]
-        SM["SageMaker Endpoint<br/><10ms latency"]
-    end
-
-    Device1 --> Wavelength
-    Device2 --> Wavelength
-    Device3 --> Wavelength
-
-    style Wavelength fill:#fff3e0
-```
+| Device Type | → | Wavelength Zone (Carrier Edge) |
+|-------------|---|-------------------------------|
+| Mobile Device | → | EC2 Instance (Real-time Inference) |
+| IoT Sensor | → | SageMaker Endpoint (<10ms latency) |
+| AR/VR Device | → | |
 
 **Latency:** 5-10ms (vs 50-100ms to region)
 
@@ -685,52 +564,27 @@ GenAI applications require CI/CD pipelines that address challenges beyond tradit
 
 ### GenAI Pipeline Architecture
 
-```mermaid
-flowchart TD
-    subgraph Source["SOURCE"]
-        Code["Application Code"]
-        Prompts["Prompts & Config"]
-        Guardrails["Guardrail Config"]
-    end
+**GenAI CI/CD Pipeline:**
 
-    Repo["CodeCommit / GitHub"]
+**1. SOURCE** → CodeCommit/GitHub
+- Application Code
+- Prompts & Config
+- Guardrail Config
 
-    subgraph Build["BUILD (CodeBuild)"]
-        B1["1. Unit tests"]
-        B2["2. Lint prompts"]
-        B3["3. Validate guardrails"]
-        B4["4. Build containers"]
-    end
+**2. BUILD** (CodeBuild)
+- Unit tests
+- Lint prompts
+- Validate guardrails
+- Build containers
 
-    subgraph Testing["GENAI-SPECIFIC TESTING"]
-        T1["Prompt Regression<br/>Golden datasets"]
-        T2["Quality Metrics<br/>BLEU/ROUGE"]
-        T3["Security Scanning<br/>Injection detection"]
-        Gate{"Quality Gate<br/>Pass thresholds?"}
-    end
+**3. GENAI-SPECIFIC TESTING**
+- Prompt Regression (golden datasets)
+- Quality Metrics (BLEU/ROUGE)
+- Security Scanning (injection detection)
 
-    Staging["Deploy Staging"]
-    Alert["Alert & Stop"]
-    Approval["Manual Approval"]
-    Prod["Deploy Prod"]
-
-    Code --> Repo
-    Prompts --> Repo
-    Guardrails --> Repo
-    Repo --> Build
-    Build --> Testing
-    T1 --> Gate
-    T2 --> Gate
-    T3 --> Gate
-    Gate -->|Pass| Staging
-    Gate -->|Fail| Alert
-    Staging --> Approval
-    Approval --> Prod
-
-    style Source fill:#e3f2fd
-    style Build fill:#fff3e0
-    style Testing fill:#e8f5e9
-```
+**4. QUALITY GATE**
+- Pass thresholds? → Deploy Staging → Manual Approval → Deploy Prod
+- Fail? → Alert & Stop
 
 ### GenAI-Specific Testing
 
@@ -909,25 +763,20 @@ def test_prompt_injection_resistance(
 
 GenAI outputs are **probabilistic**—quality degradation might not be immediately obvious. Use deployment strategies that allow gradual rollout and quick rollback.
 
-```mermaid
-flowchart TD
-    API["API Gateway"]
+**Canary Deployment for GenAI:**
 
-    API -->|"95%"| V1["Lambda v1 (Current)<br/>Stable prompts"]
-    API -->|"5%"| V2["Lambda v2 (Canary)<br/>New prompts"]
+| Version | Traffic | Description |
+|---------|---------|-------------|
+| Lambda v1 (Current) | 95% | Stable prompts |
+| Lambda v2 (Canary) | 5% | New prompts |
 
-    V1 --> M1["CloudWatch Metrics<br/>• Latency<br/>• Error rate<br/>• Quality score<br/>• User rating"]
-    V2 --> M2["CloudWatch Metrics<br/>• Latency<br/>• Error rate<br/>• Quality score<br/>• User rating"]
+**CloudWatch Metrics for both versions:**
+- Latency
+- Error rate
+- Quality score
+- User rating
 
-    M1 <-->|"Compare"| M2
-
-    Rollback["Automatic rollback if<br/>canary metrics degrade"]
-
-    M2 -.-> Rollback
-
-    style V1 fill:#c8e6c9
-    style V2 fill:#fff3e0
-```
+**Compare metrics** → Automatic rollback if canary degrades
 
 ---
 

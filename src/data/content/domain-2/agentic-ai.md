@@ -42,15 +42,14 @@ The defining characteristics of agentic systems are:
 
 All agentic systems share a common structure, often called the **agent loop**:
 
-```mermaid
-flowchart LR
-    Perceive["PERCEIVE<br/>User request,<br/>context"] --> Reason["REASON<br/>What action<br/>helps?"]
-    Reason --> Act["ACT<br/>Execute<br/>tool call"]
-    Act --> Observe["OBSERVE<br/>Process results,<br/>update state"]
-    Observe --> Goal{"GOAL<br/>ACHIEVED?"}
-    Goal -->|YES| Response["Return final<br/>response to user"]
-    Goal -->|NO| Reason
-```
+**The Agent Loop:**
+1. **PERCEIVE** → User request, context
+2. **REASON** → What action helps?
+3. **ACT** → Execute tool call
+4. **OBSERVE** → Process results, update state
+5. **GOAL ACHIEVED?**
+   - YES → Return final response to user
+   - NO → Loop back to REASON
 
 1. **Perceive**: The agent receives input—user request, current state, available tools, any constraints
 2. **Reason**: The agent thinks about what action would help achieve the goal given current knowledge
@@ -249,14 +248,10 @@ In production, the simple loop above needs additional capabilities:
 
 **Step Functions for orchestration** provides retry logic, timeout handling, error catching, and audit trails that the simple Python loop lacks:
 
-```mermaid
-flowchart TD
-    Invoke["Invoke Model"] --> Parse["Parse Response"]
-    Parse --> Execute["Execute Tools"]
-    Execute --> Check{"Check Complete"}
-    Check -->|NO| Invoke
-    Check -->|YES| Return["Return Response"]
-```
+**Step Functions ReAct Workflow:**
+1. Invoke Model → 2. Parse Response → 3. Execute Tools → 4. Check Complete?
+   - NO → Loop back to step 1
+   - YES → Return Response
 
 **Iteration limits** prevent runaway agents from looping indefinitely. Set reasonable maximums (10-20 iterations for most tasks) and handle the "max iterations exceeded" case gracefully.
 
@@ -274,22 +269,17 @@ Before the Model Context Protocol, every AI system had its own way of connecting
 
 ### MCP Architecture
 
-```mermaid
-flowchart LR
-    subgraph Agent["AI Agent"]
-        Client["MCP Client"]
-    end
+**MCP Architecture:**
 
-    subgraph Servers["MCP Servers (Tool Providers)"]
-        DB["Database Server<br/>• query()<br/>• schema()"]
-        Cal["Calendar Server<br/>• getEvents()<br/>• createEvent()"]
-        Web["Web Search Server<br/>• search()<br/>• fetch()"]
-    end
+**AI Agent** (MCP Client) ↔ JSON-RPC over stdio/HTTP ↔ **MCP Servers**
 
-    Client <-->|"JSON-RPC over<br/>stdio/HTTP"| DB
-    Client <-->|"Tool Discovery<br/>Tool Invocation<br/>Tool Results"| Cal
-    Client <--> Web
-```
+| MCP Server | Tools Provided |
+|------------|----------------|
+| Database Server | query(), schema() |
+| Calendar Server | getEvents(), createEvent() |
+| Web Search Server | search(), fetch() |
+
+**Protocol:** Tool Discovery → Tool Invocation → Tool Results
 
 **MCP Client**: Runs within the agent runtime. It handles connecting to MCP servers, discovering available tools, translating agent requests to MCP format, and parsing responses.
 
@@ -375,16 +365,15 @@ Complex tasks often exceed what any single agent can handle effectively. A custo
 
 The most common multi-agent architecture uses a **supervisor agent** that coordinates specialists:
 
-```mermaid
-flowchart TD
-    User["User Request"] --> Supervisor
+**Supervisor Pattern:**
 
-    Supervisor["SUPERVISOR AGENT<br/>'Who should handle this?'"]
+User Request → **SUPERVISOR AGENT** ("Who should handle this?")
 
-    Supervisor --> Order["ORDER AGENT<br/>• Status<br/>• Returns<br/>• Tracking"]
-    Supervisor --> Tech["TECH AGENT<br/>• Troubleshoot<br/>• Config"]
-    Supervisor --> Billing["BILLING AGENT<br/>• Invoices<br/>• Payments<br/>• Refunds"]
-```
+| Specialist Agent | Capabilities |
+|------------------|--------------|
+| ORDER AGENT | Status, Returns, Tracking |
+| TECH AGENT | Troubleshoot, Config |
+| BILLING AGENT | Invoices, Payments, Refunds |
 
 **How it works:**
 1. User request arrives at the supervisor
@@ -406,12 +395,11 @@ flowchart TD
 
 In some scenarios, decentralized coordination works better. Agents communicate directly with each other, sharing information and delegating work as needed:
 
-```mermaid
-flowchart TD
-    Research["RESEARCH AGENT"] <--> Analysis["ANALYSIS AGENT"]
-    Research --> Shared["SHARED STATE<br/>EventBridge<br/>or DynamoDB"]
-    Analysis --> Shared
-```
+**Peer-to-Peer Pattern:**
+
+RESEARCH AGENT ↔ ANALYSIS AGENT
+       ↓                ↓
+   **SHARED STATE** (EventBridge or DynamoDB)
 
 **How it works:**
 1. Agents publish events describing their work, needs, or findings

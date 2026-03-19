@@ -14,29 +14,11 @@ AWS provides managed services for common integration patterns—from Amplify UI 
 
 **The Integration Spectrum**:
 
-```mermaid
-flowchart LR
-    subgraph Simple["Simple (Weeks)"]
-        S1["Q Business"]
-        S2["Q Developer"]
-        S3["Prompt Flows"]
-        S4["Limited customization<br/>Lower maintenance"]
-    end
-
-    subgraph Medium["Medium (Months)"]
-        M1["Custom RAG"]
-        M2["Amplify + Bedrock"]
-        M3["Lambda Integration"]
-    end
-
-    subgraph Complex["Complex (Quarters)"]
-        C1["Multi-Agent<br/>Orchestration"]
-        C2["Custom Pipelines"]
-        C3["Full control<br/>Higher maintenance"]
-    end
-
-    Simple --> Medium --> Complex
-```
+| Timeline | Options | Trade-offs |
+|----------|---------|------------|
+| **Simple (Weeks)** | Q Business, Q Developer, Prompt Flows | Limited customization, lower maintenance |
+| **Medium (Months)** | Custom RAG, Amplify + Bedrock, Lambda Integration | Moderate customization |
+| **Complex (Quarters)** | Multi-Agent Orchestration, Custom Pipelines | Full control, higher maintenance |
 
 ---
 
@@ -247,20 +229,10 @@ function SupportChat() {
 
 **Bedrock Prompt Flows** enables **non-developers** to build AI workflows visually, accelerating experimentation by removing the developer bottleneck for simple automation.
 
-```mermaid
-flowchart LR
-    Input["Input<br/>Node"] --> Prompt["Prompt<br/>Template"]
-    Prompt --> Model["Model<br/>Node"]
-    Model --> Parser["Parser<br/>Node"]
-    Parser --> Condition["Condition<br/>Node"]
-    Condition --> Output["Output<br/>Node"]
+**Prompt Flow Structure:**
+Input Node → Prompt Template → Model Node → Parser Node → Condition Node → Output Node
 
-    subgraph NodeTypes["Available Node Types"]
-        N1["Input | Prompt | Model"]
-        N2["Condition | Output"]
-        N3["Knowledge Base | Lambda | S3"]
-    end
-```
+**Available Node Types:** Input, Prompt, Model, Condition, Output, Knowledge Base, Lambda, S3
 
 **Prompt Flow Node Types**:
 
@@ -401,29 +373,19 @@ GenAI adds intelligence to business processes across the enterprise. The key is 
 
 **Q Business** provides enterprise knowledge assistance **without requiring you to build custom RAG pipelines**.
 
-```mermaid
-flowchart TD
-    subgraph Sources["Data Sources (40+ Connectors)"]
-        SharePoint & Confluence & Slack & Salesforce
-        S3 & Box & Jira & Zendesk
-    end
+**Q Business Architecture:**
 
-    Sources --> Ingestion["Ingestion Pipeline"]
+**Data Sources (40+ Connectors):** SharePoint, Confluence, Slack, Salesforce, S3, Box, Jira, Zendesk
 
-    Ingestion --> Chunk["Chunking<br/>(Automatic)"]
-    Ingestion --> Embed["Embedding<br/>(Automatic)"]
-    Ingestion --> Index["Indexing<br/>(Automatic)"]
+↓ **Ingestion Pipeline** ↓
 
-    Chunk & Embed & Index --> Engine["Answer Engine"]
+**Automatic Processing:** Chunking → Embedding → Indexing
 
-    Engine --> Web["Web App"]
-    Engine --> SlackBot["Slack Bot"]
-    Engine --> TeamsBot["Teams Bot"]
+↓ **Answer Engine** ↓
 
-    subgraph IAM["IAM Identity Center"]
-        ACL["ACLs from source systems<br/>respected automatically"]
-    end
-```
+**Output Channels:** Web App, Slack Bot, Teams Bot
+
+**Security:** IAM Identity Center - ACLs from source systems respected automatically
 
 **What Q Business handles automatically:**
 
@@ -468,21 +430,18 @@ flowchart TD
 
 **Bedrock Data Automation** addresses document-heavy workflows, transforming manual document processing into automated pipelines.
 
-```mermaid
-flowchart TD
-    S3["S3 Input"] --> SF
+**Document Processing Pipeline:**
 
-    subgraph SF["Step Functions"]
-        Textract["Textract<br/>OCR for scanned docs"]
-        Textract --> Comprehend["Comprehend<br/>Classify document type"]
-        Comprehend --> Bedrock["Bedrock<br/>Extract and summarize"]
-        Bedrock --> Logic["Business Logic<br/>Route to system"]
-    end
+S3 Input → **Step Functions Workflow:**
+1. Textract (OCR for scanned docs)
+2. Comprehend (Classify document type)
+3. Bedrock (Extract and summarize)
+4. Business Logic (Route to system)
 
-    Logic --> ERP["ERP<br/>(Invoice)"]
-    Logic --> CRM["CRM<br/>(Contract)"]
-    Logic --> Archive["Archive<br/>(Other)"]
-```
+**Output Routing:**
+- Invoice → ERP
+- Contract → CRM
+- Other → Archive
 
 **Document Processing Implementation**:
 
@@ -631,28 +590,15 @@ class DocumentProcessor:
 
 Lambda functions call Bedrock from CRM triggers, enabling AI enhancement of existing business processes:
 
-```mermaid
-flowchart LR
-    subgraph CRM["CRM Events"]
-        Case["New Case Created"]
-        Email["Email Received"]
-        Status["Status Change"]
-    end
+**CRM-GenAI Integration:**
 
-    subgraph AI["AI Actions"]
-        Summarize["Summarize History"]
-        Draft["Draft Response"]
-        Sentiment["Analyze Sentiment"]
-    end
+| CRM Event | → EventBridge → | AI Action |
+|-----------|-----------------|-----------|
+| New Case Created | → | Summarize History |
+| Email Received | → | Draft Response |
+| Status Change | → | Analyze Sentiment |
 
-    Case -->|EventBridge| Summarize
-    Email -->|EventBridge| Draft
-    Status -->|EventBridge| Sentiment
-
-    subgraph Integration["Lambda Integration"]
-        EB["EventBridge"] --> Lambda --> Bedrock --> CRMAPI["CRM API<br/>(Update)"]
-    end
-```
+**Integration Flow:** EventBridge → Lambda → Bedrock → CRM API (Update)
 
 ```python
 import boto3
@@ -772,28 +718,18 @@ GenAI transforms developer workflows just as it transforms end-user applications
 
 **Q Developer** integrates AI coding assistance directly into IDEs, understanding your codebase context to provide relevant suggestions.
 
-```mermaid
-flowchart TB
-    subgraph IDE["IDE Integration"]
-        IDEs["VS Code • JetBrains • Visual Studio • CLI"]
-    end
+**Q Developer Capabilities:**
 
-    subgraph Capabilities["Q Developer Capabilities"]
-        subgraph Row1[" "]
-            CodeGen["Code Generation<br/>• Functions<br/>• Classes<br/>• Tests<br/>• Refactoring"]
-            Explain["Explain & Document<br/>• Code explain<br/>• Docstrings<br/>• README<br/>• Comments"]
-            Security["Security Scanning<br/>• Vuln detect<br/>• Fix suggest<br/>• Dependency<br/>• OWASP check"]
-        end
+**IDE Integration:** VS Code, JetBrains, Visual Studio, CLI
 
-        subgraph Row2[" "]
-            Debug["Debug Assistance<br/>• Error explain<br/>• Stack trace<br/>• Fix suggest<br/>• Log analysis"]
-            AWS["AWS SDK Assistance<br/>• Service help<br/>• IAM policies<br/>• CDK/CFN<br/>• Best practice"]
-            Transform["Transform & Upgrade<br/>• Language upgrade<br/>• Framework migration"]
-        end
-    end
-
-    IDE --> Capabilities
-```
+| Capability | Features |
+|------------|----------|
+| **Code Generation** | Functions, Classes, Tests, Refactoring |
+| **Explain & Document** | Code explain, Docstrings, README, Comments |
+| **Security Scanning** | Vuln detect, Fix suggest, Dependency, OWASP check |
+| **Debug Assistance** | Error explain, Stack trace, Fix suggest, Log analysis |
+| **AWS SDK Assistance** | Service help, IAM policies, CDK/CFN, Best practice |
+| **Transform & Upgrade** | Language upgrade, Framework migration |
 
 **Q Developer Feature Comparison**:
 
@@ -887,25 +823,21 @@ Complex applications combine multiple AI capabilities into sophisticated workflo
 
 **Strands Agents SDK** combined with **Agent Squad** enables specialized agents collaborating:
 
-```mermaid
-flowchart TD
-    Supervisor["Agent Squad<br/>(Supervisor)"]
+**Multi-Agent Architecture:**
 
-    Supervisor --> Customer["Customer Agent<br/>• Profile<br/>• History<br/>• Preferences"]
-    Supervisor --> Inventory["Inventory Agent<br/>• Stock<br/>• Warehouse<br/>• Forecast"]
-    Supervisor --> Order["Order Agent<br/>• Create<br/>• Track<br/>• Cancel"]
+**Agent Squad (Supervisor)** routes to specialized agents:
 
-    Customer --> CustDB["Customer Database"]
-    Inventory --> InvSys["Inventory System"]
-    Order --> OrderSys["Order System"]
+| Agent | Capabilities | Backend |
+|-------|--------------|---------|
+| Customer Agent | Profile, History, Preferences | Customer Database |
+| Inventory Agent | Stock, Warehouse, Forecast | Inventory System |
+| Order Agent | Create, Track, Cancel | Order System |
 
-    subgraph Routes["Supervisor Routes"]
-        R1["'Order status?' → Order Agent"]
-        R2["'In stock?' → Inventory Agent"]
-        R3["'Update address' → Customer Agent"]
-        R4["'Order X' → All Agents"]
-    end
-```
+**Routing Examples:**
+- "Order status?" → Order Agent
+- "In stock?" → Inventory Agent
+- "Update address" → Customer Agent
+- "Order X" → All Agents collaborate
 
 ### Prompt Chaining
 

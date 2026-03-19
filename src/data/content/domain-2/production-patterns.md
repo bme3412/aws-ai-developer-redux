@@ -10,38 +10,18 @@ Building a GenAI proof-of-concept that impresses stakeholders is surprisingly ea
 
 **The Production Reality**: Most GenAI failures in production aren't model failures—they're **system failures**. Token limits hit unexpectedly, rate limits cause cascading timeouts, costs spiral due to retry storms, and users abandon apps waiting for responses.
 
-```mermaid
-flowchart LR
-    subgraph PoC["PROOF OF CONCEPT"]
-        P1["• Single model call"]
-        P2["• No error handling"]
-        P3["• Unlimited budget"]
-        P4["• One happy path"]
-        P5["• Manual testing"]
-        P6["• Dev machine only"]
-        P7["• Print debugging"]
-        P8["• No security"]
-    end
+| PROOF OF CONCEPT | → | PRODUCTION SYSTEM |
+|------------------|---|-------------------|
+| Single model call | → | Fallback chains |
+| No error handling | → | Circuit breakers |
+| Unlimited budget | → | Token quotas |
+| One happy path | → | Graceful degradation |
+| Manual testing | → | Auto quality QA |
+| Dev machine only | → | Auto-scaling |
+| Print debugging | → | Distributed tracing |
+| No security | → | Defense in depth |
 
-    Gap["THE GAP<br/>This section<br/>bridges it"]
-
-    subgraph Prod["PRODUCTION SYSTEM"]
-        R1["• Fallback chains"]
-        R2["• Circuit breakers"]
-        R3["• Token quotas"]
-        R4["• Graceful degrade"]
-        R5["• Auto quality QA"]
-        R6["• Auto-scaling"]
-        R7["• Distributed trace"]
-        R8["• Defense in depth"]
-    end
-
-    PoC --> Gap --> Prod
-
-    style PoC fill:#ffcdd2
-    style Gap fill:#fff3e0
-    style Prod fill:#c8e6c9
-```
+**This section bridges the gap.**
 
 This deep dive bridges that gap. We'll explore the patterns that distinguish prototype code from production-grade systems, with specific AWS implementations for each.
 
@@ -55,27 +35,13 @@ Every interaction with a foundation model is an API call that can fail. Producti
 
 When a model endpoint starts failing, continuing to send requests **makes things worse**. Circuit breakers prevent cascade failures by "opening" when failures exceed a threshold.
 
-```mermaid
-stateDiagram-v2
-    [*] --> CLOSED
+**Circuit Breaker States:**
 
-    CLOSED --> OPEN : failure_threshold exceeded
-    CLOSED --> CLOSED : success (reset counter)
-
-    OPEN --> HALF_OPEN : timeout expires
-
-    HALF_OPEN --> CLOSED : success
-    HALF_OPEN --> OPEN : failure
-
-    CLOSED : Normal operation
-    CLOSED : Process all requests
-
-    OPEN : Fast-fail mode
-    OPEN : Reject all requests
-
-    HALF_OPEN : Test mode
-    HALF_OPEN : Allow one request
-```
+| State | Behavior | Transitions |
+|-------|----------|-------------|
+| **CLOSED** | Normal operation, process all requests | → OPEN (failure threshold exceeded), stay CLOSED (success resets counter) |
+| **OPEN** | Fast-fail mode, reject all requests | → HALF_OPEN (timeout expires) |
+| **HALF_OPEN** | Test mode, allow one request | → CLOSED (success), → OPEN (failure) |
 
 **Circuit Breaker Implementation**:
 
@@ -217,27 +183,12 @@ def invoke_bedrock_with_circuit_breaker(prompt: str) -> str:
 
 Retrying failed requests is essential, but naive retries create **retry storms** that overwhelm both your system and the model endpoint.
 
-```mermaid
-flowchart TB
-    subgraph Naive["Naive Retry - Synchronized Storm"]
-        direction LR
-        N1["0s: All clients retry"] --> N2["1s: All clients retry"] --> N3["2s: All clients retry"]
-        N4["Server OVERWHELMED"]
-    end
+**Naive Retry vs Exponential Backoff:**
 
-    subgraph Jitter["Exponential Backoff with Jitter"]
-        direction LR
-        J1["0s: Initial failures"]
-        J2["Retries spread across time"]
-        J3["Server can recover"]
-    end
-
-    Naive -.->|"Problem"| N4
-    Jitter -.->|"Solution"| J3
-
-    style Naive fill:#ffcdd2
-    style Jitter fill:#c8e6c9
-```
+| Approach | Behavior | Result |
+|----------|----------|--------|
+| **Naive Retry** | 0s: All retry → 1s: All retry → 2s: All retry | Server OVERWHELMED |
+| **Exponential Backoff with Jitter** | 0s: Initial failures → Retries spread across time | Server can recover |
 
 **Formula:** `delay = base_delay × (2 ^ attempt) × random(0.5, 1.5)`
 
@@ -352,33 +303,17 @@ def invoke_model_with_retry(prompt: str, model_id: str) -> str:
 
 Production systems shouldn't depend on a single model:
 
-```mermaid
-flowchart TD
-    Request[/"Request"/]
-    Primary["Primary Model<br/>(Claude Sonnet)"]
-    Secondary["Secondary Model<br/>(Claude Haiku)"]
-    Tertiary["Tertiary Model<br/>(Amazon Titan)"]
-    Cache["Semantic Cache"]
-    Fallback["Static Fallback"]
-    Response[/"Return Response"/]
+**Model Fallback Chain:**
 
-    Request --> Primary
-    Primary -->|Success| Response
-    Primary -->|Failure| Secondary
-    Secondary -->|Success| Response
-    Secondary -->|Failure| Tertiary
-    Tertiary -->|Success| Response
-    Tertiary -->|Failure| Cache
-    Cache -->|Hit| Response
-    Cache -->|Miss| Fallback
-    Fallback --> Response
-
-    style Primary fill:#e3f2fd
-    style Secondary fill:#fff3e0
-    style Tertiary fill:#e8f5e9
-    style Cache fill:#fce4ec
-    style Fallback fill:#f5f5f5
-```
+Request → Primary (Claude Sonnet)
+  - Success → Response
+  - Failure → Secondary (Claude Haiku)
+    - Success → Response
+    - Failure → Tertiary (Amazon Titan)
+      - Success → Response
+      - Failure → Semantic Cache
+        - Hit → Response
+        - Miss → Static Fallback → Response
 
 **Model Priority Configuration:**
 
@@ -512,24 +447,12 @@ LLM calls are expensive and slow. Traditional caching requires exact matches, bu
 
 ### Why Semantic Caching?
 
-```mermaid
-flowchart LR
-    subgraph Exact["Exact Cache (Hash-based)<br/>Hit Rate: ~20%"]
-        E1["Only exact string matches"]
-        E2["Most queries = MISS"]
-    end
+**Caching Comparison:**
 
-    subgraph Semantic["Semantic Cache (Embedding-based)<br/>Hit Rate: 60-80%"]
-        S1["Vector similarity matching"]
-        S2["Similar intent = HIT"]
-    end
-
-    Exact -.->|"Problem"| E2
-    Semantic -.->|"Solution"| S2
-
-    style Exact fill:#ffcdd2
-    style Semantic fill:#c8e6c9
-```
+| Cache Type | Hit Rate | Matching |
+|------------|----------|----------|
+| **Exact Cache** (hash-based) | ~20% | Only exact string matches → Most queries = MISS |
+| **Semantic Cache** (embedding-based) | 60-80% | Vector similarity matching → Similar intent = HIT |
 
 **Exact Cache Example:**
 | Query | Result |
@@ -732,23 +655,11 @@ Token costs can spiral without proper guardrails. Production systems need token 
 
 ### Token Budget Architecture
 
-```mermaid
-flowchart TB
-    subgraph L4["Level 4: ACCOUNT (AWS Budgets)"]
-        subgraph L3["Level 3: APPLICATION"]
-            subgraph L2["Level 2: USER"]
-                subgraph L1["Level 1: REQUEST"]
-                    R1["Token estimation"]
-                end
-            end
-        end
-    end
-
-    style L4 fill:#e3f2fd
-    style L3 fill:#fff3e0
-    style L2 fill:#e8f5e9
-    style L1 fill:#fce4ec
-```
+**Cost Control Hierarchy (outer to inner):**
+- **Level 4: ACCOUNT** (AWS Budgets)
+  - **Level 3: APPLICATION** (App budget/limits)
+    - **Level 2: USER** (Per-user quotas)
+      - **Level 1: REQUEST** (Token estimation)
 
 **Level Details:**
 
@@ -983,23 +894,12 @@ class UserQuotaManager:
 
 Users perceive streaming responses as **significantly faster**, even when total time is similar. Production apps should always stream long-form responses.
 
-```mermaid
-gantt
-    title Response Timeline Comparison
-    dateFormat X
-    axisFormat %s
+**Response Timeline Comparison:**
 
-    section Buffered
-    Waiting (blank screen)    :0, 5
-    Response arrives          :5, 5
-
-    section Streaming
-    First token (200ms)       :0, 0.2
-    25% complete              :0.2, 1.5
-    50% complete              :1.5, 3
-    75% complete              :3, 4
-    100% complete             :4, 5
-```
+| Pattern | Timeline | User Experience |
+|---------|----------|-----------------|
+| **Buffered** | 0-5s: blank screen, 5s: response arrives | User thinks "Is it broken?" - abandons after 2-3s |
+| **Streaming** | 200ms: first token, then progressive (25%→50%→75%→100%) | Words appear like human typing, user stays engaged |
 
 **Buffered Response:**
 - User sees blank screen for 5 seconds
@@ -1159,32 +1059,18 @@ You can't improve what you can't measure. Production GenAI systems need comprehe
 
 ### GenAI Observability Architecture
 
-```mermaid
-flowchart TD
-    subgraph App["Application Layer"]
-        Request["Request Handler"]
-        RAG["RAG Retrieval"]
-        LLM["LLM Invocation"]
-        Response["Response"]
+**Observability Architecture:**
 
-        Request --> RAG --> LLM --> Response
-    end
+**Application Layer:** Request Handler → RAG Retrieval → LLM Invocation → Response
 
-    Instrumentation["Instrumentation Layer"]
+↓ Instrumentation Layer ↓
 
-    App --> Instrumentation
+**Observability Outputs:**
+- X-Ray Traces
+- CloudWatch Metrics
+- CloudWatch Logs
 
-    subgraph Outputs["Observability Outputs"]
-        XRay["X-Ray Traces"]
-        Metrics["CloudWatch Metrics"]
-        Logs["CloudWatch Logs"]
-    end
-
-    Instrumentation --> XRay
-    Instrumentation --> Metrics
-    Instrumentation --> Logs
-
-    subgraph Views["Analysis Views"]
+**Analysis Views:**
         ServiceMap["Service Map<br/>Trace paths, bottlenecks"]
         Dashboard["Dashboards<br/>Request vol, P99 latency"]
         Alarms["Alarms<br/>Error rate, cost limits"]
@@ -1502,25 +1388,15 @@ When systems fail—and they will—production apps should degrade gracefully ra
 
 ### Degradation Levels
 
-```mermaid
-flowchart TD
-    L0["Level 0: NORMAL<br/>100% - All systems operational"]
-    L1["Level 1: DEGRADED_RAG<br/>75% - KB unavailable"]
-    L2["Level 2: DEGRADED_MODEL<br/>50% - Using fallback model"]
-    L3["Level 3: CACHE_ONLY<br/>25% - Cached responses only"]
-    L4["Level 4: OFFLINE<br/>0% - Static messages only"]
+**Graceful Degradation Levels:**
 
-    L0 -->|"RAG system degraded"| L1
-    L1 -->|"Primary model unavailable"| L2
-    L2 -->|"All models unavailable"| L3
-    L3 -->|"Cache unavailable"| L4
-
-    style L0 fill:#c8e6c9
-    style L1 fill:#fff3e0
-    style L2 fill:#fff3e0
-    style L3 fill:#ffecb3
-    style L4 fill:#ffcdd2
-```
+| Level | Status | Capability | Trigger |
+|-------|--------|------------|---------|
+| **0: NORMAL** | 100% | All systems operational | - |
+| **1: DEGRADED_RAG** | 75% | KB unavailable | RAG system degraded |
+| **2: DEGRADED_MODEL** | 50% | Using fallback model | Primary model unavailable |
+| **3: CACHE_ONLY** | 25% | Cached responses only | All models unavailable |
+| **4: OFFLINE** | 0% | Static messages only | Cache unavailable |
 
 **Degradation Level Details:**
 
@@ -1691,31 +1567,27 @@ Production GenAI systems face unique security challenges including prompt inject
 
 ### Security Layers
 
-```mermaid
-flowchart TD
-    Internet["INTERNET"]
+**Defense in Depth for GenAI:**
 
-    subgraph L1["Layer 1: Network Security"]
-        N1["VPC endpoints for Bedrock"]
-        N2["Security groups, WAF, private subnets"]
-    end
+INTERNET ↓
 
-    subgraph L2["Layer 2: Identity & Access"]
-        I1["IAM roles with least privilege"]
-        I2["Cognito auth, API key rotation"]
-    end
+**Layer 1: Network Security**
+- VPC endpoints for Bedrock
+- Security groups, WAF, private subnets
 
-    subgraph L3["Layer 3: Input Validation"]
-        V1["Length limits, content validation"]
-        V2["Prompt injection detection, rate limiting"]
-    end
+**Layer 2: Identity & Access**
+- IAM roles with least privilege
+- Cognito auth, API key rotation
 
-    LLM["BEDROCK / LLM"]
+**Layer 3: Input Validation**
+- Length limits, content validation
+- Prompt injection detection, rate limiting
 
-    subgraph L4["Layer 4: Output Filtering"]
-        O1["Bedrock Guardrails"]
-        O2["PII detection, harmful content filtering"]
-    end
+↓ BEDROCK / LLM ↓
+
+**Layer 4: Output Filtering**
+- Bedrock Guardrails
+- PII detection, harmful content filtering
 
     subgraph L5["Layer 5: Audit & Monitoring"]
         A1["CloudTrail, CloudWatch Logs"]

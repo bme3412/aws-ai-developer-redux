@@ -39,27 +39,14 @@ Before diving into specific patterns, understand the key dimensions that differe
 
 ### The Deployment Spectrum
 
-```mermaid
-flowchart LR
-    subgraph Low["Low Complexity"]
-        Lambda["Lambda +<br/>On-Demand"]
-        Lambda --> ZeroInfra["Zero<br/>Infrastructure"]
-    end
+| Complexity | Option | Trade-off |
+|------------|--------|-----------|
+| **Low** | Lambda + On-Demand | Zero infrastructure, pay per token |
+| **Medium** | Bedrock Provisioned | Some commitment, guaranteed capacity |
+| **High** | SageMaker Endpoints | Full control, more operational burden |
+| **Highest** | ECS/EKS Custom | Maximum flexibility, maximum responsibility |
 
-    subgraph Medium["Medium Complexity"]
-        Provisioned["Bedrock<br/>Provisioned"]
-        Provisioned --> Commit["Some<br/>Commitment"]
-    end
-
-    subgraph High["High Complexity"]
-        SageMaker["SageMaker<br/>Endpoints"]
-        SageMaker --> Control["Full<br/>Control"]
-        Control --> Custom["ECS/EKS<br/>Custom"]
-    end
-
-    Low -->|"More Flexibility →"| Medium
-    Medium -->|"More Flexibility →"| High
-```
+**Direction**: Low complexity → High complexity = More flexibility, more operational burden
 
 ---
 
@@ -69,22 +56,10 @@ The simplest deployment pattern combines **AWS Lambda** with Bedrock's **on-dema
 
 ### Architecture Pattern
 
-```mermaid
-flowchart TD
-    API["API Gateway"]
-
-    API --> Chat["Lambda<br/>(Chat)"]
-    API --> Search["Lambda<br/>(Search)"]
-    API --> Summ["Lambda<br/>(Summarization)"]
-
-    Chat --> Bedrock
-    Search --> Bedrock
-    Summ --> Bedrock
-
-    subgraph Bedrock["Bedrock (On-Demand)"]
-        Shared["Shared Capacity<br/>(Pay per token only)"]
-    end
-```
+**Request Flow:**
+1. **API Gateway** receives requests
+2. Routes to specialized **Lambda functions**: Chat, Search, Summarization
+3. All Lambdas call **Bedrock (On-Demand)** - shared capacity, pay per token only
 
 ### Implementation
 
@@ -190,25 +165,15 @@ At this volume, on-demand is clearly correct. The break-even with provisioned th
 
 ### How Provisioned Throughput Works
 
-```mermaid
-flowchart TB
-    subgraph PT["Provisioned Throughput"]
-        subgraph Dedicated["Your Dedicated Capacity"]
-            MU1["Model Unit 1<br/>Reserved Compute"]
-            MU2["Model Unit 2<br/>Reserved Compute"]
-            MU3["Model Unit 3<br/>Reserved Compute"]
-        end
-        Benefits["✓ No throttling<br/>✓ Consistent latency<br/>✓ Guaranteed capacity<br/>✓ Lower per-token cost"]
+**Your Dedicated Capacity:**
+- Model Unit 1, 2, 3... (Reserved Compute)
+- You don't compete with the shared pool
 
-        subgraph Shared["Shared Pool (Others)"]
-            NoCompete["You don't compete<br/>with this capacity"]
-        end
-    end
-
-    Dedicated --> Benefits
-    style Dedicated fill:#90EE90
-    style Shared fill:#FFB6C1
-```
+**Benefits:**
+- No throttling
+- Consistent latency
+- Guaranteed capacity
+- Lower per-token cost at scale
 
 ### Creating Provisioned Throughput
 
@@ -294,42 +259,28 @@ You **must** deploy on provisioned throughput. Factor this into any customizatio
 
 ### When SageMaker Is Required
 
-```mermaid
-flowchart TD
-    Q{"Do you need any of these?<br/><br/>• Custom model (not in Bedrock)<br/>• Specific instance types<br/>• A/B testing between versions<br/>• Multi-model endpoints<br/>• Version management/rollbacks<br/>• Custom inference containers<br/>• ML pipeline integration"}
+**Do you need any of these?**
+- Custom model (not available in Bedrock)
+- Specific instance types (GPU, memory)
+- A/B testing between model versions
+- Multi-model endpoints (multiple models, shared infra)
+- Model version management and rollbacks
+- Custom inference containers
+- Integration with SageMaker ML pipelines
 
-    Q -->|Yes| SM["SageMaker<br/>Endpoints"]
-    Q -->|No| BR["Consider<br/>Bedrock"]
-
-    style SM fill:#FFD700
-    style BR fill:#87CEEB
-```
+**Yes** → Use **SageMaker Endpoints**
+**No** → Consider **Bedrock**
 
 ### SageMaker Endpoint Architecture
 
-```mermaid
-flowchart TB
-    subgraph Endpoint["SageMaker Endpoint"]
-        subgraph Config["Endpoint Configuration"]
-            subgraph VariantA["Production Variant A (90%)"]
-                ModelA["Model v2.1"]
-                InstanceA["ml.g5.2xlarge<br/>× 2 instances"]
-            end
-            subgraph VariantB["Production Variant B (10%)"]
-                ModelB["Model v2.2 (canary)"]
-                InstanceB["ml.g5.2xlarge<br/>× 1 instance"]
-            end
-        end
-        AutoScale["Auto Scaling: 2-10 instances<br/>based on InvocationsPerInstance"]
-    end
+**Endpoint Configuration:**
 
-    ModelA --> InstanceA
-    ModelB --> InstanceB
-    Config --> AutoScale
+| Variant | Traffic | Model | Instances |
+|---------|---------|-------|-----------|
+| **Production Variant A** | 90% | Model v2.1 | ml.g5.2xlarge × 2 |
+| **Production Variant B (canary)** | 10% | Model v2.2 | ml.g5.2xlarge × 1 |
 
-    style VariantA fill:#90EE90
-    style VariantB fill:#FFD700
-```
+**Auto Scaling:** 2-10 instances based on InvocationsPerInstance metric
 
 ### Deploying a Model to SageMaker
 
@@ -444,46 +395,29 @@ autoscaling.put_scaling_policy(
 
 ### The Power Law of Query Complexity
 
-```mermaid
-pie title Query Complexity Distribution
-    "Simple (70%)" : 70
-    "Medium (20%)" : 20
-    "Complex (10%)" : 10
-```
-
-**Complexity Breakdown:**
-- **Simple (70%)**: FAQ lookups, basic generation, formatting
-- **Medium (20%)**: Multi-step reasoning, analysis, longer generation
-- **Complex (10%)**: Expert reasoning, nuanced understanding, creativity
+| Complexity | Frequency | Examples |
+|------------|-----------|----------|
+| **Simple** | 70% | FAQ lookups, basic generation, formatting |
+| **Medium** | 20% | Multi-step reasoning, analysis, longer generation |
+| **Complex** | 10% | Expert reasoning, nuanced understanding, creativity |
 
 ### Cascading Architecture
 
-```mermaid
-flowchart TD
-    Query["User Query"]
+**Flow:**
+1. **User Query** → Query Complexity Classifier
+2. Classifier analyzes: keyword patterns, query length, reasoning depth, domain complexity
 
-    Query --> Classifier
+**Routing:**
 
-    subgraph Classifier["Query Complexity Classifier"]
-        Analysis["• Keyword analysis<br/>• Query length<br/>• Required reasoning depth<br/>• Domain complexity"]
-    end
+| Classification | Model | Cost |
+|----------------|-------|------|
+| Simple | Haiku | $0.25/M tokens |
+| Medium | Sonnet | $3.00/M tokens |
+| Complex | Opus | $15/M tokens |
 
-    Classifier -->|Simple| Haiku["Haiku<br/>$0.25/M tokens"]
-    Classifier -->|Medium| Sonnet["Sonnet<br/>$3.00/M tokens"]
-    Classifier -->|Complex| Opus["Opus<br/>$15/M tokens"]
-
-    Haiku --> Confidence{"Confidence<br/>Check"}
-    Confidence -->|High| FastResponse["Response<br/>(Fast/Low Cost)"]
-    Confidence -->|Low| Escalate["Escalate"]
-    Escalate --> Sonnet
-
-    Sonnet --> QualityResponse["Response<br/>(Quality)"]
-    Opus --> QualityResponse
-
-    style Haiku fill:#90EE90
-    style Sonnet fill:#FFD700
-    style Opus fill:#FF6B6B
-```
+**Confidence Check (for Haiku responses):**
+- High confidence → Return fast, low-cost response
+- Low confidence → Escalate to Sonnet for quality response
 
 ### Complete Cascading Implementation
 
@@ -648,27 +582,18 @@ result = cascade.process("Analyze the economic implications...")  # Complex -> O
 
 ### How Inference Profiles Work
 
-```mermaid
-flowchart TD
-    Profile["Inference Profile<br/>us.claude-sonnet"]
+**Example: `us.claude-sonnet` profile**
 
-    Profile --> East1["us-east-1<br/>✓ Healthy"]
-    Profile --> West2["us-west-2<br/>✓ Healthy"]
-    Profile --> East2["us-east-2<br/>⚠ Busy"]
+| Region | Status | Routed? |
+|--------|--------|---------|
+| us-east-1 | Healthy | Yes |
+| us-west-2 | Healthy | Yes |
+| us-east-2 | Busy | No |
 
-    East1 --> Route["Route to healthy<br/>region with<br/>available capacity"]
-    West2 --> Route
-
-    subgraph Scopes["Geographic Scopes"]
-        US["us.* → Routes within US regions"]
-        EU["eu.* → Routes within EU regions"]
-        Residency["Respects data residency requirements"]
-    end
-
-    style East1 fill:#90EE90
-    style West2 fill:#90EE90
-    style East2 fill:#FFD700
-```
+**Geographic Scopes:**
+- `us.*` → Routes within US regions
+- `eu.*` → Routes within EU regions
+- Respects data residency requirements automatically
 
 ### Using Inference Profiles
 
@@ -722,30 +647,21 @@ This distinction is a common exam topic:
 
 ### Batch Inference Architecture
 
-```mermaid
-flowchart TD
-    subgraph Step1["1. Prepare Input (JSONL)"]
-        S3Input["s3://bucket/input/batch-job-001.jsonl"]
-        Records1["{'recordId':'1','modelInput':{...}}<br/>{'recordId':'2','modelInput':{...}}<br/>{'recordId':'3','modelInput':{...}}<br/>... (thousands of records)"]
-    end
+**Step 1: Prepare Input (JSONL)**
+- Upload to `s3://bucket/input/batch-job-001.jsonl`
+- Format: `{"recordId":"1","modelInput":{...}}` per line
 
-    subgraph Step2["2. Create Batch Job"]
-        API["CreateModelInvocationJob"]
-        Config["• jobName: 'document-summarization'<br/>• modelId: 'claude-3-haiku'<br/>• inputDataConfig: s3://input/<br/>• outputDataConfig: s3://output/"]
-    end
+**Step 2: Create Batch Job**
+- Call `CreateModelInvocationJob`
+- Specify: jobName, modelId, inputDataConfig, outputDataConfig
 
-    subgraph Step3["3. Processing (Asynchronous)"]
-        Status["Status: InProgress → Completed"]
-        Monitor["Monitor via GetModelInvocationJob"]
-    end
+**Step 3: Processing (Asynchronous)**
+- Status: InProgress → Completed
+- Monitor via `GetModelInvocationJob`
 
-    subgraph Step4["4. Retrieve Results"]
-        S3Output["s3://bucket/output/batch-job-001/"]
-        Records2["{'recordId':'1','modelOutput':{...}}<br/>{'recordId':'2','modelOutput':{...}}<br/>{'recordId':'3','modelOutput':{...}}"]
-    end
-
-    Step1 --> Step2 --> Step3 --> Step4
-```
+**Step 4: Retrieve Results**
+- Results appear at `s3://bucket/output/batch-job-001/`
+- Format: `{"recordId":"1","modelOutput":{...}}` per line
 
 ### Complete Batch Processing Example
 
@@ -904,21 +820,16 @@ For workloads requiring complete control over infrastructure, **ECS** or **EKS**
 
 LLMs have unique resource requirements:
 
-```mermaid
-flowchart LR
-    subgraph Memory["LLM Memory Requirements (FP16)"]
-        M7["7B params → ~14 GB"]
-        M13["13B params → ~26 GB"]
-        M33["33B params → ~66 GB"]
-        M70["70B params → ~140 GB"]
-    end
+**LLM Memory Requirements (FP16):**
 
-    subgraph Formula["Memory Formula"]
-        F1["Parameters × 2 bytes (FP16)"]
-        F2["+ Activation overhead"]
-        F3["+ KV cache (grows with seq length)"]
-    end
-```
+| Model Size | GPU Memory Required |
+|------------|---------------------|
+| 7B parameters | ~14 GB |
+| 13B parameters | ~26 GB |
+| 33B parameters | ~66 GB |
+| 70B parameters | ~140 GB |
+
+**Memory Formula:** Parameters × 2 bytes (FP16) + Activation overhead + KV cache (grows with sequence length)
 
 **Optimization Techniques:**
 
