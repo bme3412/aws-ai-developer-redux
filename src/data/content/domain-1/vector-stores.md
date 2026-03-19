@@ -83,13 +83,11 @@ Approximate Nearest Neighbor (ANN) algorithms solve this by accepting a small ac
 
 HNSW builds a multi-layered graph structure. At the bottom layer (Layer 0), every vector exists as a node with connections to nearby vectors. Upper layers progressively thin out, keeping only some vectors but with longer-range connections. The structure looks like this:
 
-```
-Layer 2:  A -------- B                    (sparse, long jumps)
-          |          |
-Layer 1:  A --- C -- B --- D              (medium density)
-          |    |     |     |
-Layer 0:  A-E-C-F-B-G-D-H-I-J             (all vectors, short connections)
-```
+| Layer | Nodes | Density | Connections |
+|-------|-------|---------|-------------|
+| Layer 2 | A, B | Sparse | Long jumps between distant nodes |
+| Layer 1 | A, B, C, D | Medium | Moderate-range connections |
+| Layer 0 | A-J (all vectors) | Dense | Short connections to nearest neighbors |
 
 When searching for the nearest neighbors to a query vector:
 
