@@ -6,13 +6,14 @@ const client = new BedrockRuntimeClient({
 });
 
 // Supported models for comparison
+// Using cross-region inference profiles for newer models
 const MODEL_CONFIGS: Record<string, {
   modelId: string;
   formatRequest: (prompt: string, params: ModelParams) => unknown;
   parseResponse: (body: unknown) => { text: string; inputTokens: number; outputTokens: number };
 }> = {
   'claude-sonnet': {
-    modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
+    modelId: 'us.anthropic.claude-3-5-sonnet-20240620-v1:0',
     formatRequest: (prompt, params) => ({
       anthropic_version: 'bedrock-2023-05-31',
       max_tokens: params.maxTokens || 1024,
@@ -26,7 +27,7 @@ const MODEL_CONFIGS: Record<string, {
     }),
   },
   'claude-haiku': {
-    modelId: 'anthropic.claude-3-haiku-20240307-v1:0',
+    modelId: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
     formatRequest: (prompt, params) => ({
       anthropic_version: 'bedrock-2023-05-31',
       max_tokens: params.maxTokens || 1024,
@@ -39,24 +40,24 @@ const MODEL_CONFIGS: Record<string, {
       outputTokens: body.usage.output_tokens,
     }),
   },
-  'titan-text': {
-    modelId: 'amazon.titan-text-express-v1',
+  'nova-lite': {
+    modelId: 'us.amazon.nova-lite-v1:0',
     formatRequest: (prompt, params) => ({
-      inputText: prompt,
-      textGenerationConfig: {
-        maxTokenCount: params.maxTokens || 1024,
+      messages: [{ role: 'user', content: [{ text: prompt }] }],
+      inferenceConfig: {
+        maxTokens: params.maxTokens || 1024,
         temperature: params.temperature || 0.7,
         topP: params.topP || 0.9,
       },
     }),
     parseResponse: (body: any) => ({
-      text: body.results[0].outputText,
-      inputTokens: body.inputTextTokenCount || 0,
-      outputTokens: body.results[0].tokenCount || 0,
+      text: body.output?.message?.content?.[0]?.text || '',
+      inputTokens: body.usage?.inputTokens || 0,
+      outputTokens: body.usage?.outputTokens || 0,
     }),
   },
   'llama3': {
-    modelId: 'meta.llama3-8b-instruct-v1:0',
+    modelId: 'us.meta.llama3-1-8b-instruct-v1:0',
     formatRequest: (prompt, params) => ({
       prompt: `<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n${prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>`,
       max_gen_len: params.maxTokens || 1024,
@@ -68,17 +69,17 @@ const MODEL_CONFIGS: Record<string, {
       outputTokens: body.generation_token_count || 0,
     }),
   },
-  'mistral': {
-    modelId: 'mistral.mistral-7b-instruct-v0:2',
+  'deepseek-r1': {
+    modelId: 'us.deepseek.r1-v1:0',
     formatRequest: (prompt, params) => ({
-      prompt: `<s>[INST] ${prompt} [/INST]`,
+      messages: [{ role: 'user', content: prompt }],
       max_tokens: params.maxTokens || 1024,
       temperature: params.temperature || 0.7,
     }),
     parseResponse: (body: any) => ({
-      text: body.outputs[0].text,
-      inputTokens: 0, // Mistral doesn't return token counts
-      outputTokens: 0,
+      text: body.choices?.[0]?.message?.content || '',
+      inputTokens: body.usage?.prompt_tokens || 0,
+      outputTokens: body.usage?.completion_tokens || 0,
     }),
   },
 };
@@ -89,13 +90,13 @@ interface ModelParams {
   topP?: number;
 }
 
-// Approximate per-1K-token pricing (on-demand, us-east-1)
+// Approximate per-1K-token pricing (on-demand, cross-region inference)
 const PRICING: Record<string, { input: number; output: number }> = {
   'claude-sonnet': { input: 0.003, output: 0.015 },
-  'claude-haiku': { input: 0.00025, output: 0.00125 },
-  'titan-text': { input: 0.0002, output: 0.0006 },
-  'llama3': { input: 0.0003, output: 0.0006 },
-  'mistral': { input: 0.00015, output: 0.0002 },
+  'claude-haiku': { input: 0.0008, output: 0.004 },
+  'nova-lite': { input: 0.00006, output: 0.00024 },
+  'llama3': { input: 0.00022, output: 0.00022 },
+  'deepseek-r1': { input: 0.00135, output: 0.0054 },
 };
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number): number {

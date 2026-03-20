@@ -25,11 +25,11 @@ interface ModelResult {
 }
 
 const availableModels = [
-  { id: 'claude-sonnet', name: 'Claude 3 Sonnet', provider: 'Anthropic', color: 'amber' },
-  { id: 'claude-haiku', name: 'Claude 3 Haiku', provider: 'Anthropic', color: 'amber' },
-  { id: 'titan-text', name: 'Titan Text Express', provider: 'Amazon', color: 'orange' },
-  { id: 'llama3', name: 'Llama 3 8B', provider: 'Meta', color: 'blue' },
-  { id: 'mistral', name: 'Mistral 7B', provider: 'Mistral AI', color: 'purple' },
+  { id: 'claude-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', color: 'amber' },
+  { id: 'claude-haiku', name: 'Claude 3.5 Haiku', provider: 'Anthropic', color: 'amber' },
+  { id: 'nova-lite', name: 'Nova Lite', provider: 'Amazon', color: 'orange' },
+  { id: 'llama3', name: 'Llama 3.1 8B', provider: 'Meta', color: 'blue' },
+  { id: 'deepseek-r1', name: 'DeepSeek R1', provider: 'DeepSeek', color: 'purple' },
 ];
 
 const samplePrompts = [
@@ -41,7 +41,7 @@ const samplePrompts = [
 
 export default function BedrockPlaygroundPage() {
   const [prompt, setPrompt] = useState(samplePrompts[0]);
-  const [selectedModels, setSelectedModels] = useState<string[]>(['claude-sonnet', 'titan-text']);
+  const [selectedModels, setSelectedModels] = useState<string[]>(['claude-haiku', 'nova-lite']);
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(512);
   const [isLoading, setIsLoading] = useState(false);
