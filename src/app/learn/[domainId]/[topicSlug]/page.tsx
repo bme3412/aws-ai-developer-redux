@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { getDomain } from '@/lib/domains';
 import { getDomainQuestions } from '@/lib/content';
-import { markArticleRead } from '@/lib/progress';
+import { markArticleRead, isArticleRead } from '@/lib/progress';
 import { Question } from '@/types/review';
 import MarkdownArticle from '@/components/learn/MarkdownArticle';
 import QuestionCard from '@/components/review/QuestionCard';
@@ -64,6 +64,14 @@ export default function TopicPage() {
   const currentTaskIndex = domain?.tasks.findIndex(t => t.articleSlug === topicSlug) ?? -1;
   const prevTask = currentTaskIndex > 0 ? domain?.tasks[currentTaskIndex - 1] : null;
   const nextTask = currentTaskIndex < (domain?.tasks.length ?? 0) - 1 ? domain?.tasks[currentTaskIndex + 1] : null;
+
+  // Load completion state on mount
+  useEffect(() => {
+    const articleKey = `${domainId}-${topicSlug}`;
+    if (isArticleRead(articleKey)) {
+      setIsMarkedComplete(true);
+    }
+  }, [domainId, topicSlug]);
 
   useEffect(() => {
     async function loadContent() {

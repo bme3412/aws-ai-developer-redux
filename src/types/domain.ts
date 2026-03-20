@@ -27,6 +27,7 @@ export interface Progress {
   labsCompleted: Record<string, { completedAt: string; score?: number }>;
   reviewScores: Record<string, { score: number; total: number; date: string }[]>;
   weakAreas: string[];
+  questionsCompleted?: Record<string, { completedAt: string; correct: boolean }>;
 }
 
 export interface DomainProgress {

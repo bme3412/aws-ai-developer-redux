@@ -36,6 +36,7 @@ export function getDefaultProgress(): Progress {
     labsCompleted: {},
     reviewScores: {},
     weakAreas: [],
+    questionsCompleted: {},
   };
 }
 
@@ -46,6 +47,17 @@ export function markArticleRead(articleSlug: string, timeSpentMinutes: number): 
     timeSpentMinutes,
   };
   saveProgress(progress);
+}
+
+export function isArticleRead(articleSlug: string): boolean {
+  const progress = getProgress();
+  return articleSlug in progress.articlesRead;
+}
+
+export function getArticlesReadForDomain(domainId: number): string[] {
+  const progress = getProgress();
+  const prefix = `${domainId}-`;
+  return Object.keys(progress.articlesRead).filter(slug => slug.startsWith(prefix));
 }
 
 export function markLabCompleted(labSlug: string, score?: number): void {
@@ -125,4 +137,38 @@ export function getOverallProgress(): {
 
 export function resetProgress(): void {
   saveProgress(getDefaultProgress());
+}
+
+export function markQuestionCompleted(questionId: string, correct: boolean): void {
+  const progress = getProgress();
+  if (!progress.questionsCompleted) {
+    progress.questionsCompleted = {};
+  }
+  progress.questionsCompleted[questionId] = {
+    completedAt: new Date().toISOString(),
+    correct,
+  };
+  saveProgress(progress);
+}
+
+export function isQuestionCompleted(questionId: string): boolean {
+  const progress = getProgress();
+  return !!(progress.questionsCompleted && questionId in progress.questionsCompleted);
+}
+
+export function getQuestionCompletion(questionId: string): { completedAt: string; correct: boolean } | null {
+  const progress = getProgress();
+  return progress.questionsCompleted?.[questionId] || null;
+}
+
+export function getCompletedQuestionsCount(): { total: number; correct: number } {
+  const progress = getProgress();
+  if (!progress.questionsCompleted) {
+    return { total: 0, correct: 0 };
+  }
+  const questions = Object.values(progress.questionsCompleted);
+  return {
+    total: questions.length,
+    correct: questions.filter(q => q.correct).length,
+  };
 }

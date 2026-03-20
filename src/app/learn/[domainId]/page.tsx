@@ -1,30 +1,54 @@
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { getDomain } from '@/lib/domains';
-import { FlaskConical, ArrowRight, ArrowLeft, BookOpen } from 'lucide-react';
+'use client';
 
-interface DomainPageProps {
-  params: Promise<{ domainId: string }>;
-}
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { getDomain } from '@/lib/domains';
+import { isArticleRead } from '@/lib/progress';
+import { FlaskConical, ArrowRight, ArrowLeft, BookOpen, CheckCircle, Circle } from 'lucide-react';
 
 // Domain color schemes
-const domainColors: Record<number, { bg: string; accent: string; text: string; border: string }> = {
-  1: { bg: 'from-blue-50 to-indigo-50', accent: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-200' },
-  2: { bg: 'from-emerald-50 to-teal-50', accent: 'bg-emerald-600', text: 'text-emerald-600', border: 'border-emerald-200' },
-  3: { bg: 'from-amber-50 to-orange-50', accent: 'bg-amber-600', text: 'text-amber-600', border: 'border-amber-200' },
-  4: { bg: 'from-rose-50 to-pink-50', accent: 'bg-rose-600', text: 'text-rose-600', border: 'border-rose-200' },
-  5: { bg: 'from-violet-50 to-purple-50', accent: 'bg-violet-600', text: 'text-violet-600', border: 'border-violet-200' },
+const domainColors: Record<number, { bg: string; accent: string; text: string; border: string; progressBg: string }> = {
+  1: { bg: 'from-blue-50 to-indigo-50', accent: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-200', progressBg: 'bg-blue-500' },
+  2: { bg: 'from-emerald-50 to-teal-50', accent: 'bg-emerald-600', text: 'text-emerald-600', border: 'border-emerald-200', progressBg: 'bg-emerald-500' },
+  3: { bg: 'from-amber-50 to-orange-50', accent: 'bg-amber-600', text: 'text-amber-600', border: 'border-amber-200', progressBg: 'bg-amber-500' },
+  4: { bg: 'from-rose-50 to-pink-50', accent: 'bg-rose-600', text: 'text-rose-600', border: 'border-rose-200', progressBg: 'bg-rose-500' },
+  5: { bg: 'from-violet-50 to-purple-50', accent: 'bg-violet-600', text: 'text-violet-600', border: 'border-violet-200', progressBg: 'bg-violet-500' },
 };
 
-export default async function DomainPage({ params }: DomainPageProps) {
-  const { domainId } = await params;
-  const domain = getDomain(parseInt(domainId));
+export default function DomainPage() {
+  const params = useParams();
+  const domainId = parseInt(params.domainId as string);
+  const domain = getDomain(domainId);
+  const colors = domainColors[domainId] || domainColors[1];
+
+  const [completedArticles, setCompletedArticles] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!domain) return;
+
+    // Check which articles are read from localStorage
+    const completed = new Set<string>();
+    domain.tasks.forEach(task => {
+      const articleKey = `${domainId}-${task.articleSlug}`;
+      if (isArticleRead(articleKey)) {
+        completed.add(task.articleSlug);
+      }
+    });
+    setCompletedArticles(completed);
+  }, [domain, domainId]);
 
   if (!domain) {
-    notFound();
+    return (
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        <p className="text-gray-600">Domain not found.</p>
+      </div>
+    );
   }
 
-  const colors = domainColors[domain.id] || domainColors[1];
+  const completedCount = completedArticles.size;
+  const totalCount = domain.tasks.length;
+  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -51,6 +75,20 @@ export default async function DomainPage({ params }: DomainPageProps) {
           </div>
         </div>
         <h1 className="text-2xl font-bold text-gray-900">{domain.name}</h1>
+
+        {/* Progress Bar */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between text-sm mb-2">
+            <span className="text-gray-600">Reading Progress</span>
+            <span className={`font-medium ${colors.text}`}>{completedCount}/{totalCount} topics completed</span>
+          </div>
+          <div className="h-2.5 bg-white/60 rounded-full overflow-hidden">
+            <div
+              className={`h-full ${colors.progressBg} transition-all duration-500 ease-out rounded-full`}
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Tasks */}
@@ -59,29 +97,44 @@ export default async function DomainPage({ params }: DomainPageProps) {
         <h2 className="text-lg font-semibold text-gray-900">Topics</h2>
       </div>
       <div className="space-y-3">
-        {domain.tasks.map((task, index) => (
-          <Link
-            key={task.id}
-            href={`/learn/${domain.id}/${task.articleSlug}`}
-            className={`flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all group`}
-          >
-            <div className="flex items-center gap-4">
-              <div className={`w-10 h-10 rounded-lg ${colors.accent} bg-opacity-10 flex items-center justify-center`}>
-                <span className={`text-sm font-bold ${colors.text}`}>{task.id}</span>
+        {domain.tasks.map((task) => {
+          const isCompleted = completedArticles.has(task.articleSlug);
+          return (
+            <Link
+              key={task.id}
+              href={`/learn/${domain.id}/${task.articleSlug}`}
+              className={`flex items-center justify-between p-4 bg-white rounded-xl border ${
+                isCompleted ? 'border-green-200 bg-green-50/30' : 'border-gray-200'
+              } hover:border-gray-300 hover:shadow-md transition-all group`}
+            >
+              <div className="flex items-center gap-4">
+                {/* Checkbox indicator */}
+                <div className="flex-shrink-0">
+                  {isCompleted ? (
+                    <CheckCircle className="w-6 h-6 text-green-500" />
+                  ) : (
+                    <Circle className="w-6 h-6 text-gray-300" />
+                  )}
+                </div>
+                <div className={`w-10 h-10 rounded-lg ${colors.accent} bg-opacity-10 flex items-center justify-center`}>
+                  <span className={`text-sm font-bold ${colors.text}`}>{task.id}</span>
+                </div>
+                <div>
+                  <h3 className={`font-medium group-hover:text-gray-900 ${isCompleted ? 'text-gray-600' : 'text-gray-800'}`}>
+                    {task.name}
+                  </h3>
+                  {task.labSlug && (
+                    <span className="inline-flex items-center gap-1 text-xs text-amber-600 mt-1">
+                      <FlaskConical className="w-3 h-3" />
+                      Lab available
+                    </span>
+                  )}
+                </div>
               </div>
-              <div>
-                <h3 className="font-medium text-gray-800 group-hover:text-gray-900">{task.name}</h3>
-                {task.labSlug && (
-                  <span className="inline-flex items-center gap-1 text-xs text-amber-600 mt-1">
-                    <FlaskConical className="w-3 h-3" />
-                    Lab available
-                  </span>
-                )}
-              </div>
-            </div>
-            <ArrowRight className={`w-5 h-5 text-gray-300 group-hover:${colors.text} group-hover:translate-x-1 transition-all`} />
-          </Link>
-        ))}
+              <ArrowRight className={`w-5 h-5 text-gray-300 group-hover:${colors.text} group-hover:translate-x-1 transition-all`} />
+            </Link>
+          );
+        })}
       </div>
 
       {/* Navigation */}
@@ -111,14 +164,4 @@ export default async function DomainPage({ params }: DomainPageProps) {
       </div>
     </div>
   );
-}
-
-export async function generateStaticParams() {
-  return [
-    { domainId: '1' },
-    { domainId: '2' },
-    { domainId: '3' },
-    { domainId: '4' },
-    { domainId: '5' },
-  ];
 }

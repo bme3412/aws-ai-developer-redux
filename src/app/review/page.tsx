@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getDomains, getDomain } from '@/lib/domains';
 import { getDomainQuestions, getAllQuestions, shuffleQuestions } from '@/lib/content';
-import { addReviewScore } from '@/lib/progress';
+import { addReviewScore, markQuestionCompleted, getQuestionCompletion } from '@/lib/progress';
 import { Question } from '@/types/review';
 import QuestionCard from '@/components/review/QuestionCard';
 import {
@@ -47,6 +47,7 @@ function ReviewContent() {
   const [showResults, setShowResults] = useState<Record<string, boolean>>({});
   const [isComplete, setIsComplete] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [previouslyCompleted, setPreviouslyCompleted] = useState<Record<string, { correct: boolean }>>({});
 
   const domain = domainFilter ? getDomain(parseInt(domainFilter)) : null;
   const task = domain && taskFilter ? domain.tasks.find(t => t.id === taskFilter) : null;
@@ -82,6 +83,16 @@ function ReviewContent() {
         }
 
         setQuestions(loadedQuestions);
+
+        // Load previously completed questions
+        const completed: Record<string, { correct: boolean }> = {};
+        loadedQuestions.forEach(q => {
+          const completion = getQuestionCompletion(q.id);
+          if (completion) {
+            completed[q.id] = { correct: completion.correct };
+          }
+        });
+        setPreviouslyCompleted(completed);
       } catch (error) {
         console.error('Failed to load questions:', error);
       } finally {
@@ -98,6 +109,10 @@ function ReviewContent() {
 
     setAnswers(prev => ({ ...prev, [currentQuestion.id]: selectedIds }));
     setShowResults(prev => ({ ...prev, [currentQuestion.id]: true }));
+
+    // Save question completion to localStorage
+    const isCorrect = JSON.stringify(selectedIds.sort()) === JSON.stringify(currentQuestion.correctAnswers.sort());
+    markQuestionCompleted(currentQuestion.id, isCorrect);
   };
 
   const handleNext = () => {
@@ -265,16 +280,29 @@ function ReviewContent() {
       <div className="mb-6">
         <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
           <span>Question {currentIndex + 1} of {questions.length}</span>
-          <span>
-            {Object.values(showResults).filter(Boolean).length} answered
-          </span>
+          <div className="flex items-center gap-3">
+            {Object.keys(previouslyCompleted).length > 0 && (
+              <span className="text-green-600">
+                {Object.values(previouslyCompleted).filter(c => c.correct).length} previously correct
+              </span>
+            )}
+            <span>
+              {Object.values(showResults).filter(Boolean).length} answered this session
+            </span>
+          </div>
         </div>
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
           <div
-            className="h-full bg-blue-500 transition-all"
+            className="h-full bg-blue-500 transition-all duration-300"
             style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
           />
         </div>
+        {/* Previously completed indicator */}
+        {previouslyCompleted[currentQuestion?.id] && !showResults[currentQuestion?.id] && (
+          <div className={`mt-2 text-xs ${previouslyCompleted[currentQuestion.id].correct ? 'text-green-600' : 'text-amber-600'}`}>
+            You answered this question {previouslyCompleted[currentQuestion.id].correct ? 'correctly' : 'incorrectly'} before
+          </div>
+        )}
       </div>
 
       {/* Question Card */}
