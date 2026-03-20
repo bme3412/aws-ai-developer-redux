@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
           type: 'KNOWLEDGE_BASE',
           knowledgeBaseConfiguration: {
             knowledgeBaseId: kbId,
-            modelArn: `arn:aws:bedrock:${process.env.AWS_REGION || 'us-east-1'}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0`,
+            modelArn: 'arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0',
             retrievalConfiguration: {
               vectorSearchConfiguration: {
                 numberOfResults: retrievalConfig.numberOfResults || 5,

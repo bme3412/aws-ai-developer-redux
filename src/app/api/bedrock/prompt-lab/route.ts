@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
 
     const startTime = Date.now();
     const command = new InvokeModelCommand({
-      modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
+      modelId: 'us.anthropic.claude-3-5-haiku-20241022-v1:0', // Cross-region inference profile
       contentType: 'application/json',
       accept: 'application/json',
       body: JSON.stringify(body),
