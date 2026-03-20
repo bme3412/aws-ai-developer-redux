@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { FlaskConical, Play, Clock, Cpu, Database, Shield, MessageSquare, Bot } from 'lucide-react';
+import { FlaskConical, Play, Clock, Cpu, Database, Shield, MessageSquare, Bot, Calculator, BarChart3, Radio } from 'lucide-react';
 
 const labs = [
   {
@@ -11,8 +11,20 @@ const labs = [
     tasks: ['1.2'],
     difficulty: 'beginner',
     estimatedMinutes: 20,
-    services: ['Amazon Bedrock', 'Claude', 'Titan', 'Llama', 'Mistral'],
+    services: ['Amazon Bedrock', 'Claude', 'Nova', 'Llama'],
     color: 'blue',
+  },
+  {
+    id: 'prompt-lab',
+    title: 'Prompt Engineering Lab',
+    description: 'Experiment with prompting techniques: zero-shot, few-shot, chain-of-thought, and structured outputs.',
+    icon: MessageSquare,
+    domain: 1,
+    tasks: ['1.6'],
+    difficulty: 'beginner',
+    estimatedMinutes: 25,
+    services: ['Amazon Bedrock', 'Prompt Management'],
+    color: 'purple',
   },
   {
     id: 'rag-builder',
@@ -27,27 +39,15 @@ const labs = [
     color: 'amber',
   },
   {
-    id: 'prompt-lab',
-    title: 'Prompt Engineering Lab',
-    description: 'Experiment with prompting techniques: zero-shot, few-shot, chain-of-thought, and structured outputs.',
-    icon: MessageSquare,
-    domain: 1,
-    tasks: ['1.6'],
+    id: 'streaming-demo',
+    title: 'Streaming Demo',
+    description: 'Compare streaming vs batch responses. Understand time-to-first-token and when to use each approach.',
+    icon: Radio,
+    domain: 2,
+    tasks: ['2.3', '4.2'],
     difficulty: 'beginner',
-    estimatedMinutes: 25,
-    services: ['Amazon Bedrock', 'Bedrock Prompt Management'],
-    color: 'purple',
-  },
-  {
-    id: 'guardrails-demo',
-    title: 'Guardrails Demo',
-    description: 'Test Bedrock Guardrails for content filtering, PII detection, and topic restrictions. See how safety controls work.',
-    icon: Shield,
-    domain: 3,
-    tasks: ['3.1', '3.2'],
-    difficulty: 'intermediate',
-    estimatedMinutes: 20,
-    services: ['Bedrock Guardrails', 'Amazon Comprehend'],
+    estimatedMinutes: 15,
+    services: ['Amazon Bedrock', 'InvokeModelWithResponseStream'],
     color: 'green',
   },
   {
@@ -61,6 +61,42 @@ const labs = [
     estimatedMinutes: 40,
     services: ['Bedrock Agents', 'Lambda', 'Step Functions'],
     color: 'red',
+  },
+  {
+    id: 'guardrails-demo',
+    title: 'Guardrails Demo',
+    description: 'Test Bedrock Guardrails for content filtering, PII detection, and topic restrictions. See how safety controls work.',
+    icon: Shield,
+    domain: 3,
+    tasks: ['3.1', '3.2'],
+    difficulty: 'intermediate',
+    estimatedMinutes: 20,
+    services: ['Bedrock Guardrails', 'Amazon Comprehend'],
+    color: 'teal',
+  },
+  {
+    id: 'cost-calculator',
+    title: 'Cost Calculator',
+    description: 'Estimate Bedrock costs across models. Explore optimization strategies like prompt caching and model tiering.',
+    icon: Calculator,
+    domain: 4,
+    tasks: ['4.1'],
+    difficulty: 'beginner',
+    estimatedMinutes: 15,
+    services: ['Bedrock Pricing', 'Cost Optimization'],
+    color: 'orange',
+  },
+  {
+    id: 'evaluation-lab',
+    title: 'Evaluation Lab',
+    description: 'Understand model evaluation metrics, LLM-as-Judge, and RAG quality assessment with interactive examples.',
+    icon: BarChart3,
+    domain: 5,
+    tasks: ['5.1'],
+    difficulty: 'intermediate',
+    estimatedMinutes: 25,
+    services: ['Bedrock Model Evaluations', 'RAGAS Metrics'],
+    color: 'pink',
   },
 ];
 
@@ -94,6 +130,24 @@ const colorStyles: Record<string, { bg: string; border: string; text: string; ic
     border: 'border-red-500/20',
     text: 'text-red-400',
     iconBg: 'bg-red-500/10',
+  },
+  teal: {
+    bg: 'bg-teal-500/5',
+    border: 'border-teal-500/20',
+    text: 'text-teal-400',
+    iconBg: 'bg-teal-500/10',
+  },
+  orange: {
+    bg: 'bg-orange-500/5',
+    border: 'border-orange-500/20',
+    text: 'text-orange-400',
+    iconBg: 'bg-orange-500/10',
+  },
+  pink: {
+    bg: 'bg-pink-500/5',
+    border: 'border-pink-500/20',
+    text: 'text-pink-400',
+    iconBg: 'bg-pink-500/10',
   },
 };
 
