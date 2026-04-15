@@ -16,6 +16,84 @@ This section covers the full spectrum of API integration: from choosing between 
 
 ---
 
+## Under the Hood: How Bedrock API Calls Actually Work
+
+Understanding what happens when you make a Bedrock API call helps you debug latency issues, make better architectural decisions, and anticipate failure modes.
+
+### The Request Journey
+
+When your application calls `converse()` or `invoke_model()`, the request travels through multiple layers before reaching a foundation model:
+
+```mermaid
+graph TD
+    subgraph "Your Application"
+        A[SDK Call] --> B[Request Signing]
+    end
+
+    subgraph "AWS Network"
+        B --> C[Regional Endpoint]
+        C --> D[Authentication & Authorization]
+        D --> E[Rate Limiter]
+        E --> F[Model Router]
+    end
+
+    subgraph "Bedrock Service"
+        F --> G{Guardrails?}
+        G -->|Yes| H[Input Guardrail]
+        H --> I[Model Infrastructure]
+        G -->|No| I
+        I --> J[Token Generation]
+        J --> K{Guardrails?}
+        K -->|Yes| L[Output Guardrail]
+        L --> M[Response Assembly]
+        K -->|No| M
+    end
+
+    subgraph "Logging"
+        M --> N{Logging Enabled?}
+        N -->|Yes| O[CloudWatch / S3]
+    end
+
+    M --> P[Response to Client]
+```
+
+### What Each Layer Does
+
+**Request Signing (SDK)**: The AWS SDK calculates a signature using your credentials and adds it to the request headers. This happens locally before any network call. If your credentials are invalid or expired, you'll get an authentication error before the request even reaches AWS.
+
+**Regional Endpoint**: Your request goes to a Bedrock endpoint in a specific region (e.g., `bedrock-runtime.us-east-1.amazonaws.com`). Different regions have different model availability—Claude might be in us-east-1 but not ap-southeast-1.
+
+**Rate Limiter**: Bedrock enforces per-account, per-model rate limits. Default limits are often lower than you'd expect—sometimes just a few requests per second for on-demand. When you exceed limits, you get `ThrottlingException`. This is why retry with backoff is essential.
+
+**Model Router**: Based on the model ID in your request, the router directs your request to the appropriate model infrastructure. For on-demand, this is shared infrastructure. For Provisioned Throughput, you get dedicated capacity.
+
+**Guardrails Processing**: If you've configured guardrails, input filters run before the model sees your prompt, and output filters run before you see the response. Each adds latency (typically 50-200ms per direction).
+
+**Token Generation**: The actual inference. This is where most latency comes from—tokens are generated sequentially, so longer responses take proportionally longer. A 100-token response might take 1 second; a 1000-token response might take 10 seconds.
+
+### Why This Matters for the Exam
+
+Understanding this flow helps you answer questions about:
+
+- **Where latency comes from**: Mostly token generation, but guardrails and rate limiting can contribute significantly
+- **Why throttling happens**: Account-level limits, not just model capacity
+- **How to debug failures**: Is it auth? Rate limiting? Model availability? Each fails differently
+- **Cross-Region Inference**: Routes requests to available regions automatically, but stays within geographic boundaries
+
+### The Converse vs InvokeModel Translation Layer
+
+When you use the Converse API, Bedrock performs an **internal translation** to the model's native format:
+
+```
+Your Converse Request → Bedrock Translation Layer → Model-Native Format → Model
+```
+
+This translation is why Converse is slightly slower than InvokeModel (a few milliseconds), but it's also why switching models is trivial—Bedrock handles the format differences.
+
+For InvokeModel, your request goes directly to the model in whatever format you provided. If the format is wrong for that model, you get a validation error. There's no translation layer to catch mistakes.
+
+---
+
 ## Understanding Bedrock's API Options
 
 Bedrock provides two distinct APIs for model invocation. Choosing the right one affects code portability, feature availability, and maintenance burden.
@@ -1263,6 +1341,74 @@ class MetricRouter:
 
         return self.primary_model
 ```
+
+---
+
+## Decision Framework: Choosing the Right API Pattern
+
+Use this framework to quickly determine the right Bedrock API and integration pattern for your use case.
+
+### Quick Reference
+
+| Scenario | Choose | Why |
+|----------|--------|-----|
+| Building a multi-model application | **Converse API** | Single code path for all models |
+| Need model-specific features (e.g., Claude's system prompt caching) | **InvokeModel API** | Direct access to native parameters |
+| User-facing chat interface | **ConverseStream** | Progressive output feels faster |
+| Backend batch classification | **InvokeModel (sync)** | Simple, no streaming overhead |
+| Processing thousands of documents | **Batch Inference** | 50% cost savings, no timeout constraints |
+| Unpredictable traffic spikes | **SQS + Lambda (async)** | Queue absorbs bursts |
+| Building an agent with tools | **Converse API** | Standardized toolConfig across models |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[New Bedrock Integration] --> B{Need to switch models<br/>or support multiple?}
+    B -->|Yes| C[Converse API]
+    B -->|No| D{Need model-specific<br/>parameters?}
+    D -->|Yes| E[InvokeModel API]
+    D -->|No| C
+
+    C --> F{User-facing<br/>with long responses?}
+    E --> F
+    F -->|Yes| G[Add Streaming<br/>ConverseStream or<br/>InvokeModelWithResponseStream]
+    F -->|No| H{Latency-tolerant<br/>bulk processing?}
+
+    H -->|Yes| I{Thousands of<br/>items?}
+    I -->|Yes| J[Batch Inference]
+    I -->|No| K[SQS + Lambda Async]
+
+    H -->|No| L[Synchronous Call]
+
+    G --> M{Building an agent<br/>with tools?}
+    L --> M
+    K --> M
+    M -->|Yes| N[Use Converse toolConfig]
+    M -->|No| O[Implementation Complete]
+    N --> O
+```
+
+### Trade-off Analysis
+
+| Factor | InvokeModel | Converse | Batch Inference | SQS Async |
+|--------|-------------|----------|-----------------|-----------|
+| **Cost** | Standard | Standard | ~50% savings | Standard |
+| **Latency** | Lowest | Slightly higher | Hours | Variable |
+| **Complexity** | Higher (per-model code) | Lower (unified) | Medium | Higher |
+| **Model Switching** | Code changes required | Change model ID only | Code changes | Depends on API used |
+| **Max Response Time** | ~5 min (Lambda) | ~5 min (Lambda) | Unlimited | 15 min (Lambda) |
+| **Best For** | Single-model, max control | Multi-model, agents | Bulk processing | Spike handling |
+| **Exam Signal** | "model-specific" | "model-agnostic", "tools" | "bulk", "offline" | "decouple", "queue" |
+
+### Streaming Decision
+
+| User Experience | Backend Processing | Choose |
+|-----------------|-------------------|--------|
+| Chat interface | N/A | **Stream** (SSE to browser) |
+| Document generation | Display progress | **Stream** with callback |
+| API response | No display needed | **Sync** (simpler) |
+| Must validate before showing | Post-process output | **Sync** (need full response) |
 
 ---
 

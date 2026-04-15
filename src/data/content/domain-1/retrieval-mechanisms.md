@@ -14,6 +14,149 @@ Retrieval is where RAG applications succeed or fail. Everything we cover in this
 
 ---
 
+## Under the Hood: How Retrieval Actually Works
+
+Understanding the retrieval pipeline helps you diagnose problems and optimize performance.
+
+### The Retrieval Pipeline
+
+When a query comes in, here's what happens:
+
+```mermaid
+graph TD
+    subgraph "Query Processing"
+        A[User Query] --> B[Query Embedding]
+        B --> C[Query Vector]
+    end
+
+    subgraph "Search"
+        C --> D{Search Type}
+        D -->|Vector| E[ANN Search<br/>HNSW/IVF]
+        D -->|Keyword| F[BM25 Index]
+        D -->|Hybrid| G[Both + Fusion]
+    end
+
+    subgraph "Post-Processing"
+        E --> H[Candidate Documents]
+        F --> H
+        G --> H
+        H --> I{Reranking?}
+        I -->|Yes| J[Cross-encoder<br/>Scoring]
+        I -->|No| K[Return Top-K]
+        J --> K
+    end
+```
+
+### Why Embedding Similarity Works
+
+Embedding models map text to high-dimensional space where semantic similarity becomes geometric proximity:
+
+| Text A | Text B | Cosine Similarity |
+|--------|--------|-------------------|
+| "reset my password" | "change login credentials" | ~0.85 |
+| "reset my password" | "password requirements" | ~0.70 |
+| "reset my password" | "office location" | ~0.25 |
+
+Similar meanings → similar vectors → high similarity score → retrieved together.
+
+**The limitation:** Embeddings capture semantic similarity, not necessarily relevance. "How to hack passwords" is semantically similar to "reset my password" but completely wrong to retrieve for a password reset query.
+
+### Two-Stage Retrieval
+
+Production systems often use two stages:
+
+```mermaid
+graph LR
+    A[Query] --> B[Stage 1: Recall<br/>Fast, retrieve many]
+    B --> C[100 candidates]
+    C --> D[Stage 2: Precision<br/>Slow, score carefully]
+    D --> E[Top 5 results]
+```
+
+**Stage 1 (Recall):** Fast approximate search (HNSW) retrieves many candidates. Speed matters more than perfect accuracy.
+
+**Stage 2 (Precision):** Slow cross-encoder reranking scores each candidate carefully. Accuracy matters more than speed (only scoring ~100 items).
+
+This is why reranking improves results—the first stage casts a wide net, the second stage picks the best catches.
+
+---
+
+## Decision Framework: Retrieval Configuration
+
+Use this framework to configure retrieval for your use case.
+
+### Quick Reference
+
+| Content Type | Chunking | Embedding Dims | Search Type | Reranking |
+|--------------|----------|----------------|-------------|-----------|
+| FAQs | Fixed (~300 tokens) | 512 | Vector | Optional |
+| Technical docs | Hierarchical | 1024 | Hybrid | Recommended |
+| Legal/compliance | Semantic | 1024 | Hybrid | Required |
+| Code documentation | Fixed with overlap | 512 | Keyword-heavy hybrid | Optional |
+| Conversational logs | Semantic | 512 | Vector | Optional |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Configure Retrieval] --> B{Document structure?}
+
+    B -->|Clear sections/headers| C[Hierarchical Chunking]
+    B -->|Dense prose| D[Semantic Chunking]
+    B -->|Uniform content| E[Fixed-size Chunking]
+
+    C --> F{Query types?}
+    D --> F
+    E --> F
+
+    F -->|Natural language| G[Vector Search Primary]
+    F -->|Exact terms matter| H[Hybrid Search]
+    F -->|Technical/code| I[Keyword-heavy Hybrid]
+
+    G --> J{Precision critical?}
+    H --> J
+    I --> J
+
+    J -->|Yes| K[Add Reranking]
+    J -->|No| L[Skip Reranking]
+
+    K --> M{Latency budget?}
+    L --> N[Configuration Complete]
+
+    M -->|< 500ms| O[LLM Reranker<br/>or skip]
+    M -->|> 500ms| P[Cross-encoder<br/>Reranking]
+```
+
+### Chunking Strategy Selection
+
+| Strategy | Best For | Avoid When |
+|----------|----------|------------|
+| **Fixed-size** | Homogeneous content, prototyping | Structured docs with headers |
+| **Semantic** | Prose, articles, reports | Code, tables |
+| **Hierarchical** | Technical docs, legal, nested structure | Simple FAQs |
+| **Overlap** | Important boundary info | Storage constrained |
+
+### Trade-off Analysis
+
+| Configuration | Recall | Precision | Latency | Cost |
+|---------------|--------|-----------|---------|------|
+| Vector only, no rerank | Medium | Medium | Fast | Low |
+| Vector + rerank | Medium | High | Medium | Medium |
+| Hybrid, no rerank | High | Medium | Medium | Medium |
+| Hybrid + rerank | High | High | Slow | High |
+
+### Tuning Parameters
+
+| Parameter | Lower Value | Higher Value |
+|-----------|-------------|--------------|
+| **Chunk size** | More precise matches | More context preserved |
+| **Overlap** | Less redundancy | Better boundary coverage |
+| **Top-K retrieved** | Faster, more focused | Higher recall, more noise |
+| **Similarity threshold** | More results | Higher relevance |
+| **Reranker candidates** | Faster | Better final ranking |
+
+---
+
 ## Document Chunking Strategies
 
 Chunking sounds boring until you realize it's where most RAG failures originate. Chunk your documents wrong and your retrieval breaks in ways that are maddeningly difficult to debug. The model gives wrong answers, you check its reasoning, the reasoning looks fine, but the source documents are irrelevant—and nobody notices until users complain.

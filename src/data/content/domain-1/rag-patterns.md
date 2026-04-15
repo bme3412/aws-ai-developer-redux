@@ -47,6 +47,183 @@ For most enterprise use cases—policy questions, documentation search, customer
 
 ---
 
+## Under the Hood: How Semantic Search Actually Works
+
+Understanding the mechanics of semantic search helps you debug retrieval issues and make better architecture decisions.
+
+### From Text to Vectors: The Embedding Process
+
+When you embed text, a neural network transforms it into a dense vector of floating-point numbers. This isn't arbitrary—the network was trained so that semantically similar texts produce similar vectors:
+
+```mermaid
+graph LR
+    subgraph "Embedding Model"
+        A[Text Input] --> B[Tokenizer]
+        B --> C[Transformer Layers]
+        C --> D[Pooling]
+        D --> E[Vector Output]
+    end
+
+    A1["How do I reset my password?"] --> A
+    E --> E1["[0.23, -0.45, 0.12, ..., 0.89]"]
+
+    A2["Password recovery process"] --> A
+    E --> E2["[0.21, -0.43, 0.14, ..., 0.87]"]
+```
+
+**Why similar texts get similar vectors:**
+- The embedding model was trained on millions of text pairs marked as "similar" or "different"
+- The training objective pushed similar pairs closer in vector space
+- The resulting space captures semantic relationships: synonyms are close, antonyms are far, related concepts cluster together
+
+### How HNSW Finds Neighbors Fast
+
+Searching millions of vectors by comparing each one would take seconds—too slow for real-time applications. **HNSW (Hierarchical Navigable Small World)** solves this with a clever graph structure:
+
+```mermaid
+graph TD
+    subgraph "Layer 2 (Sparse - Entry Points)"
+        A2[Node A] --- B2[Node B]
+    end
+
+    subgraph "Layer 1 (Medium Density)"
+        A1[Node A] --- C1[Node C]
+        C1 --- B1[Node B]
+        B1 --- D1[Node D]
+    end
+
+    subgraph "Layer 0 (Dense - All Vectors)"
+        A0[Node A] --- E0[Node E]
+        E0 --- C0[Node C]
+        C0 --- F0[Node F]
+        F0 --- B0[Node B]
+        B0 --- G0[Node G]
+        G0 --- D0[Node D]
+    end
+
+    A2 -.-> A1
+    B2 -.-> B1
+    A1 -.-> A0
+    C1 -.-> C0
+    B1 -.-> B0
+    D1 -.-> D0
+```
+
+**How the search works:**
+1. Start at the top layer (sparse, few nodes)
+2. Greedily navigate toward nodes closer to your query
+3. Drop to the next layer and repeat
+4. At the bottom layer, find the nearest neighbors
+
+**Why it's fast:** Instead of comparing against all vectors, you only visit ~log(N) nodes. Searching 1 million vectors takes ~20 comparisons instead of 1 million.
+
+**The "approximate" in ANN:** HNSW doesn't guarantee finding the absolute nearest neighbors—it might miss vectors that are actually closer but weren't on the navigation path. In practice, recall is 95%+ with proper tuning, and the speed trade-off is worth it.
+
+### Why Retrieval Quality Varies
+
+Understanding these mechanics explains common retrieval issues:
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Misses obvious matches | Query/document vocabulary mismatch | Query expansion, hybrid search |
+| Returns irrelevant docs | Embedding model doesn't capture your domain | Domain-specific embedding or fine-tuning |
+| Slow search | Too many vectors, wrong index settings | Optimize HNSW parameters (m, ef) |
+| Inconsistent results | Low similarity scores across board | Check embedding normalization, similarity threshold |
+
+---
+
+## Decision Framework: RAG vs Fine-Tuning vs Prompt Engineering
+
+Before building anything, decide which approach fits your problem.
+
+### Quick Reference
+
+| Scenario | Choose | Why |
+|----------|--------|-----|
+| Answer questions about your docs | **RAG** | Retrieves current information |
+| Consistent JSON output format | **Fine-tuning** | Behavioral pattern change |
+| Specific brand voice/tone | **Fine-tuning** | Style is learned behavior |
+| Add context for one query | **Prompt Engineering** | Simplest solution |
+| Knowledge updates frequently | **RAG** | Update docs, not model |
+| Need to cite sources | **RAG** | Can attribute to documents |
+| Few examples needed | **Prompt Engineering** | Few-shot in prompt |
+| Thousands of examples | **Fine-tuning** | Too many for prompt |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[GenAI Knowledge Problem] --> B{What needs to<br/>change?}
+
+    B -->|What the model knows| C{How often does<br/>knowledge change?}
+    B -->|How the model responds| D{How many examples<br/>describe the behavior?}
+
+    C -->|Frequently| E[RAG]
+    C -->|Rarely| F{Need to cite<br/>sources?}
+
+    F -->|Yes| E
+    F -->|No| G{Volume of<br/>knowledge?}
+
+    G -->|Small| H[Prompt Engineering<br/>Include in system prompt]
+    G -->|Large| I{Fine-tuning or RAG}
+
+    I --> J{Factual Q&A or<br/>reasoning pattern?}
+    J -->|Factual| E
+    J -->|Reasoning| K[Fine-tuning]
+
+    D -->|< 10 examples| H
+    D -->|10-100 examples| L{Pattern clear in<br/>examples?}
+    D -->|100+ examples| K
+
+    L -->|Yes| H
+    L -->|No| K
+```
+
+### Trade-off Analysis
+
+| Factor | Prompt Engineering | RAG | Fine-tuning |
+|--------|-------------------|-----|-------------|
+| **Implementation Time** | Minutes | Days-Weeks | Weeks |
+| **Update Speed** | Instant | Hours (re-index) | Days (retrain) |
+| **Cost** | None | Storage + retrieval | Training + inference |
+| **Verifiability** | In prompt | Citations available | Opaque |
+| **Knowledge Limit** | Context window | Vector store size | Training data |
+| **Best For** | Small, static context | Dynamic knowledge | Behavior change |
+| **Exam Signal** | "few examples", "system prompt" | "documents", "citations", "current" | "style", "format", "domain" |
+
+### Which RAG Pattern to Use
+
+| Pattern | Use When | Complexity |
+|---------|----------|------------|
+| **Basic RAG** | Single-topic Q&A, documentation search | Low |
+| **Conversational RAG** | Multi-turn chat, follow-up questions | Medium |
+| **Agentic RAG** | Complex questions needing multiple lookups | Medium-High |
+| **Multi-Index RAG** | Multiple knowledge domains, routing needed | Medium |
+| **Multi-Hop RAG** | Questions requiring chained reasoning | High |
+
+```mermaid
+graph TD
+    A[Choose RAG Pattern] --> B{Single turn or<br/>conversation?}
+
+    B -->|Single turn| C{Query complexity?}
+    B -->|Conversation| D[Conversational RAG]
+
+    C -->|Simple, single topic| E[Basic RAG]
+    C -->|Complex, needs reasoning| F{Can answer with<br/>one retrieval?}
+
+    F -->|Yes| E
+    F -->|No| G{Need to reason<br/>across info?}
+
+    G -->|Yes| H[Multi-Hop RAG]
+    G -->|No| I[Agentic RAG]
+
+    D --> J{Multiple knowledge<br/>domains?}
+    J -->|Yes| K[Multi-Index RAG]
+    J -->|No| D
+```
+
+---
+
 ## Understanding Hallucination
 
 Hallucination isn't random noise—it follows patterns. Understanding why models hallucinate helps you prevent it, and understanding the different types helps you diagnose which mitigation strategies will work.

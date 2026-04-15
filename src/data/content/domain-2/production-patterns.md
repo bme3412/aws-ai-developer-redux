@@ -27,6 +27,132 @@ This deep dive bridges that gap. We'll explore the patterns that distinguish pro
 
 ---
 
+## Under the Hood: What Makes Production Different
+
+Understanding production challenges helps you design systems that survive real-world conditions.
+
+### The Production Environment
+
+Production systems face challenges that don't exist in development:
+
+```mermaid
+graph TD
+    subgraph "Production Challenges"
+        A[Traffic Spikes]
+        B[API Rate Limits]
+        C[Model Latency Variation]
+        D[Partial Failures]
+        E[Cost Constraints]
+    end
+
+    subgraph "Without Patterns"
+        A --> F[System Overload]
+        B --> G[Cascading Timeouts]
+        C --> H[User Abandonment]
+        D --> I[Complete Failure]
+        E --> J[Budget Exceeded]
+    end
+
+    subgraph "With Patterns"
+        A --> K[Queue + Auto-scale]
+        B --> L[Circuit Breaker]
+        C --> M[Streaming + Caching]
+        D --> N[Graceful Degradation]
+        E --> O[Token Budgets]
+    end
+```
+
+### Why Simple Retry Isn't Enough
+
+Naive retry strategies cause **retry storms** that make outages worse:
+
+| Time | Requests | Failures | Retries | Total Load |
+|------|----------|----------|---------|------------|
+| T+0 | 100 | 10 | 10 | 110 |
+| T+1 | 100 | 20 | 30 | 150 |
+| T+2 | 100 | 50 | 80 | 230 |
+| T+3 | System collapse | - | - | - |
+
+**Exponential backoff + jitter** prevents synchronized retries that overwhelm recovering systems.
+
+### The Cost Spiral Problem
+
+Without controls, costs can spiral unexpectedly:
+
+| Scenario | Impact |
+|----------|--------|
+| Retry storm | 10x normal token usage |
+| Prompt injection attack | Malicious prompts generating max tokens |
+| Unoptimized retrieval | Retrieving 20 chunks when 3 would suffice |
+| No response caching | Identical queries processed repeatedly |
+
+---
+
+## Decision Framework: Production Patterns
+
+Use this framework to select which patterns to implement.
+
+### Quick Reference
+
+| Problem | Pattern | Implementation |
+|---------|---------|----------------|
+| API failures | Circuit breaker | Custom or AWS App Mesh |
+| Rate limiting | Request queue + backoff | SQS + Lambda |
+| Cost control | Token budgets + quotas | API Gateway quotas + Lambda tracking |
+| User wait time | Streaming + caching | SSE + ElastiCache |
+| Partial failures | Graceful degradation | Fallback responses |
+| Traffic spikes | Auto-scaling + queue | ALB + SQS + Auto Scaling |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Production Readiness] --> B{Traffic<br/>predictable?}
+
+    B -->|No| C[Add SQS Queue<br/>+ Auto Scaling]
+    B -->|Yes| D[Direct invocation OK]
+
+    C --> E{External API<br/>dependencies?}
+    D --> E
+
+    E -->|Yes| F[Add Circuit Breakers]
+    E -->|No| G[Skip circuit breakers]
+
+    F --> H{Budget<br/>constraints?}
+    G --> H
+
+    H -->|Yes| I[Add Token Budgets<br/>+ Response Caching]
+    H -->|No| J[Monitor costs]
+
+    I --> K{User-facing?}
+    J --> K
+
+    K -->|Yes| L[Add Streaming<br/>+ Graceful Degradation]
+    K -->|No| M[Batch optimization]
+```
+
+### Pattern Priority by Application Type
+
+| Application | Must Have | Should Have | Nice to Have |
+|-------------|-----------|-------------|--------------|
+| Customer chat | Streaming, degradation | Circuit breaker, caching | Token budgets |
+| Internal tool | Circuit breaker | Degradation | Streaming |
+| Batch processing | Retry with backoff | Token budgets | Queue |
+| High-volume API | All of the above | - | - |
+
+### Trade-off Analysis
+
+| Pattern | Complexity | Reliability Gain | Performance Impact | Cost Impact |
+|---------|------------|------------------|-------------------|-------------|
+| Circuit breaker | Medium | High | Positive (fast-fail) | Saves (avoids waste) |
+| Exponential backoff | Low | Medium | Neutral | Neutral |
+| Response caching | Medium | Medium | Very positive | Saves |
+| Token budgets | Medium | N/A | Neutral | Limits |
+| Graceful degradation | Medium | High | Positive | Saves |
+| Request queuing | High | Very High | Variable | Neutral |
+
+---
+
 ## Pattern 1: Resilient API Integration
 
 Every interaction with a foundation model is an API call that can fail. Production systems need multiple layers of resilience.

@@ -16,6 +16,116 @@ AWS provides tools for transparency (showing reasoning, citing sources), fairnes
 
 ---
 
+## Under the Hood: The Three Pillars of Responsible AI
+
+Understanding the components helps you build genuinely responsible systems, not just checkbox compliance.
+
+### The Responsible AI Framework
+
+```mermaid
+graph TD
+    subgraph "Transparency"
+        A[Explainable Reasoning]
+        B[Source Citations]
+        C[Confidence Indicators]
+        D[AI Disclosure]
+    end
+
+    subgraph "Fairness"
+        E[Bias Detection]
+        F[Outcome Monitoring]
+        G[Diverse Testing]
+        H[Remediation Plans]
+    end
+
+    subgraph "Accountability"
+        I[Human Oversight]
+        J[Audit Trails]
+        K[Guardrails]
+        L[Incident Response]
+    end
+
+    A --> M[User Trust]
+    B --> M
+    E --> N[Equitable Outcomes]
+    F --> N
+    I --> O[Clear Responsibility]
+    J --> O
+```
+
+### Where Bias Enters the System
+
+| Stage | Bias Source | Example | Detection |
+|-------|-------------|---------|-----------|
+| Training data | Historical patterns | Past hiring decisions favor certain groups | SageMaker Clarify |
+| Prompt design | Implicit assumptions | "Professional email" assumes certain style | A/B testing across groups |
+| Retrieval | Index coverage | More docs about certain topics | Retrieval audits |
+| Generation | Model tendencies | Stereotyped associations | Output sampling |
+
+### The Accountability Chain
+
+```
+User Request → Guardrails Check → Model Inference → Output Validation → User Response
+      ↓              ↓                  ↓                  ↓              ↓
+   Logged        Logged            Logged             Logged          Logged
+      ↓              ↓                  ↓                  ↓              ↓
+                     └──────────── Audit Trail ────────────────────────────┘
+```
+
+Every decision point should be traceable to understand "why did the AI do that?"
+
+---
+
+## Decision Framework: Implementing Responsible AI
+
+Use this framework to build appropriate responsible AI controls.
+
+### Quick Reference
+
+| Application Type | Transparency | Fairness Testing | Human Oversight |
+|------------------|--------------|------------------|-----------------|
+| General chatbot | AI disclosure | Quarterly | None required |
+| Customer service | Reasoning display | Monthly | Escalation option |
+| Recommendations | Explanation available | Weekly | Review sampling |
+| Decisions affecting people | Full reasoning + sources | Continuous | Required for high-impact |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Responsible AI Design] --> B{Decision<br/>impact?}
+
+    B -->|Low: Info only| C[Basic Transparency]
+    B -->|Medium: Recommendations| D[Enhanced Transparency<br/>+ Fairness Monitoring]
+    B -->|High: Direct impact| E[Full Stack<br/>+ Human Oversight]
+
+    C --> F[AI disclosure<br/>Basic logging]
+
+    D --> G[Reasoning display<br/>Bias testing<br/>Outcome monitoring]
+
+    E --> H[Full explanation<br/>Continuous bias testing<br/>Human review required<br/>Appeal process]
+
+    F --> I{Regulated<br/>domain?}
+    G --> I
+    H --> I
+
+    I -->|Yes| J[Add compliance<br/>requirements]
+    I -->|No| K[Implementation<br/>complete]
+```
+
+### Trade-off Analysis
+
+| Control | User Trust | Development Cost | Performance Impact |
+|---------|-----------|------------------|-------------------|
+| AI disclosure | Medium | Low | None |
+| Reasoning display | High | Medium | +tokens |
+| Source citations | Very High | Medium | +retrieval |
+| Confidence indicators | High | Low | +tokens |
+| Bias monitoring | Medium | High | None |
+| Human oversight | Highest | High | +latency |
+
+---
+
 ## Transparency and Explainability
 
 Users should understand when they're interacting with AI, how decisions are made, and where information comes from. Transparency builds trust. Opacity breeds suspicion.

@@ -70,6 +70,217 @@ AWS provides several services and frameworks for building agentic systems:
 
 ---
 
+## Under the Hood: How Agents Actually Work
+
+Understanding the mechanics of agent execution helps you debug issues and design better systems.
+
+### The Tool Selection Process
+
+When you give an agent tools, the model doesn't "call functions" in the traditional sense. Instead, it generates **structured output** indicating which tool to use and with what parameters:
+
+```mermaid
+graph TD
+    subgraph "Your Request"
+        A[User: What's the status of order 12345?]
+    end
+
+    subgraph "Model Processing"
+        B[Prompt includes:<br/>- System instructions<br/>- Available tools as JSON schema<br/>- Conversation history]
+        C[Model generates response]
+        D{Output type?}
+    end
+
+    subgraph "Tool Execution"
+        E[Parse tool name + params]
+        F[Execute Lambda/function]
+        G[Return result to model]
+    end
+
+    subgraph "Final Output"
+        H[Model generates text response]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    D -->|tool_use| E
+    D -->|text| H
+    E --> F
+    F --> G
+    G --> B
+```
+
+**What the model actually sees:**
+```json
+{
+  "tools": [
+    {
+      "name": "getOrderStatus",
+      "description": "Look up order status by order ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "orderId": {"type": "string"}
+        },
+        "required": ["orderId"]
+      }
+    }
+  ]
+}
+```
+
+**What the model generates:**
+```json
+{
+  "type": "tool_use",
+  "name": "getOrderStatus",
+  "input": {"orderId": "12345"}
+}
+```
+
+**Key insight:** The model is just generating text that happens to be valid JSON matching your tool schema. It's not "executing" anything—your code parses this JSON and executes the actual function.
+
+### Why Tool Descriptions Matter So Much
+
+The model decides which tool to use based entirely on the text descriptions you provide. Poor descriptions lead to poor tool selection:
+
+| Description Quality | Model Behavior |
+|---------------------|----------------|
+| "Gets info" | Model guesses based on name alone |
+| "Gets order information" | Model picks this for any order query |
+| "Retrieves status, shipping, and delivery ETA for a customer order by order ID" | Model picks this specifically for status/shipping questions |
+
+### The Context Window During Agent Loops
+
+Each iteration of the agent loop accumulates context:
+
+```
+Iteration 1: System prompt + tools + user query + assistant response (tool call)
+Iteration 2: All of above + tool result + assistant response (another tool call)
+Iteration 3: All of above + tool result + assistant response (text)
+```
+
+**Why this matters:**
+- Long-running agents can exhaust context windows
+- Token costs accumulate with each iteration
+- Important early context can get "forgotten" in very long loops
+- You may need to summarize or prune conversation history
+
+### How Bedrock Agents Work Internally
+
+When you create a Bedrock Agent:
+
+```mermaid
+graph TD
+    subgraph "Configuration"
+        A[Agent Definition]
+        B[Action Groups<br/>OpenAPI specs]
+        C[Knowledge Bases]
+    end
+
+    subgraph "Bedrock Agent Runtime"
+        D[Orchestration Layer]
+        E[Session Management]
+        F[Tool Routing]
+    end
+
+    subgraph "Execution"
+        G[Your Lambda Functions]
+        H[KB Retrieval]
+        I[FM Inference]
+    end
+
+    A --> D
+    B --> F
+    C --> H
+    D --> E
+    D --> F
+    F --> G
+    D --> I
+    H --> D
+```
+
+Bedrock Agents abstracts away:
+- The ReAct prompt construction
+- Tool result parsing and re-prompting
+- Session state management
+- Retry logic for transient failures
+
+You provide: Lambda functions, OpenAPI specs, and optionally Knowledge Bases. Bedrock handles the orchestration loop.
+
+---
+
+## Decision Framework: When to Use Agents
+
+Agents add complexity. Use them when that complexity is justified.
+
+### Quick Reference
+
+| Scenario | Choose | Why |
+|----------|--------|-----|
+| Simple Q&A over documents | **RAG (not agent)** | Single retrieval, no multi-step reasoning |
+| User asks multi-part question | **ReAct Agent** | Needs to break down and handle sequentially |
+| Task requires external API calls | **Agent with tools** | Can call APIs autonomously |
+| Need to route to specialists | **Supervisor + Agents** | Domain expertise varies by request |
+| High reliability required | **Step Functions orchestration** | Better error handling than model-driven loops |
+| Exploratory research task | **Peer-to-peer agents** | Self-organizing exploration |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[New AI Task] --> B{Single-turn or<br/>multi-turn?}
+
+    B -->|Single-turn| C{Needs external<br/>data or actions?}
+    B -->|Multi-turn| D{Conversation or<br/>task execution?}
+
+    C -->|No| E[Simple Prompt<br/>No agent needed]
+    C -->|Just retrieval| F[RAG<br/>No agent needed]
+    C -->|API calls needed| G[Agent with Tools]
+
+    D -->|Conversation with context| H[Conversational RAG<br/>Maybe agent]
+    D -->|Multi-step task| I{Task complexity?}
+
+    I -->|Linear steps| J[Step Functions<br/>Deterministic orchestration]
+    I -->|Dynamic reasoning| K[ReAct Agent]
+    I -->|Multiple domains| L{Routing pattern?}
+
+    L -->|Clear handoff| M[Supervisor Pattern<br/>Agent Squad]
+    L -->|Collaborative| N[Peer-to-Peer<br/>EventBridge]
+
+    K --> O{High-stakes<br/>actions?}
+    O -->|Yes| P[Add Human-in-the-Loop]
+    O -->|No| Q[Autonomous Agent]
+```
+
+### Trade-off Analysis
+
+| Factor | Simple Prompt | RAG | ReAct Agent | Multi-Agent |
+|--------|---------------|-----|-------------|-------------|
+| **Complexity** | Lowest | Low | Medium | High |
+| **Latency** | ~1-2s | ~2-3s | ~5-30s | ~10-60s |
+| **Cost** | $ | $$ | $$$  | $$$$ |
+| **Reliability** | High | High | Medium | Lower |
+| **Capability** | Limited | Knowledge access | Tool use | Specialized experts |
+| **Debuggability** | Easy | Easy | Medium | Hard |
+| **Exam Signal** | "simple", "one-shot" | "documents", "knowledge" | "autonomous", "tools" | "coordinate", "specialists" |
+
+### When NOT to Use Agents
+
+**Don't use agents when:**
+- A single prompt can solve the problem
+- The task is deterministic (use Step Functions instead)
+- Latency is critical (agents are slow)
+- You need guaranteed behavior (agents can fail unpredictably)
+- The task doesn't require external data or actions
+
+**Warning signs you're over-engineering:**
+- Your "agent" only ever calls one tool
+- The agent always follows the same steps
+- You're building guardrails to prevent the agent from doing anything unexpected (just don't use an agent)
+
+---
+
 ## The ReAct Pattern: Reasoning + Acting
 
 **ReAct** (Reasoning + Acting) has become the dominant pattern for building effective agents. The key insight is elegant: instead of asking a model to solve a problem in one shot, let it **alternate between thinking and doing**. Each action provides new information that informs the next thought.

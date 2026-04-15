@@ -16,6 +16,198 @@ This isn't about being cheap. It's about being smart. Every dollar saved on redu
 
 ---
 
+## Under the Hood: How GenAI Billing Actually Works
+
+Understanding what drives costs helps you optimize systematically.
+
+### The Cost Formula
+
+Every Bedrock API call has this cost structure:
+
+```mermaid
+graph LR
+    subgraph "Your Request"
+        A[System Prompt] --> D[Total Input]
+        B[User Message] --> D
+        C[Retrieved Context] --> D
+    end
+
+    subgraph "Cost Calculation"
+        D --> E[Input Tokens × Input Price]
+        F[Model Response] --> G[Output Tokens × Output Price]
+        E --> H[Total Cost]
+        G --> H
+    end
+```
+
+```
+Total Cost = (Input Tokens × Input Price) + (Output Tokens × Output Price)
+```
+
+### Why Output Tokens Cost More
+
+Output tokens are 3-5x more expensive because they require **sequential generation**:
+
+| Phase | Processing | Cost Driver |
+|-------|-----------|-------------|
+| Input processing | Parallel (fast) | One forward pass |
+| Output generation | Sequential (slow) | One forward pass **per token** |
+
+A 1000-token response requires 1000 forward passes through the model. A 1000-token input requires just 1 forward pass. This fundamental asymmetry is why output costs more.
+
+### Where Your Money Actually Goes
+
+For a typical RAG query:
+
+```
+Input breakdown:
+├── System prompt:     ~500 tokens  (fixed per request)
+├── Retrieved context: ~2000 tokens (variable by k)
+├── Conversation history: ~300 tokens (grows over time)
+└── User query:        ~50 tokens   (small)
+Total input: ~2850 tokens
+
+Output: ~300 tokens (controllable via max_tokens)
+
+With Claude 3.5 Sonnet:
+- Input cost:  2850 × $3.00/1M = $0.00855
+- Output cost: 300 × $15.00/1M = $0.0045
+- Total: $0.01305 per query
+
+With Claude 3.5 Haiku:
+- Input cost:  2850 × $0.80/1M = $0.00228
+- Output cost: 300 × $4.00/1M = $0.0012
+- Total: $0.00348 per query
+
+Haiku saves 73% while potentially delivering equivalent quality for simple queries.
+```
+
+### The Compounding Effect
+
+Costs compound in ways that aren't obvious:
+
+```mermaid
+graph TD
+    subgraph "Conversation Turn 1"
+        A1[System: 500] --> T1[Total: 550]
+        B1[User: 50] --> T1
+    end
+
+    subgraph "Conversation Turn 2"
+        A2[System: 500] --> T2[Total: 900]
+        B2[History: 350] --> T2
+        C2[User: 50] --> T2
+    end
+
+    subgraph "Conversation Turn 3"
+        A3[System: 500] --> T3[Total: 1550]
+        B3[History: 1000] --> T3
+        C3[User: 50] --> T3
+    end
+
+    T1 --> |"+ response"| B2
+    T2 --> |"+ response"| B3
+```
+
+By turn 10, you might be sending 5000+ tokens per request—even though the user's message is still just 50 tokens.
+
+### Prompt Caching Economics
+
+Bedrock's prompt caching stores processed prompt prefixes. The economics:
+
+| Scenario | Input Cost |
+|----------|-----------|
+| No caching | Full price |
+| Cache write (first request) | Full price + small write cost |
+| Cache read (subsequent) | ~90% discount on cached portion |
+
+**Break-even:** If your system prompt is 1000 tokens and you make 10+ requests with the same prefix, prompt caching pays off.
+
+---
+
+## Decision Framework: Which Optimization to Apply
+
+Use this framework to prioritize cost optimization efforts.
+
+### Quick Reference
+
+| Situation | Best Optimization | Expected Savings |
+|-----------|------------------|------------------|
+| Simple queries using expensive models | **Model tiering** | 50-90% |
+| Repeated identical/similar queries | **Semantic caching** | Up to 100% (cache hits) |
+| Long system prompts shared across requests | **Prompt caching** | 70-90% on cached portion |
+| Long conversation histories | **Context summarization** | 30-60% |
+| Unnecessarily verbose responses | **max_tokens + prompt instructions** | 20-50% |
+| Bulk processing not time-sensitive | **Batch inference** | ~50% |
+| High steady-state utilization | **Provisioned throughput** | 20-40% |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Optimize GenAI Costs] --> B{What's the biggest<br/>cost driver?}
+
+    B -->|Model costs| C{Query complexity<br/>varies?}
+    B -->|Token volume| D{Input or output<br/>heavy?}
+    B -->|Request volume| E{Repeated queries?}
+
+    C -->|Yes| F[Implement Model Tiering<br/>Route simple → Haiku]
+    C -->|No| G{Using most expensive<br/>model?}
+
+    G -->|Yes| H[Evaluate cheaper model<br/>for your use case]
+    G -->|No| I[Focus on token/request<br/>optimization]
+
+    D -->|Input heavy| J{Long system<br/>prompts?}
+    D -->|Output heavy| K[Reduce max_tokens<br/>Prompt for brevity]
+
+    J -->|Yes| L[Enable prompt caching]
+    J -->|No| M{Large context<br/>windows?}
+
+    M -->|Yes| N[Reduce k in retrieval<br/>Summarize history]
+    M -->|No| O[Check for redundant<br/>context]
+
+    E -->|Yes| P{Exact or similar<br/>matches?}
+    E -->|No| Q[Focus on per-request<br/>optimization]
+
+    P -->|Exact| R[Response caching<br/>CloudFront/ElastiCache]
+    P -->|Similar| S[Semantic caching<br/>with embeddings]
+```
+
+### Optimization Priority by Application Type
+
+| Application Type | Priority 1 | Priority 2 | Priority 3 |
+|------------------|-----------|-----------|-----------|
+| Customer support chatbot | Model tiering | Semantic caching | Context summarization |
+| Document Q&A (RAG) | Reduce retrieval k | Prompt caching | Model tiering |
+| Content generation | Output token control | Model selection | Batch processing |
+| Code assistant | Model tiering | Prompt caching | Response streaming |
+| Bulk classification | Batch inference | Cheapest viable model | Parallel processing |
+
+### Trade-off Analysis
+
+| Optimization | Cost Savings | Implementation Effort | Quality Risk |
+|--------------|-------------|----------------------|--------------|
+| Model tiering | High (50-90%) | Medium | Medium (if misrouted) |
+| Semantic caching | High (cache hits) | Medium-High | Low |
+| Prompt caching | Medium (70-90% on prefix) | Low | None |
+| Context reduction | Medium (30-60%) | Low | Medium (if over-reduced) |
+| max_tokens limits | Low-Medium (20-50%) | Low | Low (if set appropriately) |
+| Provisioned throughput | Medium (20-40%) | Low | None |
+| Batch inference | Medium (~50%) | Medium | None (same quality) |
+
+### When NOT to Optimize
+
+**Don't optimize prematurely:**
+- Small-scale applications where total spend is < $100/month
+- Early prototyping where requirements are still changing
+- When quality is paramount and you haven't validated cheaper alternatives work
+
+**Don't over-optimize:**
+- Saving $0.001 per request isn't worth hours of engineering if you have 100 requests/day
+- Cache infrastructure costs can exceed savings for low-volume applications
+
+---
+
 ## Token Economics: Understanding What You're Paying For
 
 Tokens are the fundamental unit of GenAI cost. Every character you send to a model costs tokens. Every character the model generates costs tokens. Understanding token economics is step one for optimization.

@@ -22,6 +22,143 @@ This section covers the full spectrum: from the simplest Lambda-based deployment
 
 ---
 
+## Under the Hood: How Model Deployment Actually Works
+
+Understanding what happens behind the scenes helps you make better deployment decisions and debug issues when they arise.
+
+### Bedrock On-Demand: The Shared Pool
+
+When you call Bedrock without provisioned throughput, you're using **shared infrastructure**:
+
+```mermaid
+graph TD
+    subgraph "Your Account"
+        A[Your Application]
+    end
+
+    subgraph "Bedrock Shared Infrastructure"
+        B[Request Queue]
+        C[Load Balancer]
+        D[Model Instance Pool]
+        E[GPU 1: Claude]
+        F[GPU 2: Claude]
+        G[GPU 3: Claude]
+        H[GPU N: Claude]
+    end
+
+    A -->|API Call| B
+    B --> C
+    C --> D
+    D --> E
+    D --> F
+    D --> G
+    D --> H
+
+    I[Other Customer 1] -->|API Call| B
+    J[Other Customer 2] -->|API Call| B
+    K[Other Customer N] -->|API Call| B
+```
+
+**What this means:**
+- Your requests compete with all other AWS customers for the same GPU pool
+- During high demand, you may be throttled (`ThrottlingException`)
+- Latency varies based on current pool utilization
+- AWS manages all scaling, maintenance, and availability
+- You pay only for tokens consumed—nothing during idle time
+
+### Bedrock Provisioned Throughput: Dedicated Capacity
+
+With provisioned throughput, you get **dedicated model units** that only serve your requests:
+
+```mermaid
+graph TD
+    subgraph "Your Account"
+        A[Your Application]
+    end
+
+    subgraph "Your Provisioned Capacity"
+        B[Your Load Balancer]
+        C[Model Unit 1]
+        D[Model Unit 2]
+        E[Model Unit 3]
+    end
+
+    subgraph "Bedrock Shared Pool"
+        F[Shared Capacity]
+    end
+
+    A -->|API Call| B
+    B --> C
+    B --> D
+    B --> E
+
+    G[Other Customers] --> F
+```
+
+**What this means:**
+- Dedicated GPU capacity reserved for your account only
+- No competition with other customers—consistent latency
+- No throttling (within your provisioned capacity)
+- You pay hourly whether you use it or not
+- Capacity measured in "model units" (throughput per minute)
+
+### SageMaker Endpoints: Full Infrastructure Control
+
+SageMaker gives you actual EC2 instances running your model:
+
+```mermaid
+graph TD
+    subgraph "Your VPC"
+        A[Your Application]
+    end
+
+    subgraph "SageMaker Managed Infrastructure"
+        B[Endpoint]
+        C[Production Variant A - 90%]
+        D[Production Variant B - 10%]
+
+        subgraph "Variant A Instances"
+            E[ml.g5.2xlarge #1]
+            F[ml.g5.2xlarge #2]
+        end
+
+        subgraph "Variant B Instances"
+            G[ml.g5.2xlarge #1]
+        end
+    end
+
+    A --> B
+    B -->|90%| C
+    B -->|10%| D
+    C --> E
+    C --> F
+    D --> G
+
+    H[Auto Scaling] -.->|Scale 1-10| E
+    H -.->|Scale 1-10| F
+```
+
+**What this means:**
+- You select instance types (GPU, memory, CPU)
+- You control scaling policies
+- You can run multiple model versions simultaneously (A/B testing)
+- You can deploy any model (not just Bedrock-supported ones)
+- You pay for instances running, not tokens consumed
+- More operational responsibility (updates, monitoring, capacity planning)
+
+### Why This Matters for Decision-Making
+
+| Aspect | On-Demand | Provisioned | SageMaker |
+|--------|-----------|-------------|-----------|
+| **Who manages GPUs?** | AWS completely | AWS, dedicated to you | AWS, configured by you |
+| **Capacity model** | Shared pool | Reserved capacity | Instance-based |
+| **Cold starts** | Possible (rare) | None | None (if instances running) |
+| **Model loading** | Pre-loaded | Pre-loaded | You control |
+| **Instance types** | Hidden | Hidden | You choose |
+| **Scaling** | Automatic (throttle) | Fixed (add units) | Auto-scaling policies |
+
+---
+
 ## Understanding the Deployment Landscape
 
 Before diving into specific patterns, understand the key dimensions that differentiate deployment options:
@@ -939,6 +1076,94 @@ autoscaling.put_scaling_policy(
     }
 )
 ```
+
+---
+
+## Decision Framework: Choosing Your Deployment Strategy
+
+Use this framework to systematically evaluate deployment options for your use case.
+
+### Quick Reference
+
+| Scenario | Choose | Why |
+|----------|--------|-----|
+| New application, uncertain traffic | **Bedrock On-Demand** | Zero commitment, pay per token |
+| Production app, steady 10K+ req/day | **Evaluate Provisioned** | Likely cost savings, no throttling |
+| Custom/fine-tuned model | **Provisioned Throughput** | Required—no on-demand option |
+| Model not in Bedrock | **SageMaker** | Full flexibility for any model |
+| Need A/B testing model versions | **SageMaker** | Production variants support this |
+| Bulk processing (not real-time) | **Batch Inference** | 50% cost savings |
+| Multi-region high availability | **Inference Profiles** | Automatic failover |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[New FM Deployment] --> B{Model available<br/>in Bedrock?}
+
+    B -->|No| C[SageMaker Endpoints]
+    B -->|Yes| D{Custom/fine-tuned<br/>model?}
+
+    D -->|Yes| E[Provisioned Throughput<br/>Required]
+    D -->|No| F{Traffic pattern?}
+
+    F -->|Variable/Unknown| G[On-Demand]
+    F -->|Predictable/Steady| H{Utilization<br/>>40%?}
+
+    H -->|Yes| I{Need SLA<br/>guarantees?}
+    H -->|No| G
+
+    I -->|Yes| E
+    I -->|No| J{Cost optimization<br/>priority?}
+
+    J -->|High| E
+    J -->|Low| G
+
+    G --> K{Bulk processing<br/>acceptable?}
+    K -->|Yes| L[Consider Batch<br/>for offline work]
+    K -->|No| M[On-Demand<br/>Implementation]
+
+    E --> N{Multi-region<br/>HA needed?}
+    N -->|Yes| O[Add Inference<br/>Profiles]
+    N -->|No| P[Provisioned<br/>Implementation]
+
+    C --> Q{Need A/B testing?}
+    Q -->|Yes| R[Production Variants]
+    Q -->|No| S[Single Endpoint]
+```
+
+### Trade-off Analysis
+
+| Factor | On-Demand | Provisioned | SageMaker | Batch |
+|--------|-----------|-------------|-----------|-------|
+| **Cost Model** | Per token | Hourly | Per instance | Per token (50% off) |
+| **Cost at Low Volume** | Lowest | Higher | Highest | Lowest |
+| **Cost at High Volume** | Higher | Lower | Variable | Lowest |
+| **Latency** | Variable | Consistent | Consistent | Hours |
+| **Throttling Risk** | Yes | No | No | N/A |
+| **Operational Burden** | None | Low | Medium-High | Low |
+| **Model Flexibility** | Bedrock only | Bedrock + custom | Any | Bedrock only |
+| **Scaling** | Automatic | Manual (add units) | Auto-scaling | N/A |
+| **Exam Signal** | "serverless", "pay-per-use" | "guaranteed", "SLA" | "custom", "A/B test" | "bulk", "offline" |
+
+### Break-Even Analysis: When to Switch
+
+**On-Demand vs Provisioned Throughput:**
+
+The crossover point depends on your utilization. At approximately **40-50% utilization**, provisioned becomes more cost-effective:
+
+| Monthly Spend (On-Demand) | Likely Better Option |
+|---------------------------|---------------------|
+| < $2,000 | Stay on-demand (flexibility > savings) |
+| $2,000 - $5,000 | Evaluate provisioned (run the numbers) |
+| > $5,000 | Likely provisioned (significant savings) |
+
+**When to consider SageMaker over Bedrock:**
+- You need a model not available in Bedrock
+- You need to A/B test model versions
+- You need specific instance types for performance tuning
+- You need multi-model endpoints (cost optimization)
+- Compliance requires infrastructure in your VPC
 
 ---
 

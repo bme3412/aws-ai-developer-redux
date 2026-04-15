@@ -14,6 +14,121 @@ Good governance means documentation, lineage tracking, audit logging, and contin
 
 ---
 
+## Under the Hood: How Governance Actually Works
+
+Understanding the governance landscape helps you design systems that satisfy auditors and regulators.
+
+### The Governance Stack
+
+AI governance operates at multiple levels:
+
+```mermaid
+graph TD
+    subgraph "Organizational Level"
+        A[AI Ethics Board]
+        B[Risk Assessment]
+        C[Policy Framework]
+    end
+
+    subgraph "System Level"
+        D[Model Documentation]
+        E[Data Lineage]
+        F[Access Controls]
+    end
+
+    subgraph "Operational Level"
+        G[Audit Logging]
+        H[Monitoring]
+        I[Incident Response]
+    end
+
+    A --> D
+    B --> E
+    C --> F
+    D --> G
+    E --> H
+    F --> I
+```
+
+### What Auditors Actually Look For
+
+| Question | Evidence Needed |
+|----------|-----------------|
+| "What data trained this model?" | Data lineage in SageMaker |
+| "Who approved this model?" | Model registry + approval workflow |
+| "What decisions did it make?" | CloudTrail + invocation logs |
+| "How do you ensure fairness?" | Bias metrics + Model Cards |
+| "Who has access?" | IAM policies + access logs |
+| "What happens when it fails?" | Incident runbooks + monitoring |
+
+### The Regulatory Landscape
+
+| Regulation | Scope | Key Requirements |
+|------------|-------|------------------|
+| **EU AI Act** | EU operations | Risk classification, documentation, human oversight |
+| **State AI Laws** | US state-specific | Disclosure, bias testing, opt-out rights |
+| **HIPAA** | Healthcare | PHI protection, audit trails |
+| **SOC 2** | Enterprise | Controls, monitoring, access management |
+
+---
+
+## Decision Framework: Building a Governance Program
+
+Use this framework to establish appropriate governance for your AI systems.
+
+### Quick Reference
+
+| Risk Level | Documentation | Monitoring | Review Frequency |
+|------------|---------------|------------|------------------|
+| Low (internal tools) | Basic Model Card | Standard CloudWatch | Quarterly |
+| Medium (customer-facing) | Full Model Card + lineage | Enhanced + bias monitoring | Monthly |
+| High (regulated domain) | Complete audit trail | Continuous + alerting | Weekly + incident-driven |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Governance Design] --> B{Regulatory<br/>requirements?}
+
+    B -->|HIPAA/PCI/etc| C[Maximum Governance]
+    B -->|None specific| D{Customer<br/>facing?}
+
+    D -->|Yes| E{Decision<br/>impact?}
+    D -->|No| F[Standard Governance]
+
+    E -->|High stakes| G[Enhanced Governance]
+    E -->|Low stakes| H[Standard + Monitoring]
+
+    C --> I[Full audit trail<br/>Model Cards<br/>Lineage<br/>Bias monitoring<br/>Human oversight]
+
+    G --> J[Model Cards<br/>Lineage<br/>Enhanced logging<br/>Regular bias checks]
+
+    H --> K[Model Cards<br/>Standard logging<br/>Periodic review]
+
+    F --> L[Basic documentation<br/>CloudTrail<br/>Quarterly review]
+```
+
+### Governance Components by Risk
+
+| Component | Low Risk | Medium Risk | High Risk |
+|-----------|----------|-------------|-----------|
+| **Model Cards** | Basic | Detailed | Comprehensive + updates |
+| **Data Lineage** | Optional | Required | Full traceability |
+| **Audit Logging** | CloudTrail | + Invocation logs | + Full I/O logging |
+| **Bias Testing** | Initial | Quarterly | Continuous |
+| **Human Review** | None | Sampling | High-risk decisions |
+| **Approval Workflow** | Informal | Documented | Multi-level |
+
+### Trade-off Analysis
+
+| Governance Level | Implementation Cost | Operational Overhead | Audit Readiness | Flexibility |
+|------------------|--------------------|--------------------|-----------------|-------------|
+| Minimal | Low | Low | Poor | High |
+| Standard | Medium | Medium | Good | Medium |
+| Comprehensive | High | High | Excellent | Lower |
+
+---
+
 ## Model Documentation: Model Cards and Beyond
 
 Models are complex artifacts. They have capabilities and limitations that aren't obvious from their code or weights. They perform differently on different types of inputs. They have biases inherited from training data. Without documentation, this knowledge exists only in the heads of the people who built them—and those people move on, forget, or simply can't remember every detail.

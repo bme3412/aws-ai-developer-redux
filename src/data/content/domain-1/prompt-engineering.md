@@ -14,6 +14,170 @@ This is often the highest-leverage optimization available to any AI team. A well
 
 ---
 
+## Under the Hood: How Models Actually Process Prompts
+
+Understanding what happens inside the model helps you write better prompts and debug unexpected behavior.
+
+### The Prompt Processing Pipeline
+
+When you send a prompt, here's what happens:
+
+```mermaid
+graph LR
+    subgraph "Input Processing"
+        A[Your Prompt] --> B[Tokenizer]
+        B --> C[Token Embeddings]
+    end
+
+    subgraph "Model Computation"
+        C --> D[Attention Layers]
+        D --> E[Probability Distribution]
+    end
+
+    subgraph "Output Generation"
+        E --> F{Sample Next Token}
+        F --> G[Add to Context]
+        G --> D
+        F --> H{Stop Token?}
+        H -->|No| F
+        H -->|Yes| I[Return Response]
+    end
+```
+
+**Key insight:** The model doesn't "understand" your prompt like a human. It converts text to numbers (tokens), processes them through attention layers, and generates a probability distribution over what token should come next. Everything the model "knows" about your intent comes from patterns in those numbers.
+
+### Why Prompt Structure Matters
+
+The model processes your entire prompt as context before generating each output token. This means:
+
+| What You Write | What the Model Sees |
+|----------------|---------------------|
+| Clear instructions first | Strong context for generation |
+| Examples before the task | Pattern to match |
+| Scattered instructions | Diluted, competing signals |
+| Vague language | Multiple valid interpretations |
+
+**The attention mechanism** weighs different parts of your prompt when generating each token. Clear, prominent instructions get more attention weight. Buried or verbose instructions compete with other text.
+
+### Why Few-Shot Works
+
+Few-shot examples work because of **in-context learning**. The model identifies patterns in your examples and applies them to new inputs. It's not learning new knowledge—it's activating patterns from training:
+
+```mermaid
+graph TD
+    A[Example 1: Input → Output] --> D[Pattern Recognition]
+    B[Example 2: Input → Output] --> D
+    C[Example 3: Input → Output] --> D
+    D --> E[Apply Pattern to New Input]
+    E --> F[Generated Output Follows Pattern]
+```
+
+More examples = stronger pattern signal, but diminishing returns after 3-5 examples. Quality matters more than quantity.
+
+### Why Chain-of-Thought Improves Reasoning
+
+Without CoT, the model must do all reasoning in a single forward pass—like solving a math problem in your head without writing anything down.
+
+With CoT, each reasoning step becomes part of the context for the next step:
+
+```
+Without CoT:  Input → [Hidden Reasoning] → Final Answer
+With CoT:     Input → Step 1 → Step 2 → Step 3 → Final Answer
+                       ↑        ↑        ↑
+                 (Each step visible and usable as context)
+```
+
+The externalized reasoning acts as a "working memory" the model can reference. This is why CoT dramatically improves accuracy on multi-step problems.
+
+---
+
+## Decision Framework: Choosing the Right Prompting Technique
+
+Different tasks call for different techniques. Use this framework to select appropriately.
+
+### Quick Reference
+
+| Task Type | Best Technique | Why |
+|-----------|---------------|-----|
+| Simple classification | Zero-shot | Model knows categories |
+| Custom output format | Few-shot | Show, don't tell |
+| Math or logic problems | Chain-of-thought | Externalize reasoning |
+| Complex multi-step task | Few-shot + CoT | Pattern + reasoning |
+| Creative generation | Higher temperature | Allow exploration |
+| Factual extraction | Temperature=0 | Deterministic output |
+| Persona/style needed | Role prompting | Activate relevant patterns |
+| Uncertain reasoning | Self-consistency | Multiple paths, majority vote |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Choose Prompting Technique] --> B{Task complexity?}
+
+    B -->|Simple| C{Clear format needed?}
+    B -->|Multi-step reasoning| D[Chain-of-Thought]
+    B -->|Complex| E[Few-shot + CoT]
+
+    C -->|Yes| F{Can you describe format?}
+    C -->|No| G[Zero-shot]
+
+    F -->|Easily| H[Zero-shot with format spec]
+    F -->|Hard to describe| I[Few-shot examples]
+
+    D --> J{High stakes?}
+    J -->|Yes| K[Self-consistency<br/>Multiple reasoning paths]
+    J -->|No| L[Single CoT]
+
+    E --> M{Consistent style needed?}
+    M -->|Yes| N[Add role prompting]
+    M -->|No| O[Few-shot + CoT sufficient]
+
+    G --> P{Output varies too much?}
+    P -->|Yes| Q[Lower temperature<br/>or add few-shot]
+    P -->|No| R[Zero-shot is working]
+```
+
+### Trade-off Analysis
+
+| Technique | Cost | Complexity | Consistency | Reasoning Quality |
+|-----------|------|------------|-------------|-------------------|
+| Zero-shot | Lowest | Lowest | Medium | Medium |
+| Few-shot (3 examples) | Medium | Low | High | Medium |
+| Chain-of-thought | Medium | Medium | Medium | High |
+| Few-shot + CoT | Higher | Medium | High | High |
+| Self-consistency (5 paths) | 5x base | Medium | Very High | Very High |
+| Tree of Thoughts | Very High | High | Variable | Highest |
+
+### Parameter Selection
+
+| Goal | Temperature | Top-p | Max Tokens |
+|------|-------------|-------|------------|
+| Deterministic/reproducible | 0 | 1.0 | Set to expected |
+| Balanced | 0.5-0.7 | 0.9 | Set to max expected |
+| Creative | 0.8-1.0 | 0.95 | Higher for exploration |
+| Constrained creative | 0.7-0.9 | 0.5 | Set to expected |
+
+### When to Graduate Between Techniques
+
+**Start with zero-shot.** If it works acceptably, you're done.
+
+**Add few-shot when:**
+- Output format is inconsistent
+- Style or tone varies too much
+- Model misinterprets the task
+
+**Add chain-of-thought when:**
+- Accuracy on reasoning tasks is poor
+- Errors happen in intermediate steps
+- Complex decisions need justification
+
+**Add self-consistency when:**
+- Single reasoning path is unreliable
+- High stakes require confidence
+- You need to detect uncertain answers
+
+---
+
 ## Core Prompting Techniques
 
 The way you ask matters as much as what you ask. Small changes to prompt structure can dramatically change output quality, and understanding these techniques gives you a toolkit for solving a wide variety of problems without touching model architecture.

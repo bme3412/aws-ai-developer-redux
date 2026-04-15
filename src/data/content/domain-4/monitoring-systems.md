@@ -16,6 +16,159 @@ Good monitoring catches issues before users do. It enables optimization through 
 
 ---
 
+## Under the Hood: GenAI Metrics That Matter
+
+Understanding which metrics to track and why helps you build effective monitoring.
+
+### The GenAI Metrics Hierarchy
+
+```mermaid
+graph TD
+    subgraph "Infrastructure Metrics"
+        A[Latency]
+        B[Error Rates]
+        C[Throughput]
+    end
+
+    subgraph "Cost Metrics"
+        D[Input Tokens]
+        E[Output Tokens]
+        F[API Calls]
+    end
+
+    subgraph "Quality Metrics"
+        G[Groundedness]
+        H[Relevance]
+        I[User Satisfaction]
+    end
+
+    subgraph "Business Metrics"
+        J[Task Completion]
+        K[Escalation Rate]
+        L[Time Saved]
+    end
+
+    A --> M[System Health]
+    D --> N[Cost Control]
+    G --> O[Output Quality]
+    J --> P[Business Value]
+```
+
+### What Each Metric Tells You
+
+| Metric | Healthy Range | Alert Threshold | What It Indicates |
+|--------|---------------|-----------------|-------------------|
+| p50 Latency | < 2s | > 5s | Typical user experience |
+| p99 Latency | < 10s | > 30s | Worst-case experience |
+| Error Rate | < 1% | > 5% | System stability |
+| Input Tokens/req | Stable | +50% | Prompt bloat or attack |
+| Output Tokens/req | Stable | +100% | Unexpected verbosity |
+| Guardrail Interventions | < 1% | > 5% | Content issues |
+| User Feedback Score | > 4.0/5 | < 3.5/5 | Quality perception |
+
+### The Observability Stack
+
+```mermaid
+graph LR
+    subgraph "Collection"
+        A[CloudWatch Metrics]
+        B[X-Ray Traces]
+        C[Custom Logs]
+    end
+
+    subgraph "Storage"
+        D[CloudWatch Logs]
+        E[S3 Archives]
+    end
+
+    subgraph "Analysis"
+        F[CloudWatch Insights]
+        G[Athena Queries]
+        H[QuickSight Dashboards]
+    end
+
+    subgraph "Action"
+        I[Alarms]
+        J[SNS Notifications]
+        K[Auto-remediation]
+    end
+
+    A --> D
+    B --> D
+    C --> D
+    D --> E
+    D --> F
+    E --> G
+    F --> H
+    G --> H
+    F --> I
+    I --> J
+    I --> K
+```
+
+---
+
+## Decision Framework: Building Your Monitoring Strategy
+
+Use this framework to prioritize what to monitor.
+
+### Quick Reference
+
+| Application Stage | Priority Metrics | Alerting |
+|-------------------|------------------|----------|
+| Development | Error rates, basic latency | Email |
+| Staging | + Quality metrics, token usage | Slack |
+| Production | All metrics, user feedback | PagerDuty |
+| Optimization | + Cost breakdown, A/B metrics | Dashboard review |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Monitoring Strategy] --> B{User-facing?}
+
+    B -->|Yes| C[Full observability stack]
+    B -->|No| D[Basic metrics]
+
+    C --> E{Cost-sensitive?}
+    D --> E
+
+    E -->|Yes| F[Add token tracking<br/>budget alerts]
+    E -->|No| G[Standard cost metrics]
+
+    F --> H{Quality-critical?}
+    G --> H
+
+    H -->|Yes| I[Add quality sampling<br/>user feedback]
+    H -->|No| J[Basic quality checks]
+
+    I --> K{Compliance needs?}
+    J --> K
+
+    K -->|Yes| L[Add full audit logging<br/>invocation storage]
+    K -->|No| M[Standard logging]
+```
+
+### Monitoring Priority by Metric Type
+
+| Phase | Must Have | Should Have | Nice to Have |
+|-------|-----------|-------------|--------------|
+| MVP | Error rates, latency | Token counts | - |
+| Production | + Throughput, cost | + Quality sampling | Distributed tracing |
+| Scale | + Per-user metrics | + Anomaly detection | Predictive alerts |
+| Optimization | + A/B metrics | + Cost attribution | Custom dimensions |
+
+### Trade-off Analysis
+
+| Monitoring Level | Visibility | Storage Cost | Operational Overhead |
+|------------------|-----------|--------------|---------------------|
+| Basic (CloudWatch defaults) | Limited | Low | Low |
+| Standard (+ custom metrics) | Good | Medium | Medium |
+| Comprehensive (+ logs + traces) | Excellent | High | High |
+| Full audit (+ I/O logging) | Complete | Very High | Very High |
+
+---
+
 ## GenAI Observability Foundations
 
 GenAI observability combines traditional infrastructure monitoring with AI-specific metrics.

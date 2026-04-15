@@ -12,6 +12,94 @@ Knowing when to use a small, fast model versus when you actually need the heavy 
 
 ---
 
+## Under the Hood: How Foundation Models Actually Work
+
+Understanding what happens inside these models helps you make better selection decisions and debug quality issues.
+
+### The Token Generation Process
+
+Every foundation model—whether Claude, Titan, or Llama—generates text through the same fundamental process: **next-token prediction**. The model looks at all the tokens it has seen so far and predicts the probability distribution over what should come next.
+
+```mermaid
+graph LR
+    subgraph "Input Processing"
+        A[Your Prompt] --> B[Tokenizer]
+        B --> C[Token IDs]
+    end
+
+    subgraph "Model Inference"
+        C --> D[Embedding Layer]
+        D --> E[Transformer Layers]
+        E --> F[Probability Distribution]
+    end
+
+    subgraph "Output Generation"
+        F --> G[Sample Next Token]
+        G --> H{Done?}
+        H -->|No| E
+        H -->|Yes| I[Complete Response]
+    end
+```
+
+**Key insight:** Models generate **one token at a time**. A 500-token response requires 500 sequential forward passes through the model. This is why:
+- Longer responses take proportionally longer
+- Streaming shows tokens appearing one-by-one
+- There's no way to "parallelize" a single response
+
+### Why Bigger Models Are Smarter (and Slower)
+
+Model "size" refers to the number of parameters—the learned weights that encode the model's knowledge and reasoning capabilities.
+
+| Model | Approximate Parameters | Relative Cost | Relative Latency |
+|-------|----------------------|---------------|------------------|
+| Claude 3 Haiku | ~20B | 1x | Fast |
+| Claude 3.5 Sonnet | ~70B | 12x | Medium |
+| Claude 3 Opus | ~200B+ | 60x | Slow |
+
+**Why more parameters = better reasoning:**
+- More parameters = more capacity to store knowledge
+- More parameters = more complex pattern recognition
+- More parameters = better at multi-step reasoning
+
+**Why more parameters = slower:**
+- Each token generation requires computation through all layers
+- Bigger models have more layers and more computation per layer
+- Memory bandwidth becomes a bottleneck for very large models
+
+### The Temperature-Quality Trade-off
+
+Temperature controls the "randomness" of token selection:
+
+| Temperature | Behavior | Use Case |
+|-------------|----------|----------|
+| 0.0 | Always pick highest probability token (deterministic) | Classification, extraction, factual Q&A |
+| 0.3-0.7 | Mostly predictable with some variation | General use, balanced responses |
+| 1.0+ | More creative/random, higher chance of unusual tokens | Creative writing, brainstorming |
+
+**Why this matters for selection:** If you're using a small model for creative tasks at high temperature, you may get gibberish. If you're using a large model at temperature 0 for classification, you're paying extra for capabilities you're not using.
+
+### Context Window: Memory, Not Intelligence
+
+The context window is how much text the model can "see" at once—but it doesn't affect reasoning ability:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Context Window (200K tokens)              │
+├─────────────────────────────────────────────────────────────┤
+│ System Prompt │ Conversation History │ Current Message │ ← You control this
+│    (500)      │      (2,000)         │     (500)       │
+├─────────────────────────────────────────────────────────────┤
+│                      Model's Response                        │ ← Model generates this
+│                         (1,000)                              │
+├─────────────────────────────────────────────────────────────┤
+│                    Remaining Space: ~196,000 tokens          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key insight:** A 200K context window doesn't make a model smarter—it just lets it see more at once. Haiku with 200K context is still Haiku-level reasoning; it just has access to more information while reasoning.
+
+---
+
 ## Understanding Model Capabilities
 
 Not all AI models are created equal, and understanding their differences goes far beyond reading marketing materials or comparing benchmark scores. Some models are quick and cheap, optimized for high-throughput scenarios where you need thousands of responses per minute. Others are slow and expensive but capable of reasoning that approaches human expert level. The art of model selection lies in matching capabilities to requirements—and resisting the temptation to always reach for the biggest hammer.
@@ -478,6 +566,120 @@ Your users never notice the transition because both versions remain available th
 | Best for | Complex reasoning, nuanced writing, code generation, multi-step analysis | Classification, extraction, simple Q&A, high-volume tasks | Domain terminology, specific formats, consistent voice |
 | Latency | 1-15 seconds | 100-500ms | Depends on base model |
 | Relative cost | 10-20x more expensive | Cheapest per token | Training cost + inference costs |
+
+---
+
+## Decision Framework: Choosing the Right Model
+
+Use this framework to systematically select the optimal model for your use case.
+
+### Quick Reference
+
+| Scenario | Choose | Why |
+|----------|--------|-----|
+| Classify emails as spam/not-spam | **Haiku** | Binary classification, speed matters |
+| Extract customer name from ticket | **Haiku** | Simple extraction, clear structure |
+| Summarize a single paragraph | **Haiku** | Short input, straightforward task |
+| Analyze a complex legal contract | **Opus** | Nuanced reasoning, high stakes |
+| Debug intricate code | **Sonnet/Opus** | Multi-step reasoning required |
+| Generate marketing copy | **Sonnet** | Creative but structured |
+| Answer customer support questions | **Sonnet** (consider Haiku with escalation) | Balance quality and cost |
+| Process 100K documents overnight | **Haiku + Batch Inference** | Volume prioritizes cost |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[New Model Selection] --> B{Task complexity?}
+
+    B -->|Simple| C{High volume?}
+    B -->|Medium| D[Sonnet]
+    B -->|Complex| E[Opus]
+
+    C -->|Yes| F[Haiku]
+    C -->|No| G{Latency critical?}
+
+    G -->|Yes| F
+    G -->|No| H{Quality sensitive?}
+
+    H -->|Yes| D
+    H -->|No| F
+
+    D --> I{Mixed complexity<br/>in traffic?}
+    E --> I
+    F --> I
+
+    I -->|Yes| J[Consider Cascading]
+    I -->|No| K{Need customization?}
+
+    J --> K
+
+    K -->|Format/Style| L[Fine-tune Haiku/Sonnet]
+    K -->|Domain Knowledge| M[Continued Pre-training]
+    K -->|No| N[Use Base Model]
+```
+
+### Task Complexity Guide
+
+**Simple (Haiku-appropriate):**
+- Binary or multi-class classification
+- Entity extraction with clear patterns
+- Short-form summarization
+- Template-based generation
+- Simple Q&A with factual answers
+- Sentiment analysis
+- Language detection
+- Format conversion (JSON ↔ text)
+
+**Medium (Sonnet-appropriate):**
+- Multi-step reasoning (2-3 steps)
+- Creative writing with constraints
+- Code generation for common patterns
+- Customer communication drafting
+- Document summarization (longer texts)
+- Comparative analysis
+- Instruction following with nuance
+
+**Complex (Opus-appropriate):**
+- Deep reasoning chains (4+ steps)
+- Novel problem solving
+- Expert-level analysis (legal, medical, financial)
+- Nuanced creative writing
+- Complex code debugging
+- Multi-document synthesis
+- Tasks requiring world knowledge integration
+
+### Trade-off Analysis
+
+| Factor | Haiku | Sonnet | Opus | Fine-tuned |
+|--------|-------|--------|------|------------|
+| **Cost** | $ | $$$ | $$$$$ | $$+ training |
+| **Latency** | ~200ms | ~1-2s | ~5-15s | Varies |
+| **Reasoning** | Basic | Strong | Expert | Base + style |
+| **Creativity** | Limited | Good | Excellent | Constrained |
+| **Consistency** | High | Medium | Medium | Very High |
+| **Volume Suitability** | Excellent | Good | Poor | Good |
+| **Exam Signal** | "cost-effective", "high-throughput" | "balance", "general" | "complex", "nuanced" | "format", "domain" |
+
+### When to Consider Customization
+
+**Fine-tuning is NOT needed when:**
+- Prompt engineering achieves acceptable results
+- The task is straightforward classification/extraction
+- You're experimenting with different approaches
+- Your dataset is small (<100 high-quality examples)
+
+**Fine-tuning IS appropriate when:**
+- You need specific output formats consistently
+- You want a distinctive brand voice
+- Prompt engineering has hit diminishing returns
+- You have 500+ high-quality training examples
+
+**Continued pre-training when:**
+- You have domain-specific terminology
+- Base models lack knowledge of your domain
+- You have thousands of domain documents
+- Factual accuracy in your domain is critical
 
 ---
 

@@ -14,6 +14,166 @@ This isn't about being paranoid—it's about being professional. Every enterpris
 
 ---
 
+## Under the Hood: How Guardrails Actually Work
+
+Understanding the guardrails processing pipeline helps you debug issues and configure effectively.
+
+### The Guardrails Processing Flow
+
+When you attach guardrails to a Bedrock call, here's what happens:
+
+```mermaid
+graph TD
+    subgraph "Input Processing"
+        A[User Input] --> B[Content Classifier]
+        B --> C{Pass Input<br/>Filters?}
+        C -->|No| D[Block + Return<br/>Canned Response]
+        C -->|Yes| E[Forward to Model]
+    end
+
+    subgraph "Model Inference"
+        E --> F[Foundation Model]
+        F --> G[Raw Response]
+    end
+
+    subgraph "Output Processing"
+        G --> H[Content Classifier]
+        H --> I{Pass Output<br/>Filters?}
+        I -->|No| J[Block/Mask +<br/>Return Modified]
+        I -->|Yes| K[Return Response]
+    end
+
+    subgraph "Grounding Check (if enabled)"
+        G --> L[Compare to Context]
+        L --> M{Grounding<br/>Score >= Threshold?}
+        M -->|No| N[Block as<br/>Potential Hallucination]
+        M -->|Yes| H
+    end
+```
+
+### What Each Filter Actually Does
+
+**Content Filters (HATE, VIOLENCE, SEXUAL, MISCONDUCT):**
+- Run a classifier trained to detect harmful content
+- Return a confidence score (0-1) for each category
+- Compare against your configured threshold (LOW/MEDIUM/HIGH maps to different score thresholds)
+- Block if score exceeds threshold
+
+| Strength | Approximate Threshold | Catches |
+|----------|----------------------|---------|
+| HIGH | ~0.3 | Subtle implications, borderline content |
+| MEDIUM | ~0.5 | Moderately harmful content |
+| LOW | ~0.8 | Only clearly harmful content |
+
+**Denied Topics:**
+- Use semantic similarity to match input/output against your topic definitions
+- Your examples help train the matching
+- More examples = better matching accuracy
+
+**PII Filters:**
+- Use named entity recognition (NER) models
+- Detect specific PII patterns (SSN format, email format, etc.)
+- Apply configured action (BLOCK entire message or ANONYMIZE with placeholders)
+
+**Contextual Grounding:**
+- Compare claims in the response against provided context
+- Calculate what percentage of claims are supported
+- Block if below threshold
+
+### Latency Impact
+
+Guardrails add processing time:
+
+| Filter Type | Typical Latency Added |
+|-------------|----------------------|
+| Content filters | 50-100ms |
+| PII detection | 30-50ms |
+| Denied topics | 20-40ms |
+| Contextual grounding | 100-200ms |
+| **Total (all enabled)** | **200-400ms** |
+
+For latency-sensitive applications, consider which filters are truly necessary. Content filters on outputs may be more important than on inputs if you trust your user base.
+
+---
+
+## Decision Framework: Configuring Safety Controls
+
+Use this framework to determine which safety controls to apply and how to configure them.
+
+### Quick Reference
+
+| Application Type | Content Filters | PII Handling | Grounding | Denied Topics |
+|------------------|-----------------|--------------|-----------|---------------|
+| Consumer chatbot | HIGH all | ANONYMIZE | Required | Yes (competitors, legal, medical) |
+| Internal enterprise tool | MEDIUM all | ANONYMIZE | Recommended | Optional |
+| Content moderation tool | LOW all | BLOCK high-risk only | Not needed | No |
+| Children's education | HIGH all | BLOCK all | Required | Yes (extensive) |
+| Healthcare assistant | MEDIUM all | BLOCK all | Required | Yes (diagnoses, prescriptions) |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Configure Safety] --> B{Who are<br/>your users?}
+
+    B -->|General public| C[HIGH content filters]
+    B -->|Trusted employees| D[MEDIUM content filters]
+    B -->|Content moderators| E[LOW content filters]
+
+    C --> F{Handle PII?}
+    D --> F
+    E --> F
+
+    F -->|Users may share PII| G{Regulated<br/>industry?}
+    F -->|No PII expected| H[PII filters optional]
+
+    G -->|Yes HIPAA/PCI/etc| I[BLOCK sensitive PII<br/>SSN, CC, medical]
+    G -->|No| J[ANONYMIZE PII]
+
+    I --> K{RAG application?}
+    J --> K
+    H --> K
+
+    K -->|Yes| L[Enable contextual<br/>grounding 0.7+]
+    K -->|No| M{Factual claims<br/>important?}
+
+    M -->|Yes| N[Consider adding<br/>citation requirements]
+    M -->|No| O[Skip grounding]
+
+    L --> P{Off-limits<br/>topics?}
+    N --> P
+    O --> P
+
+    P -->|Yes| Q[Configure denied<br/>topics with examples]
+    P -->|No| R[Configuration Complete]
+    Q --> R
+```
+
+### Trade-off Analysis
+
+| Safety Control | Protection | Latency Cost | False Positive Risk |
+|----------------|-----------|--------------|---------------------|
+| Content filters (HIGH) | Maximum harmful content blocking | +50-100ms | Higher (may block legitimate) |
+| Content filters (LOW) | Clear violations only | +50-100ms | Lower |
+| PII BLOCK | Prevents any PII exposure | +30-50ms | Medium (may block legitimate mentions) |
+| PII ANONYMIZE | Allows conversation with masked PII | +30-50ms | Low |
+| Contextual grounding | Reduces hallucinations | +100-200ms | Medium (may block correct inferences) |
+| Denied topics | Hard block on subjects | +20-40ms | Low (with good examples) |
+
+### Defense-in-Depth Layering
+
+| Layer | Service | What It Catches | Speed |
+|-------|---------|-----------------|-------|
+| 1. Perimeter | API Gateway | Auth failures, malformed requests | Fastest |
+| 2. Pre-process | Lambda + Comprehend | PII, obvious injection patterns | Fast |
+| 3. Model layer | Guardrails | Harmful content, denied topics | Medium |
+| 4. Grounding | Guardrails | Hallucinations | Slower |
+| 5. Post-process | Lambda | Business rules, format validation | Fast |
+
+**Rule of thumb:** Catch problems as early as possible. API Gateway rejections are free; model inference is expensive.
+
+---
+
 ## Bedrock Guardrails: Your First Line of Defense
 
 Bedrock Guardrails are configurable safety controls that wrap every interaction with your foundation model. Think of them as a security checkpoint: every input gets inspected before reaching the model, and every output gets inspected before reaching the user. When something problematic is detected, guardrails can block it entirely or modify it to remove the offending content.

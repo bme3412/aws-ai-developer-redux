@@ -14,6 +14,171 @@ Understanding data security for GenAI means knowing where sensitive data lives, 
 
 ---
 
+## Under the Hood: Where Data Lives in GenAI Systems
+
+Understanding the data flow helps you identify where to apply security controls.
+
+### The GenAI Data Flow
+
+A typical RAG application has sensitive data at multiple points:
+
+```mermaid
+graph TD
+    subgraph "User Layer"
+        A[User Input<br/>May contain PII]
+    end
+
+    subgraph "Application Layer"
+        B[API Gateway<br/>Logs requests]
+        C[Lambda<br/>Processing logs]
+    end
+
+    subgraph "Storage Layer"
+        D[S3 Knowledge Base<br/>Source documents]
+        E[OpenSearch<br/>Vector embeddings]
+        F[DynamoDB<br/>Session history]
+    end
+
+    subgraph "AI Layer"
+        G[Bedrock<br/>Model inference]
+        H[Invocation Logs<br/>Optional]
+    end
+
+    subgraph "Output"
+        I[Model Response<br/>May contain PII]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    C --> G
+    E --> G
+    F --> G
+    G --> H
+    G --> I
+```
+
+### Where Sensitive Data Can Leak
+
+| Location | What's Exposed | Risk | Mitigation |
+|----------|---------------|------|------------|
+| **API Gateway logs** | User queries, responses | Medium | Disable/mask logging |
+| **Lambda logs** | Full request/response | High | Comprehend pre-processing |
+| **S3 source docs** | Original documents | High | Macie scanning, encryption |
+| **Vector store** | Embeddings + metadata | Medium | Encryption, access control |
+| **Session history** | Conversation context | Medium | TTL, encryption |
+| **Model invocation logs** | Prompts + completions | High | Optional, encrypted, restricted |
+
+### Bedrock's Data Guarantees
+
+When you call Bedrock, your data is protected by several guarantees:
+
+```mermaid
+graph LR
+    subgraph "Your Account"
+        A[Your Application]
+    end
+
+    subgraph "Bedrock Service"
+        B[API Endpoint]
+        C[Inference Runtime]
+        D[Foundation Model]
+    end
+
+    subgraph "Guarantees"
+        E[Encrypted in Transit<br/>TLS 1.2+]
+        F[Isolated Processing<br/>No cross-tenant]
+        G[No Training<br/>Your data stays yours]
+        H[Optional Logging<br/>You control]
+    end
+
+    A -->|HTTPS| B
+    B --> C
+    C --> D
+    E --> B
+    F --> C
+    G --> D
+    H --> B
+```
+
+**Key points:**
+- Your prompts/responses are NOT used to train foundation models
+- Data is encrypted in transit (TLS) and at rest
+- Your data is logically isolated from other customers
+- You control whether invocation logs are stored
+
+---
+
+## Decision Framework: Security by Data Sensitivity
+
+Different data requires different security controls. Match controls to sensitivity.
+
+### Quick Reference
+
+| Data Sensitivity | Network | Encryption | PII Handling | Logging | Retention |
+|------------------|---------|------------|--------------|---------|-----------|
+| **Public** (FAQs, docs) | VPC endpoint optional | SSE-S3 | Not needed | Standard | Normal |
+| **Internal** (policies) | VPC endpoint | SSE-KMS | Mask in logs | Redacted | 1 year |
+| **Confidential** (customer data) | VPC endpoint + endpoint policy | SSE-KMS CMK | Block high-risk, mask other | Minimal | Per policy |
+| **Restricted** (PII, financial) | VPC endpoint + strict SG | SSE-KMS CMK | Block all PII | Disabled | Minimal |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Deploy GenAI Application] --> B{Data classification?}
+
+    B -->|Public| C[Basic Security]
+    B -->|Internal| D[Standard Security]
+    B -->|Confidential| E[Enhanced Security]
+    B -->|Restricted| F[Maximum Security]
+
+    C --> C1[VPC endpoint optional<br/>SSE-S3 encryption<br/>Standard logging]
+
+    D --> D1[VPC endpoint required<br/>SSE-KMS encryption<br/>Mask PII in logs]
+
+    E --> E1[VPC endpoint + policy<br/>CMK encryption<br/>Guardrails PII filtering<br/>Macie scanning]
+
+    F --> F1[VPC endpoint + strict SG<br/>CMK with key policy<br/>Block all PII<br/>Disable invocation logging<br/>Minimal retention]
+```
+
+### Control Selection by Compliance Requirement
+
+| Requirement | Required Controls |
+|-------------|------------------|
+| **HIPAA** | VPC endpoints, CMK encryption, BAA, audit logging, access controls |
+| **PCI-DSS** | VPC endpoints, CMK encryption, PII blocking, strict access, audit trail |
+| **GDPR** | PII handling policy, data retention limits, right to deletion, consent tracking |
+| **SOC 2** | Access controls, audit logging, change management, encryption |
+| **Internal only** | VPC endpoints recommended, SSE-KMS, standard logging |
+
+### Trade-off Analysis
+
+| Control | Security Benefit | Operational Cost | Performance Impact |
+|---------|-----------------|------------------|-------------------|
+| VPC endpoints | High (no public internet) | Low (one-time setup) | None |
+| CMK encryption | High (you control keys) | Medium (key management) | Minimal |
+| Guardrails PII | High (runtime protection) | Low | +100-200ms latency |
+| Comprehend pre-process | Medium (early detection) | Medium | +50-100ms |
+| Macie scanning | High (discovery) | Medium (scheduled jobs) | None (async) |
+| Disable logging | High (no data retention) | Low | None |
+| Endpoint policies | Medium (additional layer) | Low | None |
+
+### What to Implement First
+
+**Priority order for new deployments:**
+
+1. **VPC endpoints** - Immediate, high impact, low effort
+2. **SSE-KMS encryption** - Required for any sensitive data
+3. **IAM least privilege** - Limit blast radius of any breach
+4. **Guardrails PII filtering** - Runtime protection
+5. **Macie scanning** - Discover what's in your data
+6. **Invocation log controls** - Decide what to retain
+7. **Endpoint policies** - Additional defense layer
+
+---
+
 ## Network Isolation: Keeping Traffic Private
 
 Production GenAI workloads should never traverse the public internet. Every API call to Bedrock or SageMaker that travels over the public internet is an opportunity for interception, a potential compliance violation, and an unnecessary risk. VPC endpoints solve this by creating private connections between your VPC and AWS services.

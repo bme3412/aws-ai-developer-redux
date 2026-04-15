@@ -54,6 +54,12 @@ export function isArticleRead(articleSlug: string): boolean {
   return articleSlug in progress.articlesRead;
 }
 
+export function unmarkArticleRead(articleSlug: string): void {
+  const progress = getProgress();
+  delete progress.articlesRead[articleSlug];
+  saveProgress(progress);
+}
+
 export function getArticlesReadForDomain(domainId: number): string[] {
   const progress = getProgress();
   const prefix = `${domainId}-`;

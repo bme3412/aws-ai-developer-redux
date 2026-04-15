@@ -16,6 +16,215 @@ Organizations that skip systematic evaluation deploy blind. They discover issues
 
 ---
 
+## Under the Hood: How GenAI Evaluation Actually Works
+
+Understanding the mechanics of evaluation helps you design better tests and interpret results correctly.
+
+### The Evaluation Pipeline
+
+A comprehensive evaluation system has multiple stages:
+
+```mermaid
+graph TD
+    subgraph "Test Generation"
+        A[Golden Dataset] --> B[Test Cases]
+        C[Production Sample] --> B
+    end
+
+    subgraph "Execution"
+        B --> D[Run Model]
+        D --> E[Capture Response]
+    end
+
+    subgraph "Scoring"
+        E --> F{Scoring Method}
+        F -->|Automated| G[Exact Match / BLEU / ROUGE]
+        F -->|LLM Judge| H[Judge Model Scoring]
+        F -->|Human| I[Ground Truth Labels]
+    end
+
+    subgraph "Analysis"
+        G --> J[Aggregate Metrics]
+        H --> J
+        I --> J
+        J --> K[Regression Detection]
+        J --> L[Quality Dashboards]
+    end
+```
+
+### How LLM-as-Judge Scoring Works
+
+When you use an LLM to judge another model's output, the process involves:
+
+```mermaid
+graph LR
+    subgraph "Input Assembly"
+        A[Original Query]
+        B[Model Response]
+        C[Scoring Rubric]
+        D[Reference Answer<br/>Optional]
+    end
+
+    subgraph "Judge Processing"
+        E[Construct Judge Prompt]
+        F[Judge Model Inference]
+        G[Parse Scores]
+    end
+
+    subgraph "Output"
+        H[Numeric Scores]
+        I[Reasoning]
+        J[Flagged Issues]
+    end
+
+    A --> E
+    B --> E
+    C --> E
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    G --> I
+    G --> J
+```
+
+**Key insight:** The judge model doesn't have magical evaluation abilities—it's applying the rubric you provided. Better rubrics = more consistent scores.
+
+### What Each Metric Actually Measures
+
+| Metric | What It Captures | What It Misses |
+|--------|------------------|----------------|
+| **Exact Match** | Identical responses | Paraphrases, valid alternatives |
+| **BLEU** | N-gram overlap with reference | Semantic similarity, fluency |
+| **ROUGE** | Recall of reference n-grams | Precision, factual accuracy |
+| **Semantic Similarity** | Embedding distance | Hallucinations with similar meaning |
+| **LLM Judge** | Nuanced quality dimensions | Judge model biases |
+| **Human Rating** | True subjective quality | Scale, cost, speed |
+
+### Why RAG Evaluation Has Two Parts
+
+RAG failures can happen in retrieval OR generation:
+
+```mermaid
+graph TD
+    A[User Query] --> B{Retrieval}
+
+    B -->|Good| C{Generation}
+    B -->|Bad| D[Wrong/Missing Documents]
+
+    C -->|Good| E[Good Answer]
+    C -->|Bad| F[Poor Synthesis]
+
+    D --> G[Answer can't be good]
+    F --> H[Answer is bad despite good docs]
+
+    style D fill:#f99
+    style F fill:#f99
+    style E fill:#9f9
+```
+
+**If retrieval fails:** No amount of good generation can save the answer
+**If generation fails:** Good documents were wasted
+
+This is why you must evaluate both separately AND end-to-end.
+
+---
+
+## Decision Framework: Choosing Evaluation Methods
+
+Different evaluation methods suit different needs. Use this framework to select appropriately.
+
+### Quick Reference
+
+| Scenario | Primary Method | Secondary Method |
+|----------|---------------|------------------|
+| Pre-deployment testing | Golden dataset + LLM Judge | Human spot-check |
+| Comparing model versions | Bedrock Model Evaluations | Pairwise human preference |
+| Production monitoring | LLM Judge sampling | User feedback |
+| High-stakes domain | Human evaluation | LLM Judge pre-filter |
+| Scaling evaluation | LLM Judge | Golden dataset regression |
+| Detecting hallucinations | Groundedness check | Fact verification |
+| Measuring user satisfaction | User feedback | Task completion rate |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Choose Evaluation Method] --> B{What's the goal?}
+
+    B -->|Compare models| C[Bedrock Model Evaluations<br/>+ Pairwise comparison]
+    B -->|Regression testing| D[Golden datasets<br/>+ Automated checks]
+    B -->|Understand quality| E{Scale needed?}
+    B -->|Production monitoring| F[LLM Judge sampling<br/>+ User feedback]
+
+    E -->|High volume| G[LLM-as-Judge]
+    E -->|Low volume| H{Stakes?}
+
+    H -->|High stakes| I[Human evaluation]
+    H -->|Normal| J[LLM Judge + Human spot-check]
+
+    G --> K{Need ground truth?}
+    K -->|Yes| L[Calibrate against<br/>human ratings]
+    K -->|No| M[Use with rubric<br/>consistency checks]
+```
+
+### Trade-off Analysis
+
+| Method | Cost | Speed | Scale | Accuracy | Nuance |
+|--------|------|-------|-------|----------|--------|
+| **Exact match** | Free | Instant | Unlimited | Low | None |
+| **BLEU/ROUGE** | Free | Instant | Unlimited | Medium | Low |
+| **Semantic similarity** | $ | Fast | High | Medium | Low |
+| **LLM Judge** | $$ | Medium | High | High | High |
+| **Human evaluation** | $$$$ | Slow | Low | Highest | Highest |
+| **Production feedback** | Free | Slow | Medium | Varies | Medium |
+
+### Evaluation Pyramid
+
+Build from automated (base) to human (peak):
+
+```
+                    /\
+                   /  \  Human Evaluation
+                  /----\  (Ground truth, high-stakes)
+                 /      \
+                /--------\  LLM-as-Judge
+               /          \  (Scaled quality assessment)
+              /------------\
+             /              \  Golden Dataset Tests
+            /----------------\  (Regression detection)
+           /                  \
+          /--------------------\  Automated Metrics
+         /                      \  (Coverage, basic checks)
+```
+
+**Don't skip levels.** Automated metrics catch obvious issues cheaply. Golden tests ensure consistency. LLM judges provide scaled quality. Humans provide ground truth.
+
+### When to Use Each
+
+**Automated metrics (BLEU, exact match):**
+- High-volume, deterministic tasks
+- Initial filtering before expensive evaluation
+- CI/CD pipelines for quick feedback
+
+**Golden dataset tests:**
+- Regression detection after any change
+- Deployment gates
+- Scheduled quality checks
+
+**LLM-as-Judge:**
+- Scaling quality evaluation beyond what humans can review
+- Consistent application of rubrics
+- Production monitoring
+
+**Human evaluation:**
+- Establishing ground truth
+- High-stakes domains (medical, legal)
+- Calibrating automated methods
+- Subtle quality issues
+
+---
+
 ## The GenAI Evaluation Challenge
 
 Traditional evaluation approaches don't translate directly to GenAI. Understanding the differences is step one.

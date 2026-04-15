@@ -22,6 +22,155 @@ AWS provides managed services for common integration patterns—from Amplify UI 
 
 ---
 
+## Under the Hood: How Integration Services Work
+
+Understanding the internal architecture of AWS integration services helps you make better choices and debug issues effectively.
+
+### Q Business: The Managed Knowledge Pipeline
+
+When users query Q Business, here's what happens behind the scenes:
+
+```mermaid
+graph TD
+    subgraph "User Interface"
+        A[User Query]
+    end
+
+    subgraph "Q Business Service"
+        B[Query Processor]
+        C[Identity Resolution]
+        D[Permission Filter]
+        E[Retriever]
+        F[Reranker]
+        G[Response Generator]
+    end
+
+    subgraph "Data Layer"
+        H[(Vector Index)]
+        I[(Document Store)]
+        J[Data Source Connectors]
+    end
+
+    subgraph "External Sources"
+        K[SharePoint]
+        L[Confluence]
+        M[S3]
+        N[Salesforce]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> H
+    H --> F
+    F --> I
+    I --> G
+    G --> A
+
+    J --> K
+    J --> L
+    J --> M
+    J --> N
+    J -->|Sync| H
+    J -->|Sync| I
+```
+
+**What Q Business handles automatically:**
+1. **Data Sync**: Connectors periodically pull documents from sources, chunk them, generate embeddings, and index them
+2. **Identity Resolution**: Maps user identity (from IAM Identity Center) to source system permissions
+3. **Permission Filtering**: Ensures users only see results they're authorized to access in the source system
+4. **Retrieval + Reranking**: Finds relevant documents and reranks by relevance
+5. **Response Generation**: Synthesizes answer with citations from retrieved documents
+
+**Why this matters:** Q Business isn't just "RAG as a service"—it's RAG with **enterprise ACLs built in**. A user can only see answers derived from documents they could access in SharePoint, Confluence, etc. Building this yourself requires integrating with every source system's permission model.
+
+### Amplify AI Kit: Frontend-to-Bedrock Pipeline
+
+When you use Amplify's AI components, the request flows through multiple layers:
+
+```mermaid
+graph LR
+    subgraph "Browser"
+        A[React Component]
+        B[Amplify Client SDK]
+    end
+
+    subgraph "Amplify Backend"
+        C[AppSync/API Gateway]
+        D[Lambda Resolver]
+    end
+
+    subgraph "AWS Services"
+        E[Bedrock Runtime]
+        F[Cognito]
+    end
+
+    A -->|useAIConversation| B
+    B -->|Signed Request| C
+    F -.->|Auth Token| B
+    C --> D
+    D -->|converse| E
+    E -->|Stream| D
+    D -->|SSE| C
+    C -->|SSE| B
+    B -->|State Update| A
+```
+
+**What Amplify handles:**
+- Authentication token injection (Cognito)
+- Request signing for AWS APIs
+- WebSocket/SSE connection management
+- Conversation state management
+- Streaming token accumulation
+- Error handling and retry
+
+**Why this matters:** Without Amplify, you'd write ~500 lines of boilerplate for auth, streaming, and state management before getting to your actual application logic.
+
+### Prompt Flows: Visual Workflow Execution
+
+Prompt Flows compiles your visual workflow into an execution graph:
+
+```mermaid
+graph TD
+    subgraph "Design Time"
+        A[Visual Designer]
+        B[Flow Definition JSON]
+    end
+
+    subgraph "Runtime"
+        C[Flow Executor]
+        D[Node 1: Input]
+        E[Node 2: Prompt Template]
+        F[Node 3: Model]
+        G[Node 4: Condition]
+        H[Node 5A: Output A]
+        I[Node 5B: Output B]
+    end
+
+    A -->|Save| B
+    B -->|Load| C
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G -->|Yes| H
+    G -->|No| I
+```
+
+**What happens at each node:**
+- **Input**: Validates schema, extracts variables
+- **Prompt**: Substitutes variables into template
+- **Model**: Makes Bedrock API call, handles streaming
+- **Condition**: Evaluates expression, routes flow
+- **Knowledge Base**: Performs RAG retrieval
+- **Lambda**: Invokes your custom code
+- **Output**: Formats and returns result
+
+**Limitation insight:** Prompt Flows lacks robust error handling, retries, and complex branching compared to Step Functions—it's designed for simplicity, not production resilience.
+
+---
+
 ## Building GenAI User Interfaces
 
 User interfaces for GenAI applications have unique requirements that differ from traditional web applications. Understanding these requirements is essential for building applications users actually want to use.
@@ -1082,6 +1231,103 @@ API Gateway ──► Lambda ──► Knowledge Base ──► Bedrock ──�
 | **Cost spikes** | Unexpected bills | Token waste, retries | Budgets, caching, prompt optimization |
 | **Hallucinations** | Factually incorrect | No grounding | Add RAG, guardrails, citations |
 | **Inconsistent behavior** | Works sometimes | Temperature, random seed | Lower temperature, set seed |
+
+---
+
+## Decision Framework: Choosing Your Integration Approach
+
+Use this framework to quickly determine the right integration pattern for your use case.
+
+### Quick Reference
+
+| Scenario | Choose | Why |
+|----------|--------|-----|
+| Enterprise Q&A over internal docs | **Q Business** | 40+ connectors, ACLs, managed RAG |
+| Custom chunking/embedding needed | **Custom RAG** | Full control over pipeline |
+| Developer productivity in IDE | **Q Developer** | Context-aware code assistance |
+| Non-technical users building AI flows | **Prompt Flows** | Visual, no-code, fast iteration |
+| Production workflows with complex logic | **Step Functions** | Error handling, retries, monitoring |
+| Chat UI in React app | **Amplify AI Kit** | Pre-built components, auth handled |
+| Document processing pipeline | **Step Functions + Textract + Bedrock** | Orchestration with AI services |
+| Real-time CRM enhancement | **Lambda + Bedrock** | Event-driven, low latency |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[New GenAI Integration] --> B{Knowledge/Q&A<br/>use case?}
+
+    B -->|Yes| C{Standard enterprise<br/>data sources?}
+    B -->|No| D{Workflow<br/>orchestration?}
+
+    C -->|Yes| E{Custom chunking<br/>or embeddings?}
+    C -->|No| F[Custom RAG<br/>with Bedrock KB]
+
+    E -->|Yes| F
+    E -->|No| G[Q Business]
+
+    D -->|Yes| H{Who builds<br/>the workflow?}
+    D -->|No| I{User interface<br/>needed?}
+
+    H -->|Developers| J{Complex error<br/>handling needed?}
+    H -->|Business Users| K[Prompt Flows]
+
+    J -->|Yes| L[Step Functions]
+    J -->|No| K
+
+    I -->|Yes| M{React/Web<br/>application?}
+    I -->|No| N[Lambda + Bedrock<br/>Direct Integration]
+
+    M -->|Yes| O{Need streaming<br/>chat UI?}
+    M -->|No| N
+
+    O -->|Yes| P[Amplify AI Kit]
+    O -->|No| Q[Custom Components]
+```
+
+### Trade-off Analysis
+
+| Factor | Q Business | Custom RAG | Prompt Flows | Step Functions | Amplify |
+|--------|-----------|------------|--------------|----------------|---------|
+| **Time to Deploy** | Days | Weeks-Months | Hours | Days-Weeks | Days |
+| **Customization** | Low | High | Medium | High | Medium |
+| **ACL Support** | Built-in | Manual | None | Manual | Manual |
+| **Error Handling** | Managed | Custom | Basic | Comprehensive | Managed |
+| **Cost Model** | Per user | Per query | Per execution | Per state transition | Per request |
+| **Maintenance** | Low | High | Low | Medium | Low |
+| **Exam Signal** | "enterprise", "ACL" | "custom chunk" | "no-code", "business user" | "workflow", "retry" | "React", "streaming" |
+
+### When to Choose Each
+
+**Q Business:**
+- Employee knowledge access across SharePoint, Confluence, Slack
+- Need to respect existing document permissions
+- Standard Q&A over enterprise content
+- Don't want to build/maintain RAG infrastructure
+
+**Custom RAG (Bedrock Knowledge Bases):**
+- Domain-specific chunking requirements (code, legal, medical)
+- Custom embedding models needed
+- Complex retrieval logic (hybrid search, filters)
+- Need structured output extraction
+
+**Prompt Flows:**
+- Rapid prototyping of AI workflows
+- Business users need to iterate without developers
+- Simple linear or branching logic
+- No complex error handling required
+
+**Step Functions:**
+- Production-grade workflow orchestration
+- Need retries, error handling, timeouts
+- Complex branching and parallel execution
+- Audit trail and compliance requirements
+
+**Amplify AI Kit:**
+- Building chat interface in React
+- Need authentication integrated
+- Want streaming without building from scratch
+- Standard conversation UI patterns
 
 ---
 

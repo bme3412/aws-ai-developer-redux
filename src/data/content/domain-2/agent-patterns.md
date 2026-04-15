@@ -30,6 +30,123 @@ This deep dive builds on foundational agent concepts to explore the patterns tha
 
 ---
 
+## Under the Hood: How Agent Reasoning Works
+
+Understanding agent internals helps you design better prompts and debug unexpected behavior.
+
+### The Reasoning-Action Cycle
+
+Each turn of the agent loop involves model inference deciding what to do:
+
+```mermaid
+graph TD
+    subgraph "Agent Turn"
+        A[Context:<br/>System prompt +<br/>History + Tools] --> B[Model Inference]
+        B --> C{Output Type}
+        C -->|tool_use| D[Parse Tool Call]
+        C -->|text| E[Final Response]
+        D --> F[Execute Tool]
+        F --> G[Add Result to History]
+        G --> A
+    end
+```
+
+### What the Model Actually Sees
+
+The model doesn't "understand" it's an agent—it generates structured output based on patterns:
+
+```json
+{
+  "messages": [
+    {"role": "system", "content": "You are an assistant with tools..."},
+    {"role": "user", "content": "Book a meeting with Sarah"},
+    {"role": "assistant", "content": null, "tool_use": {"name": "check_calendar", "input": {...}}},
+    {"role": "user", "content": "Tool result: {\"available\": true}"},
+    {"role": "assistant", "content": null, "tool_use": {"name": "create_meeting", "input": {...}}}
+  ]
+}
+```
+
+Each "turn" is just another inference with accumulated history.
+
+### Why Tool Descriptions Matter
+
+The model selects tools based purely on text descriptions:
+
+| Description Quality | Model Behavior |
+|---------------------|----------------|
+| "Books stuff" | Model guesses when to use |
+| "Books meetings" | Better but still ambiguous |
+| "Creates a calendar meeting with specified attendees, date, time, and duration. Returns meeting ID and calendar link." | Model knows exactly when and how to use |
+
+---
+
+## Decision Framework: Choosing Agent Patterns
+
+Different problems require different agent architectures.
+
+### Quick Reference
+
+| Scenario | Pattern | Why |
+|----------|---------|-----|
+| Single-domain task | Single agent + tools | Simple, debuggable |
+| Multi-domain task | Supervisor + specialists | Domain expertise isolation |
+| Research/exploration | Peer-to-peer agents | Self-organizing exploration |
+| High reliability needed | Step Functions orchestration | Deterministic error handling |
+| User-facing with guardrails | Bedrock Agent | Managed safety controls |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Agent Architecture] --> B{How many<br/>domains?}
+
+    B -->|One domain| C[Single Agent]
+    B -->|Multiple domains| D{Clear handoff<br/>points?}
+
+    D -->|Yes| E[Supervisor Pattern]
+    D -->|No| F[Peer-to-Peer]
+
+    C --> G{Reliability<br/>requirement?}
+    E --> G
+    F --> G
+
+    G -->|Critical| H[Add Step Functions<br/>orchestration]
+    G -->|Normal| I{Build or buy?}
+
+    H --> I
+
+    I -->|Managed| J[Bedrock Agents]
+    I -->|Custom| K[Strands SDK or custom]
+
+    J --> L{Human approval<br/>needed?}
+    K --> L
+
+    L -->|Yes| M[Add HITL workflow]
+    L -->|No| N[Deploy]
+```
+
+### Trade-off Analysis
+
+| Pattern | Complexity | Debuggability | Flexibility | Reliability |
+|---------|------------|---------------|-------------|-------------|
+| Single agent | Low | High | Medium | Medium |
+| Supervisor | Medium | Medium | High | Medium |
+| Peer-to-peer | High | Low | Highest | Lower |
+| Bedrock managed | Low | Medium | Lower | Higher |
+| Step Functions hybrid | High | Highest | High | Highest |
+
+### Memory Pattern Selection
+
+| Pattern | Use When | Implementation |
+|---------|----------|----------------|
+| No memory | Single-turn tasks | Stateless Lambda |
+| Session memory | Multi-turn conversations | DynamoDB with session ID |
+| Semantic memory | Need to recall relevant past | Vector store of interactions |
+| Persistent memory | Long-term user preferences | DynamoDB + periodic summarization |
+
+---
+
 ## What Makes an Agent an Agent
 
 Agents are AI systems that can **autonomously decide what actions to take** to accomplish goals. The distinction becomes clear through a simple example.

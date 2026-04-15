@@ -38,6 +38,173 @@ Once you have vectors, you need a way to measure how "close" they are. Several d
 
 For Titan Embeddings V2, cosine similarity is the recommended default. The model outputs normalized vectors, so dot product would work identically, but cosine is the standard configuration in AWS documentation and examples.
 
+---
+
+## Under the Hood: How Vector Similarity Actually Works
+
+Understanding the internals helps you debug retrieval issues and make better architecture decisions.
+
+### The Similarity Calculation
+
+When you search for the k nearest neighbors, here's what happens:
+
+```mermaid
+graph TD
+    subgraph "Query Processing"
+        A[User Query Text] --> B[Embedding Model]
+        B --> C[Query Vector<br/>1024 floats]
+    end
+
+    subgraph "Similarity Computation"
+        C --> D[For each candidate vector]
+        D --> E[Compute cosine similarity]
+        E --> F[dot product / magnitudes]
+    end
+
+    subgraph "Result Assembly"
+        F --> G[Sort by similarity]
+        G --> H[Return top-k]
+    end
+
+    I[(Stored Vectors)] --> D
+```
+
+### Cosine Similarity Math
+
+For two vectors A and B:
+
+```
+cosine_similarity = (A · B) / (||A|| × ||B||)
+                  = Σ(Ai × Bi) / (√Σ(Ai²) × √Σ(Bi²))
+```
+
+In practice, with **normalized vectors** (length = 1), this simplifies to just the dot product:
+
+```
+cosine_similarity = A · B = Σ(Ai × Bi)
+```
+
+This is why Titan Embeddings has the `normalize: True` option—it makes similarity computation faster by eliminating the magnitude calculation.
+
+### Why HNSW Is Fast: A Deeper Look
+
+Without HNSW, finding the k nearest vectors among N vectors requires N similarity computations. With 10 million vectors, that's 10 million dot products per query—slow.
+
+HNSW reduces this to approximately **log(N)** comparisons by building a navigable graph:
+
+```mermaid
+graph TD
+    subgraph "Search Path (10M vectors, ~24 hops)"
+        A[Start at top layer entry point] --> B[Navigate toward query region]
+        B --> C[Drop to next layer]
+        C --> D[Navigate more precisely]
+        D --> E[Drop to bottom layer]
+        E --> F[Local neighborhood search]
+        F --> G[Return k nearest]
+    end
+
+    H[Query Vector] --> A
+```
+
+| Corpus Size | Exact Search Comparisons | HNSW Comparisons | Speedup |
+|-------------|-------------------------|------------------|---------|
+| 1,000 | 1,000 | ~30 | 33x |
+| 100,000 | 100,000 | ~50 | 2,000x |
+| 10,000,000 | 10,000,000 | ~70 | 140,000x |
+
+### Why Recall Is "Approximate"
+
+HNSW doesn't guarantee finding the absolute nearest neighbors. The graph navigation might miss vectors that are actually closer but weren't on the traversal path.
+
+In practice:
+- Well-tuned HNSW achieves 95-99% recall
+- The "missed" vectors are usually nearly as good as the true nearest
+- For RAG, this trade-off is almost always worth it
+
+### What Affects Search Quality
+
+| Factor | Impact on Quality | Impact on Speed |
+|--------|-------------------|-----------------|
+| Higher dimensions | ↑ Better semantic capture | ↓ Slower |
+| Higher ef_search | ↑ More thorough search | ↓ Slower |
+| Higher M (connections) | ↑ Better graph connectivity | ↓ More memory |
+| Pre-filtering | → Depends on filter selectivity | ↑ Faster (smaller search space) |
+| Normalized vectors | → No change | ↑ Faster (simpler math) |
+
+---
+
+## Decision Framework: Choosing Your Vector Store
+
+Use this framework to select the right vector store for your use case.
+
+### Quick Reference
+
+| Scenario | Choose | Why |
+|----------|--------|-----|
+| New RAG project, want simplicity | **Bedrock Knowledge Bases** | Fully managed, minimal ops |
+| Need hybrid search (semantic + keyword) | **OpenSearch** or **Bedrock KB HYBRID** | Built-in hybrid support |
+| Already using PostgreSQL | **Aurora pgvector** | Familiar SQL, no new infra |
+| Billions of vectors | **OpenSearch (managed)** | Scales horizontally |
+| Complex filtering + aggregations | **OpenSearch** | Full query DSL available |
+| Join vectors with relational data | **Aurora pgvector** | SQL joins work natively |
+| Prototyping quickly | **Bedrock Knowledge Bases** | Fastest time to working RAG |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[New Vector Store Needed] --> B{What scale?}
+
+    B -->|< 1M vectors| C{Need hybrid search?}
+    B -->|1M - 100M vectors| D{Operational preference?}
+    B -->|> 100M vectors| E[OpenSearch Service<br/>with sharding]
+
+    C -->|No| F{Already using PostgreSQL?}
+    C -->|Yes| G{Want managed?}
+
+    F -->|Yes| H[Aurora pgvector]
+    F -->|No| I[Bedrock Knowledge Bases]
+
+    G -->|Yes| I
+    G -->|No| J[OpenSearch Service]
+
+    D -->|Minimal ops| K{Need advanced<br/>filtering?}
+    D -->|Full control| J
+
+    K -->|Basic filters| I
+    K -->|Complex queries| J
+
+    I --> L{Using OpenSearch<br/>Serverless backend?}
+    L -->|Yes| M[Ensure VECTORSEARCH<br/>collection type]
+```
+
+### Trade-off Analysis
+
+| Factor | Bedrock KB | OpenSearch | Aurora pgvector |
+|--------|-----------|------------|-----------------|
+| **Setup Time** | Minutes | Hours | Hours |
+| **Operational Burden** | None | Medium-High | Low (if existing) |
+| **Max Scale** | ~10M vectors | Billions | ~100M vectors |
+| **Hybrid Search** | Built-in | Built-in | Manual implementation |
+| **SQL Joins** | No | No | Yes |
+| **Cost Model** | Per query + storage | Cluster/OCU-based | Instance-based |
+| **Chunking Control** | Limited presets | Full control | Full control |
+| **Index Tuning** | Limited | Full control | Full control |
+| **Exam Signal** | "simplest", "managed" | "scale", "hybrid" | "PostgreSQL", "SQL" |
+
+### Chunking Strategy Selection
+
+| Content Type | Recommended Strategy |
+|--------------|---------------------|
+| FAQs, short documents | Fixed-size (300-500 tokens) |
+| Technical documentation | Hierarchical |
+| Legal/compliance docs | Hierarchical |
+| Dense prose (no headers) | Semantic |
+| Mixed format documents | Hierarchical |
+| Rapid prototyping | Fixed-size |
+
+---
+
 ### Dimension Trade-offs
 
 Titan Embeddings V2 offers configurable dimensions: 256, 512, or 1024. This flexibility exists because embedding dimensions directly impact both quality and cost.

@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { getDomain } from '@/lib/domains';
-import { isArticleRead } from '@/lib/progress';
-import { FlaskConical, ArrowRight, ArrowLeft, BookOpen, CheckCircle, Circle } from 'lucide-react';
+import { isArticleRead, markArticleRead, unmarkArticleRead } from '@/lib/progress';
+import { ArrowRight, ArrowLeft, BookOpen, CheckCircle, Circle } from 'lucide-react';
 
 // Domain color schemes
 const domainColors: Record<number, { bg: string; accent: string; text: string; border: string; progressBg: string }> = {
@@ -37,6 +37,24 @@ export default function DomainPage() {
     });
     setCompletedArticles(completed);
   }, [domain, domainId]);
+
+  const toggleComplete = (e: React.MouseEvent, articleSlug: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const articleKey = `${domainId}-${articleSlug}`;
+    const newCompleted = new Set(completedArticles);
+
+    if (completedArticles.has(articleSlug)) {
+      unmarkArticleRead(articleKey);
+      newCompleted.delete(articleSlug);
+    } else {
+      markArticleRead(articleKey, 1);
+      newCompleted.add(articleSlug);
+    }
+
+    setCompletedArticles(newCompleted);
+  };
 
   if (!domain) {
     return (
@@ -108,14 +126,18 @@ export default function DomainPage() {
               } hover:border-gray-300 hover:shadow-md transition-all group`}
             >
               <div className="flex items-center gap-4">
-                {/* Checkbox indicator */}
-                <div className="flex-shrink-0">
+                {/* Checkbox toggle */}
+                <button
+                  onClick={(e) => toggleComplete(e, task.articleSlug)}
+                  className="flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-full"
+                  aria-label={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
+                >
                   {isCompleted ? (
-                    <CheckCircle className="w-6 h-6 text-green-500" />
+                    <CheckCircle className="w-6 h-6 text-green-500 hover:text-green-600 transition-colors" />
                   ) : (
-                    <Circle className="w-6 h-6 text-gray-300" />
+                    <Circle className="w-6 h-6 text-gray-300 hover:text-gray-400 transition-colors" />
                   )}
-                </div>
+                </button>
                 <div className={`w-10 h-10 rounded-lg ${colors.accent} bg-opacity-10 flex items-center justify-center`}>
                   <span className={`text-sm font-bold ${colors.text}`}>{task.id}</span>
                 </div>
@@ -123,12 +145,6 @@ export default function DomainPage() {
                   <h3 className={`font-medium group-hover:text-gray-900 ${isCompleted ? 'text-gray-600' : 'text-gray-800'}`}>
                     {task.name}
                   </h3>
-                  {task.labSlug && (
-                    <span className="inline-flex items-center gap-1 text-xs text-amber-600 mt-1">
-                      <FlaskConical className="w-3 h-3" />
-                      Lab available
-                    </span>
-                  )}
                 </div>
               </div>
               <ArrowRight className={`w-5 h-5 text-gray-300 group-hover:${colors.text} group-hover:translate-x-1 transition-all`} />

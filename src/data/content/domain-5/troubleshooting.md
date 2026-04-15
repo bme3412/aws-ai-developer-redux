@@ -16,6 +16,125 @@ The engineer who can systematically diagnose GenAI issues—not just restart ser
 
 ---
 
+## Under the Hood: How GenAI Failures Differ
+
+Understanding why GenAI troubleshooting is unique helps you approach problems systematically.
+
+### The Non-Deterministic Challenge
+
+Traditional software: `f(x) → y` (same input, same output)
+GenAI: `f(x, temperature, context, model_state) → y₁, y₂, y₃...` (same input, variable output)
+
+```mermaid
+graph TD
+    subgraph "Traditional Debugging"
+        A[Bug Report] --> B[Reproduce]
+        B --> C[Debug]
+        C --> D[Fix]
+        D --> E[Verify]
+    end
+
+    subgraph "GenAI Debugging"
+        F[Bug Report] --> G[Collect Context]
+        G --> H[Check Logs/Traces]
+        H --> I{Reproducible?}
+        I -->|No| J[Statistical Analysis]
+        I -->|Yes| K[Root Cause Analysis]
+        J --> L[Pattern Detection]
+        K --> M[Fix]
+        L --> M
+        M --> N[A/B Test Fix]
+    end
+```
+
+### The Failure Layer Cake
+
+Problems can originate at any layer:
+
+| Layer | Symptoms | Diagnostic Tool |
+|-------|----------|-----------------|
+| **Infrastructure** | Timeouts, errors, latency | CloudWatch, X-Ray |
+| **Retrieval** | Wrong/missing context | KB logs, retrieval metrics |
+| **Prompt** | Misunderstood instructions | Invocation logs |
+| **Model** | Wrong reasoning, hallucination | Output analysis |
+| **Integration** | Format errors, missing data | API logs |
+
+### Why "It Worked Yesterday" Happens
+
+| Cause | What Changed | Detection |
+|-------|--------------|-----------|
+| Model update | AWS updated the model | Model version in logs |
+| Prompt drift | Someone changed the prompt | Prompt versioning |
+| Data change | KB content was updated | Data lineage |
+| Traffic pattern | Different user inputs | Input distribution monitoring |
+| Rate limiting | Hit account limits | Throttling metrics |
+
+---
+
+## Decision Framework: Systematic Troubleshooting
+
+Use this framework to diagnose GenAI issues systematically.
+
+### Quick Reference
+
+| Symptom | First Check | Second Check | Likely Cause |
+|---------|-------------|--------------|--------------|
+| Slow responses | CloudWatch latency | X-Ray trace | Model latency or retrieval |
+| Wrong answers | Invocation logs | Retrieved context | Retrieval or prompt |
+| Errors | CloudWatch errors | Stack trace | Infrastructure or config |
+| Inconsistent behavior | Temperature setting | Input variations | Non-determinism |
+| Hallucinations | Context provided | Grounding check | Missing context or prompt |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Issue Reported] --> B{Error or<br/>bad output?}
+
+    B -->|Error| C[Check CloudWatch<br/>error metrics]
+    B -->|Bad output| D[Check invocation<br/>logs]
+
+    C --> E{Throttling?}
+    E -->|Yes| F[Rate limit issue<br/>Add backoff/queue]
+    E -->|No| G{Timeout?}
+
+    G -->|Yes| H[Check X-Ray trace<br/>Find slow component]
+    G -->|No| I[Check error details<br/>Fix specific error]
+
+    D --> J{Context<br/>present?}
+    J -->|No| K[Retrieval issue<br/>Check KB sync]
+    J -->|Yes| L{Context<br/>relevant?}
+
+    L -->|No| M[Retrieval tuning<br/>Chunking/embedding]
+    L -->|Yes| N{Prompt<br/>clear?}
+
+    N -->|No| O[Prompt issue<br/>Improve instructions]
+    N -->|Yes| P[Model behavior<br/>Temp/guardrails]
+```
+
+### Diagnostic Checklist
+
+| Check | Tool | What to Look For |
+|-------|------|------------------|
+| 1. Errors occurring? | CloudWatch Metrics | InvocationClientErrors, InvocationServerErrors |
+| 2. Latency normal? | CloudWatch Metrics | InvocationLatency p50, p99 |
+| 3. Where is time spent? | X-Ray Traces | Subsegments showing bottlenecks |
+| 4. What was sent/received? | Invocation Logs | Full prompt and response |
+| 5. What context was retrieved? | KB Logs | Retrieved chunks, scores |
+| 6. Is it reproducible? | Test environment | Same input, observe output |
+| 7. When did it start? | CloudWatch Insights | Correlate with changes |
+
+### Trade-off Analysis: Diagnostic Depth
+
+| Level | Time to Diagnose | Data Required | Best For |
+|-------|------------------|---------------|----------|
+| Quick check | 5 minutes | CloudWatch metrics | Obvious errors |
+| Standard | 30 minutes | + X-Ray + logs | Most issues |
+| Deep dive | 2+ hours | + Full I/O logging | Complex bugs |
+| Statistical | Days | + Historical data | Intermittent issues |
+
+---
+
 ## Common GenAI Failure Modes
 
 Understanding failure patterns helps you diagnose issues quickly.

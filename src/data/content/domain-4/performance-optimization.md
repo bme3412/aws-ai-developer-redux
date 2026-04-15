@@ -16,6 +16,169 @@ The goal isn't theoretical speed—it's user experience. Users don't care about 
 
 ---
 
+## Under the Hood: Where GenAI Latency Comes From
+
+Understanding the latency components helps you target optimizations effectively.
+
+### Anatomy of a GenAI Request
+
+A typical RAG request has multiple latency components:
+
+```mermaid
+graph LR
+    subgraph "Network (100-500ms)"
+        A[User Browser] --> B[CDN/API Gateway]
+        B --> C[Lambda]
+    end
+
+    subgraph "Retrieval (100-300ms)"
+        C --> D[Embed Query]
+        D --> E[Vector Search]
+        E --> F[Fetch Documents]
+    end
+
+    subgraph "Inference (1-10s)"
+        F --> G[Prompt Assembly]
+        G --> H[Model Processing]
+        H --> I[Token Generation]
+    end
+
+    subgraph "Response (50-200ms)"
+        I --> J[Post-processing]
+        J --> K[User Browser]
+    end
+```
+
+### Time-to-First-Token vs Total Time
+
+These are different metrics requiring different optimizations:
+
+| Metric | What It Measures | User Impact |
+|--------|------------------|-------------|
+| **Time-to-First-Token (TTFT)** | Time until first output token appears | Perceived responsiveness |
+| **Total Time** | Time until complete response | Overall task completion |
+| **Tokens per Second** | Generation speed | Reading pace |
+
+**TTFT breakdown:**
+```
+Network to Bedrock:     50-200ms
+Request queuing:        0-500ms (depends on load)
+Prompt processing:      200-1000ms (scales with input length)
+First token generation: 50-100ms
+Network back:           50-200ms
+────────────────────────────────
+Total TTFT:            350ms - 2s typical
+```
+
+### Why Output Generation Is Sequential
+
+Input tokens are processed in parallel—the entire prompt is fed through the model at once. But output tokens are generated **one at a time**:
+
+```
+Input:  [Token1, Token2, ..., Token1000] → Processed in ONE forward pass
+Output: Token1 → Token2 → Token3 → ... → TokenN (N forward passes)
+```
+
+This is why:
+- A 100-token response takes ~10x longer than a 10-token response
+- Streaming helps perceived latency (show tokens as generated)
+- max_tokens limits directly impact total time
+
+### Latency By Model Size
+
+Larger models = slower inference:
+
+| Model | TTFT | Tokens/sec | 500-token Response |
+|-------|------|------------|-------------------|
+| Claude 3 Haiku | ~300ms | ~100 | ~5.3s |
+| Claude 3.5 Sonnet | ~600ms | ~70 | ~7.7s |
+| Claude 3 Opus | ~1500ms | ~40 | ~14s |
+
+---
+
+## Decision Framework: Optimizing for Your Workload
+
+Different applications need different optimization strategies.
+
+### Quick Reference
+
+| Scenario | Primary Optimization | Secondary |
+|----------|---------------------|-----------|
+| Chat interface | Streaming + TTFT | Model tiering |
+| Document Q&A | Retrieval speed | Caching |
+| Bulk classification | Batch inference | Throughput |
+| Global users | Cross-region + CDN | Pre-computation |
+| Real-time agent | Parallel execution | Smaller models |
+| Offline processing | Batch + cheap models | Max throughput |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Performance Optimization] --> B{User-facing<br/>or batch?}
+
+    B -->|User-facing| C{Real-time<br/>interaction?}
+    B -->|Batch| D[Optimize Throughput]
+
+    C -->|Yes - chat/agent| E[Optimize TTFT<br/>+ Streaming]
+    C -->|No - async OK| F{Latency<br/>tolerance?}
+
+    F -->|< 2s| G[Optimize Total Time]
+    F -->|2-10s| H[Background + Notification]
+    F -->|> 10s| D
+
+    E --> I{Where is<br/>bottleneck?}
+    G --> I
+
+    I -->|Model inference| J[Smaller model<br/>Prompt caching<br/>Lower max_tokens]
+    I -->|Retrieval| K[Index tuning<br/>Fewer docs<br/>Pre-filtering]
+    I -->|Network| L[Cross-region<br/>Edge caching<br/>Connection pooling]
+
+    D --> M{Volume?}
+    M -->|High steady| N[Provisioned throughput<br/>Batch inference]
+    M -->|Bursty| O[Queue + auto-scale<br/>Concurrent limits]
+```
+
+### Trade-off Analysis
+
+| Optimization | Latency Impact | Throughput Impact | Cost Impact | Implementation Effort |
+|--------------|---------------|-------------------|-------------|----------------------|
+| Streaming | ↑ Perceived only | None | None | Low |
+| Smaller model | ↑ 2-5x faster | ↑ Higher | ↓ Lower | Low |
+| Prompt caching | ↑ 20-40% | ↑ Higher | ↓ Lower | Low |
+| Pre-computation | ↑ 100x (cache hit) | N/A | ↑ Batch cost | Medium |
+| Parallel execution | ↑ Depends on deps | ↑ Higher | None | Medium |
+| Cross-region | ↑ 100-300ms | None | ↑ Slightly | Medium |
+| Index tuning | ↑ 10-50% | ↑ Higher | None | Medium |
+| Batch inference | ↓ Much slower | ↑ Much higher | ↓ ~50% | Medium |
+
+### Latency Budget Allocation
+
+For a 3-second latency budget on a RAG query:
+
+| Component | Budget | Optimization if Over |
+|-----------|--------|---------------------|
+| Network (user → API) | 200ms | CDN, edge locations |
+| Embedding generation | 100ms | Cache embeddings, smaller model |
+| Vector search | 200ms | Index tuning, reduce k |
+| Document fetch | 100ms | Batch fetch, caching |
+| Model inference | 2000ms | Smaller model, prompt caching |
+| Post-processing | 100ms | Simplify, parallelize |
+| Network (API → user) | 200ms | Streaming, compression |
+| **Total** | **3000ms** | |
+
+### When to Optimize What
+
+| Signal | Optimization Focus |
+|--------|-------------------|
+| High TTFT, users complain about "slowness" | Streaming, prompt caching, model size |
+| Retrieval latency > model latency | Index optimization, fewer documents |
+| p99 >> p50 | Cold starts, capacity provisioning |
+| Costs too high | Batch processing, model tiering, caching |
+| Can't handle traffic spikes | Queue-based architecture, auto-scaling |
+
+---
+
 ## Latency Optimization Strategies
 
 Latency has multiple components. Optimize each one.

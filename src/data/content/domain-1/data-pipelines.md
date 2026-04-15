@@ -16,6 +16,148 @@ This topic matters practically because it's where many AI projects fail. Teams f
 
 ---
 
+## Under the Hood: How Data Flows in GenAI Systems
+
+Understanding the data flow helps you identify where problems originate and where to apply controls.
+
+### The GenAI Data Pipeline
+
+Data passes through multiple transformation stages before reaching the model:
+
+```mermaid
+graph TD
+    subgraph "Raw Sources"
+        A[Documents<br/>PDF, DOCX, HTML]
+        B[Structured Data<br/>CSV, JSON, DB]
+        C[Media<br/>Audio, Video, Images]
+    end
+
+    subgraph "Extraction"
+        A --> D[Textract<br/>Document AI]
+        C --> E[Transcribe<br/>Speech-to-Text]
+        C --> F[Rekognition<br/>Image Analysis]
+        B --> G[Glue ETL]
+    end
+
+    subgraph "Validation"
+        D --> H[Format Check]
+        E --> H
+        F --> H
+        G --> H
+        H --> I[Completeness Check]
+        I --> J[Anomaly Detection]
+    end
+
+    subgraph "Transformation"
+        J --> K[Chunking]
+        K --> L[Embedding]
+        L --> M[Vector Store]
+    end
+
+    subgraph "Inference"
+        M --> N[Retrieval]
+        N --> O[Prompt Assembly]
+        O --> P[Model Invocation]
+    end
+```
+
+### Where Quality Problems Originate
+
+| Stage | Common Problems | Impact on Output |
+|-------|-----------------|------------------|
+| **Raw sources** | Corruption, encoding issues, format errors | Pipeline fails or processes garbage |
+| **Extraction** | OCR errors, transcription mistakes | Wrong text in prompts |
+| **Validation** | Missing fields, out-of-range values | Incomplete or misleading context |
+| **Chunking** | Split mid-sentence, lost context | Poor retrieval matches |
+| **Embedding** | Wrong model, dimension mismatch | Retrieval fails entirely |
+| **Retrieval** | Wrong documents, poor ranking | Hallucination, wrong answers |
+
+### Why Early Validation Saves Money
+
+Catching problems early is cheaper:
+
+| Stage | Cost to Process | Cost to Fix |
+|-------|-----------------|-------------|
+| Validation (pre-processing) | ~$0 | Reject immediately |
+| Embedding | ~$0.0001/chunk | Re-embed after fix |
+| Vector store | ~$0.0001/chunk | Delete and re-index |
+| Model invocation | ~$0.01+/call | User sees bad output, investigate |
+
+**Key insight:** Model invocations are 100-1000x more expensive than validation. Every garbage input you catch early saves expensive inference and user frustration.
+
+---
+
+## Decision Framework: Choosing Pipeline Components
+
+Use this framework to select the right AWS services for each pipeline stage.
+
+### Quick Reference
+
+| Data Type | Extraction Service | Validation | Processing |
+|-----------|-------------------|------------|------------|
+| PDFs, scanned docs | **Textract** | Lambda format checks | Glue ETL or Lambda |
+| Audio/video | **Transcribe** | Confidence thresholds | Lambda |
+| Images | **Rekognition** | Moderation confidence | Lambda |
+| Structured data | Direct ingest | **Glue Data Quality** | Glue ETL |
+| Web content | Lambda scraping | Format validation | Lambda |
+| Real-time user input | N/A | **Lambda validation** | Lambda |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Data Pipeline Design] --> B{Batch or<br/>real-time?}
+
+    B -->|Batch| C{Data volume?}
+    B -->|Real-time| D[Lambda Pipeline]
+
+    C -->|Large TB+| E[Glue ETL + Data Quality]
+    C -->|Medium| F{Structured?}
+
+    F -->|Yes| E
+    F -->|No| G[Lambda + Step Functions]
+
+    D --> H{Needs extraction?}
+
+    H -->|Documents| I[Textract + Lambda]
+    H -->|Audio| J[Transcribe + Lambda]
+    H -->|Images| K[Rekognition + Lambda]
+    H -->|Text only| L[Lambda validation only]
+
+    E --> M{RAG ingestion?}
+    G --> M
+    I --> M
+    J --> M
+    K --> M
+    L --> M
+
+    M -->|Yes| N[Bedrock Knowledge Bases<br/>or custom chunking]
+    M -->|No| O[Direct to model]
+```
+
+### Service Selection by Use Case
+
+| Use Case | Services | Why |
+|----------|----------|-----|
+| **Knowledge base ingestion** | Textract → Glue → Bedrock KB | Structured extraction, quality rules, managed RAG |
+| **Document Q&A** | Textract → Lambda → Bedrock | Real-time extraction and querying |
+| **Call center analysis** | Transcribe → Comprehend → Bedrock | Speech transcription, entity extraction, summarization |
+| **Content moderation** | Rekognition → Lambda → Bedrock | Image analysis, policy check, generate explanation |
+| **Form processing** | Textract AnalyzeDocument → Lambda | Structured form extraction |
+| **Data quality pipeline** | Glue Data Quality → SNS alerts | Batch validation with notifications |
+
+### Trade-off Analysis
+
+| Approach | Throughput | Latency | Cost | Complexity |
+|----------|-----------|---------|------|------------|
+| Lambda only | Medium | Low | Pay per invocation | Low |
+| Glue ETL | High | High (batch) | Pay per DPU-hour | Medium |
+| Step Functions + Lambda | Medium | Medium | Pay per state transition | Medium-High |
+| Bedrock KB managed | Medium | Low (after ingestion) | Per query + storage | Lowest |
+| Custom pipeline | Flexible | Flexible | Depends on design | Highest |
+
+---
+
 ## Data Quality: The Foundation of Everything
 
 Foundation models exhibit a dangerous property: they produce fluent output regardless of input quality. Give a model corrupted text, and it will generate a confident-sounding response based on whatever patterns it can extract from the noise. Give it incomplete data, and it will fill gaps with plausible-sounding fabrications. Give it contradictory information, and it will often produce a response that sounds reasonable while being completely wrong.

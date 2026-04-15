@@ -2,11 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, FlaskConical, ClipboardCheck } from 'lucide-react';
+import { BookOpen, ClipboardCheck } from 'lucide-react';
 
 const navItems = [
   { href: '/learn', label: 'Learn', icon: BookOpen },
-  { href: '/labs', label: 'Labs', icon: FlaskConical },
   { href: '/review', label: 'Review', icon: ClipboardCheck },
 ];
 

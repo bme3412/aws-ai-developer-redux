@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, ChevronRight, BookOpen, FlaskConical, Book, Cloud, Calendar, Lightbulb } from 'lucide-react';
+import { ChevronDown, ChevronRight, BookOpen, Book, Cloud, Calendar, Lightbulb } from 'lucide-react';
 import { useState } from 'react';
 import { getDomains, getPriorityColor } from '@/lib/domains';
 import { Domain } from '@/types/domain';
@@ -161,9 +161,6 @@ function DomainSection({
               >
                 <BookOpen className="w-3.5 h-3.5" />
                 <span className="flex-1 truncate">{task.name}</span>
-                {task.labSlug && (
-                  <FlaskConical className="w-3 h-3 text-amber-500" />
-                )}
               </Link>
             );
           })}

@@ -34,7 +34,7 @@
           "id": "1.2",
           "name": "Select & Configure Foundation Models",
           "articleSlug": "model-selection",
-          "labSlug": "bedrock-playground",
+          
           "skills": [
             {
               "id": "1.2.1",
@@ -89,7 +89,7 @@
           "id": "1.4",
           "name": "Vector Store Solutions",
           "articleSlug": "vector-stores",
-          "labSlug": "rag-builder",
+          
           "skills": [
             {
               "id": "1.4.1",
@@ -122,7 +122,7 @@
           "id": "1.5",
           "name": "Retrieval Mechanisms for FM Augmentation",
           "articleSlug": "retrieval-mechanisms",
-          "labSlug": "rag-builder",
+          
           "skills": [
             {
               "id": "1.5.1",
@@ -160,7 +160,7 @@
           "id": "1.6",
           "name": "Prompt Engineering Strategies & Governance",
           "articleSlug": "prompt-engineering",
-          "labSlug": "prompt-lab",
+          
           "skills": [
             {
               "id": "1.6.1",
@@ -232,7 +232,7 @@
           "id": "2.1",
           "name": "Agentic AI Solutions & Tool Integrations",
           "articleSlug": "agentic-ai",
-          "labSlug": "agent-workshop",
+          
           "skills": [
             {
               "id": "2.1.1",
@@ -432,7 +432,7 @@
           "id": "3.1",
           "name": "Input & Output Safety Controls",
           "articleSlug": "input-output-safety",
-          "labSlug": "guardrails-demo",
+          
           "skills": [
             {
               "id": "3.1.1",

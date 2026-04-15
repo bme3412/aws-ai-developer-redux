@@ -20,6 +20,138 @@ The patterns in this section bridge the gap between "it works in a demo" and "it
 
 ---
 
+## Under the Hood: Enterprise Integration Architecture
+
+Understanding how enterprise systems connect to GenAI helps you design robust integrations.
+
+### The Integration Landscape
+
+Enterprise GenAI integrations span multiple system types:
+
+```mermaid
+graph TD
+    subgraph "Enterprise Systems"
+        A[CRM<br/>Salesforce, Dynamics]
+        B[ERP<br/>SAP, Oracle]
+        C[Identity<br/>Azure AD, Okta]
+        D[Content<br/>SharePoint, S3]
+    end
+
+    subgraph "Integration Layer"
+        E[API Gateway]
+        F[EventBridge]
+        G[AppFlow]
+        H[Lambda Connectors]
+    end
+
+    subgraph "GenAI Layer"
+        I[Bedrock]
+        J[Knowledge Bases]
+        K[Agents]
+    end
+
+    A --> E
+    A --> G
+    B --> F
+    B --> H
+    C --> E
+    D --> J
+
+    E --> I
+    F --> H
+    G --> J
+    H --> I
+    I --> K
+    J --> I
+```
+
+### Why Integration Complexity Matters
+
+| Challenge | Impact | Solution |
+|-----------|--------|----------|
+| **Authentication sprawl** | Different auth for each system | Centralize with IAM Identity Center |
+| **Data format variety** | JSON, XML, proprietary | Lambda transformation layer |
+| **Latency constraints** | Users expect fast responses | Async patterns, caching |
+| **Error handling** | Partial failures common | Dead letter queues, retries |
+| **Audit requirements** | Track all data access | CloudTrail, custom logging |
+
+### Sync vs Async: The Fundamental Choice
+
+```mermaid
+graph LR
+    subgraph "Synchronous"
+        A[Request] --> B[Wait 2-15s] --> C[Response]
+    end
+
+    subgraph "Asynchronous"
+        D[Request] --> E[Acknowledge]
+        F[Process in Background]
+        G[Notify via Webhook/EventBridge]
+    end
+
+    E --> F
+    F --> G
+```
+
+**Sync:** User waits, simpler code, limited to API Gateway timeout (29s)
+**Async:** User continues, resilient to failures, handles long-running tasks
+
+---
+
+## Decision Framework: Enterprise Integration Patterns
+
+Use this framework to choose the right integration approach.
+
+### Quick Reference
+
+| Scenario | Pattern | Services |
+|----------|---------|----------|
+| User-facing chat | Sync + streaming | API Gateway → Lambda → Bedrock |
+| Document processing | Async batch | EventBridge → Step Functions → Bedrock |
+| CRM enhancement | Event-driven | EventBridge → Lambda → Bedrock → Webhook |
+| Multi-system workflow | Orchestrated | Step Functions → multiple Lambdas |
+| Data synchronization | Scheduled | EventBridge Scheduler → Glue → KB |
+
+### Decision Tree
+
+```mermaid
+graph TD
+    A[Integration Design] --> B{User waiting?}
+
+    B -->|Yes| C{Response time<br/>tolerance?}
+    B -->|No| D[Async Pattern]
+
+    C -->|< 5s| E{Can stream?}
+    C -->|5-30s| F[Sync with Loading UI]
+    C -->|> 30s| D
+
+    E -->|Yes| G[Streaming Sync]
+    E -->|No| F
+
+    D --> H{Multiple steps?}
+    H -->|Yes| I[Step Functions]
+    H -->|No| J[EventBridge + Lambda]
+
+    G --> K{Need external<br/>system calls?}
+    F --> K
+    J --> K
+
+    K -->|Yes| L[Add error handling<br/>retries, DLQ]
+    K -->|No| M[Direct invocation]
+```
+
+### Trade-off Analysis
+
+| Pattern | Latency | Reliability | Complexity | Best For |
+|---------|---------|-------------|------------|----------|
+| Sync direct | Lowest | Lower | Low | Simple queries |
+| Sync + streaming | Low | Medium | Medium | Chat interfaces |
+| Async + webhook | High | High | Medium | Background processing |
+| Step Functions | Variable | Highest | High | Multi-step workflows |
+| Event-driven | Variable | High | Medium | System integration |
+
+---
+
 ## Enterprise Integration Patterns for GenAI
 
 GenAI integrations follow two fundamental patterns that determine how systems communicate. Choosing the right pattern depends on latency requirements, coupling preferences, and failure handling needs.
