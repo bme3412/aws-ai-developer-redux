@@ -174,6 +174,62 @@
       "definition": "Constraining FM outputs to be based on provided context or retrieved documents. Reduces hallucination by ensuring answers come from verified sources.",
       "relatedServices": ["Amazon Bedrock Knowledge Bases"],
       "category": "techniques"
+    },
+    {
+      "id": "strands-agents",
+      "term": "Strands Agents SDK",
+      "definition": "AWS's open-source Python framework for building custom AI agents. Handles the agent loop (prompt construction, tool calling, result parsing) while giving developers full control over reasoning and tool selection. Works with any model that supports tool use.",
+      "relatedServices": ["Amazon Bedrock"],
+      "category": "architecture-patterns"
+    },
+    {
+      "id": "agent-squad",
+      "term": "AWS Agent Squad",
+      "definition": "A multi-agent orchestration framework that implements the supervisor pattern. A supervisor agent routes requests to specialized agents based on their descriptions and capabilities, handling context passing and response synthesis.",
+      "relatedServices": ["Amazon Bedrock"],
+      "category": "architecture-patterns"
+    },
+    {
+      "id": "agentcore",
+      "term": "Amazon Bedrock AgentCore",
+      "definition": "Managed infrastructure for deploying and running agents at scale. Provides hosting, auto-scaling, session management, and observability for production agents without managing servers or containers.",
+      "relatedServices": ["Amazon Bedrock"],
+      "category": "aws-specific"
+    },
+    {
+      "id": "prompt-caching",
+      "term": "Prompt Caching",
+      "definition": "A Bedrock feature that caches processed prompt prefixes. When multiple requests share a common system prompt, subsequent requests receive ~90% discount on cached tokens. Cache entries expire after ~5 minutes of inactivity.",
+      "relatedServices": ["Amazon Bedrock"],
+      "category": "techniques"
+    },
+    {
+      "id": "cost-anomaly-detection",
+      "term": "AWS Cost Anomaly Detection",
+      "definition": "An ML-powered service that detects unexpected cost spikes and spending anomalies. Can be configured specifically for Amazon Bedrock to catch GenAI cost runaway from retry storms, infinite agent loops, or model tier changes.",
+      "relatedServices": ["AWS Cost Explorer"],
+      "category": "aws-specific"
+    },
+    {
+      "id": "q-business",
+      "term": "Amazon Q Business",
+      "definition": "A managed enterprise knowledge assistant with 40+ data source connectors (SharePoint, Confluence, S3, etc.). Provides RAG with built-in enterprise ACLs — users only see answers derived from documents they can access in the source system.",
+      "relatedServices": ["Amazon Q Business"],
+      "category": "aws-specific"
+    },
+    {
+      "id": "q-developer",
+      "term": "Amazon Q Developer",
+      "definition": "AI-powered coding assistant integrated into IDEs. Provides context-aware code generation, refactoring, security scanning, test generation, and AWS SDK assistance including IAM policy generation and error diagnosis.",
+      "relatedServices": ["Amazon Q Developer"],
+      "category": "aws-specific"
+    },
+    {
+      "id": "lora",
+      "term": "LoRA (Low-Rank Adaptation)",
+      "definition": "An efficient fine-tuning technique that trains small adapter layers instead of updating full model parameters. Faster to train, smaller to store, and adapters can be swapped at inference time — enabling one base model with multiple specialized behaviors.",
+      "relatedServices": ["Amazon Bedrock", "Amazon SageMaker"],
+      "category": "techniques"
     }
   ],
   "categories": {

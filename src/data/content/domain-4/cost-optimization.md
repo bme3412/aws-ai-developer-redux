@@ -604,6 +604,91 @@ const response2 = await bedrock.invokeModel({
 
 Prompt caching is automatic when prompts match. Organize applications so requests share common prefixes.
 
+**Key prompt caching details for the exam:**
+
+| Aspect | Detail |
+|--------|--------|
+| **How it works** | Bedrock caches the processed representation of prompt prefixes (system prompt + early messages). Subsequent requests with the same prefix skip re-processing. |
+| **Cache scope** | Per-model, per-account. Different models have separate caches. |
+| **Cost structure** | Cache write: ~25% premium on first request. Cache read: ~90% discount on cached tokens. Net savings after 2-3 requests. |
+| **TTL** | Cache entries expire after ~5 minutes of inactivity. High-traffic applications keep caches warm. |
+| **What to cache** | Long system prompts (instructions, policies, personas), few-shot examples, static context. These are ideal because they repeat across requests. |
+| **What not to cache** | User messages, dynamic context, conversation history. These change per request and won't produce cache hits. |
+
+**Design for cacheability:** Structure your prompts so the cacheable portion (system prompt, examples) comes first, and the variable portion (user query, retrieved context) comes last:
+
+```typescript
+// Good: Cacheable prefix is stable and long
+const request = {
+  system: longSystemPrompt,                    // ← Cached (2000 tokens)
+  messages: [
+    { role: 'user', content: fewShotExamples },  // ← Cached (500 tokens)
+    { role: 'user', content: userQuery }          // ← Not cached (50 tokens)
+  ]
+};
+
+// Bad: Variable content mixed into the prefix
+const request = {
+  system: `${systemPrompt}\n\nContext: ${retrievedDocs}`,  // ← Breaks cache
+  messages: [{ role: 'user', content: userQuery }]
+};
+```
+
+### Result Fingerprinting
+
+For deterministic queries (classification, extraction, structured output), generate a hash of the request and cache the response. Unlike semantic caching, this uses exact matching — faster and cheaper:
+
+```typescript
+import { createHash } from 'crypto';
+
+class ResultFingerprintCache {
+  private cache: Map<string, CachedResult> = new Map();
+
+  fingerprint(request: ModelRequest): string {
+    // Hash the deterministic components
+    const hashInput = JSON.stringify({
+      model: request.modelId,
+      system: request.systemPrompt,
+      messages: request.messages,
+      temperature: 0  // Only fingerprint deterministic requests
+    });
+    return createHash('sha256').update(hashInput).digest('hex');
+  }
+
+  async getOrInvoke(request: ModelRequest): Promise<string> {
+    // Only cache deterministic requests (temperature = 0)
+    if (request.temperature > 0) {
+      return await invokeModel(request);
+    }
+
+    const key = this.fingerprint(request);
+    const cached = this.cache.get(key);
+
+    if (cached && Date.now() - cached.timestamp < cached.ttlMs) {
+      return cached.response;  // Free — no model invocation
+    }
+
+    const response = await invokeModel(request);
+    this.cache.set(key, {
+      response,
+      timestamp: Date.now(),
+      ttlMs: 3600000  // 1 hour
+    });
+
+    return response;
+  }
+}
+```
+
+**When to use which caching strategy:**
+
+| Strategy | Match Type | Best For | Cost to Implement |
+|----------|-----------|----------|-------------------|
+| **Bedrock prompt caching** | Prefix match (automatic) | Shared system prompts across requests | None (automatic) |
+| **Result fingerprinting** | Exact request hash | Deterministic queries (temp=0), classification | Low |
+| **Semantic caching** | Embedding similarity | Paraphrased queries, natural language variations | Medium (needs Redis + embeddings) |
+| **Edge caching (CloudFront)** | URL + query string | Geographically distributed, common queries | Low |
+
 ### Edge Caching with CloudFront
 
 For geographically distributed users with common queries, CloudFront caches responses at edge locations:
@@ -797,6 +882,71 @@ Scale on GenAI-specific metrics, not just CPU:
 
 ---
 
+## Cost Monitoring and Anomaly Detection
+
+Optimization is ongoing. You need visibility into where money goes and alerts when spending deviates from expectations.
+
+### AWS Cost Anomaly Detection for GenAI
+
+Cost Anomaly Detection uses ML to learn your normal spending patterns and alerts when costs deviate. Configure it specifically for Bedrock:
+
+```typescript
+import * as ce from 'aws-cdk-lib/aws-ce';
+
+// Monitor specifically for Bedrock costs
+const bedrockMonitor = new ce.CfnAnomalyMonitor(this, 'BedrockCostMonitor', {
+  monitorName: 'GenAI-Bedrock-Spending',
+  monitorType: 'DIMENSIONAL',
+  monitorDimension: 'SERVICE'
+});
+
+// Alert when anomaly exceeds threshold
+new ce.CfnAnomalySubscription(this, 'CostAnomalyAlert', {
+  subscriptionName: 'GenAI-Cost-Alerts',
+  monitorArnList: [bedrockMonitor.attrMonitorArn],
+  subscribers: [
+    { type: 'EMAIL', address: 'genai-ops@company.com' },
+    { type: 'SNS', address: costAlertTopic.topicArn }
+  ],
+  threshold: 100,  // Alert when daily anomaly exceeds $100
+  frequency: 'DAILY'
+});
+```
+
+**Common GenAI cost anomalies and their causes:**
+
+| Anomaly Pattern | Likely Cause | Response |
+|----------------|-------------|----------|
+| Sudden 10x spike | Retry storm, infinite agent loop, or new feature without cost guard | Kill runaway process, add iteration limits |
+| Gradual 2x increase | Growing conversation histories, prompt bloat, or increased traffic | Implement context summarization, review prompts |
+| Periodic spikes | Batch processing jobs, scheduled evaluations | Expected — suppress alerts for known patterns |
+| Cost shift between models | Query router sending more to expensive tier | Review routing logic, check classifier accuracy |
+
+### Cost Attribution by Feature
+
+Track which features drive costs using CloudWatch custom dimensions:
+
+```typescript
+// After every model invocation, record cost attribution
+await cloudwatch.putMetricData({
+  Namespace: 'GenAI/Cost',
+  MetricData: [{
+    MetricName: 'EstimatedCost',
+    Dimensions: [
+      { Name: 'Application', Value: 'CustomerSupport' },
+      { Name: 'Feature', Value: 'OrderInquiry' },
+      { Name: 'Model', Value: modelId }
+    ],
+    Value: estimateCost(inputTokens, outputTokens, modelId),
+    Unit: 'None'  // Dollar amount
+  }]
+});
+```
+
+Build dashboards showing cost per feature, per user segment, and per model. This data drives optimization decisions: if 60% of costs come from one feature, optimize that feature first.
+
+---
+
 ## Key Services Summary
 
 | Service | Cost Optimization Role | When to Use |
@@ -806,15 +956,24 @@ Scale on GenAI-specific metrics, not just CPU:
 | **Amazon ElastiCache** | Semantic caching to avoid redundant computation | High-volume applications with repeated queries |
 | **Amazon CloudFront** | Edge caching for geographically distributed users | Global applications with common queries |
 | **Amazon SageMaker** | Batch transform for bulk processing, endpoint auto-scaling | Custom models or bulk workloads |
+| **AWS Cost Anomaly Detection** | ML-powered cost spike detection | Alert on unexpected GenAI spending changes |
+| **AWS Cost Explorer** | Cost analysis and forecasting | Understand spending trends and plan budgets |
 
 ---
 
 ## Exam Tips
 
-- **"Reduce GenAI costs"** → Model tiering (cheap for simple, expensive for complex), caching (semantic, prompt, edge), token optimization
-- **"Variable traffic"** → On-demand Bedrock; provisioned throughput only with 40%+ utilization
-- **"Avoid redundant computation"** → Semantic caching (ElastiCache), prompt caching (Bedrock), edge caching (CloudFront)
-- **"Track token usage"** → CloudWatch metrics with custom dimensions by application/feature
+| When you see... | Think... |
+|-----------------|----------|
+| "reduce GenAI costs" | Model tiering + caching (semantic, prompt, edge) + token optimization |
+| "variable traffic" | On-demand Bedrock; provisioned throughput only with 40%+ utilization |
+| "avoid redundant computation" | Semantic caching (ElastiCache), prompt caching (Bedrock), result fingerprinting, edge caching (CloudFront) |
+| "track token usage" | CloudWatch metrics with custom dimensions by application/feature |
+| "long system prompts shared across requests" | Bedrock prompt caching (~90% discount on cached prefix tokens) |
+| "deterministic queries" or "classification caching" | Result fingerprinting with exact hash matching |
+| "paraphrased queries" or "similar questions" | Semantic caching with embedding similarity |
+| "unexpected cost spike" or "cost anomaly" | AWS Cost Anomaly Detection configured for Amazon Bedrock |
+| "cost attribution" or "which feature costs most" | Custom CloudWatch dimensions (Application, Feature, Model) on token metrics |
 
 ---
 
@@ -825,3 +984,6 @@ Scale on GenAI-specific metrics, not just CPU:
 3. **No caching strategy**—redundant computation is pure waste
 4. **Provisioned throughput with low utilization**—commitment without sufficient usage burns money
 5. **Ignoring output token costs**—output tokens cost 3-5x more than input; control response length
+6. **Mixing variable content into prompt prefix**—breaks prompt caching; keep cacheable content at the start
+7. **No cost anomaly detection**—GenAI cost spikes are common and can be massive; configure Cost Anomaly Detection for Bedrock
+8. **No cost attribution by feature**—you can't prioritize optimization without knowing which features drive costs

@@ -916,6 +916,60 @@ A common pattern wraps retrieval in a Lambda function that the FM invokes via to
 
 This pattern is flexible—the Lambda can implement any retrieval logic, combine multiple sources, apply business rules, and format results for the model.
 
+### Model Context Protocol (MCP) for Retrieval
+
+**MCP** provides a standardized way for agents to access retrieval tools across different AI systems. Instead of building retrieval integrations specific to Bedrock Agents, OpenAI, or any other framework, you build an MCP server once and any MCP-compatible agent can use it.
+
+In the context of retrieval, MCP matters because it enables **portable retrieval tools**. An MCP server that wraps your Knowledge Base retrieval can be used by Strands Agents, custom agent frameworks, or any MCP client—without rewriting the integration for each.
+
+```python
+# MCP server exposing retrieval as a standardized tool
+def handler(event, context):
+    method = event.get('method')
+    params = event.get('params', {})
+
+    if method == 'tools/list':
+        return {
+            'tools': [{
+                'name': 'searchKnowledgeBase',
+                'description': 'Search the company knowledge base for relevant documents. '
+                               'Returns ranked results with citations.',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'query': {'type': 'string', 'description': 'Natural language search query'},
+                        'maxResults': {'type': 'integer', 'default': 5},
+                        'filters': {
+                            'type': 'object',
+                            'description': 'Optional metadata filters (department, date range)'
+                        }
+                    },
+                    'required': ['query']
+                }
+            }]
+        }
+
+    elif method == 'tools/call' and params.get('name') == 'searchKnowledgeBase':
+        args = params.get('arguments', {})
+        # Execute actual retrieval against Knowledge Bases, OpenSearch, etc.
+        results = retrieve_from_knowledge_base(
+            query=args['query'],
+            max_results=args.get('maxResults', 5),
+            filters=args.get('filters')
+        )
+        return {'content': [{'type': 'text', 'text': json.dumps(results)}]}
+```
+
+**When to use MCP vs direct function calling vs Bedrock Agents action groups:**
+
+| Approach | Best For | Trade-off |
+|----------|----------|-----------|
+| **Direct function calling** | Single-agent, single-framework apps | Fastest setup, locked to one framework |
+| **Bedrock Agents action groups** | Bedrock Agents specifically | Fully managed but Bedrock-only |
+| **MCP servers** | Multi-agent systems, framework portability | Standardized but additional abstraction layer |
+
+For the exam: when you see "standardized API patterns for retrieval augmentation" or "portable tool interfaces," think MCP. When you see "managed retrieval with Bedrock Agents," think action groups.
+
 ---
 
 ## Search Technique Comparison
@@ -943,6 +997,8 @@ This pattern is flexible—the Lambda can implement any retrieval logic, combine
 | "exact identifiers" or "error codes" | Hybrid search weighted toward **keywords** |
 | "combining search results" | **Reciprocal Rank Fusion (RRF)** |
 | "retrieve broadly, rerank narrowly" | Embedding search top-N → Rerank to top-K |
+| "standardized retrieval interface" or "portable tools" | **Model Context Protocol (MCP)** servers |
+| "function calling for retrieval" | FM tool use — define retrieval as a tool the model can call |
 | "reduce redundancy in results" | **MMR (Maximal Marginal Relevance)** |
 | "Titan Embeddings dimensions" | **256, 512, or 1024** (flexible) |
 

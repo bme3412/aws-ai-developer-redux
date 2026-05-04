@@ -79,6 +79,14 @@ export function shuffleQuestions(questions: Question[]): Question[] {
   return shuffled;
 }
 
+/**
+ * Check if selected answers match the correct answers for a question.
+ * Handles both single-answer and multi-answer questions.
+ */
+export function isAnswerCorrect(selected: string[], correctAnswers: string[]): boolean {
+  return JSON.stringify([...selected].sort()) === JSON.stringify([...correctAnswers].sort());
+}
+
 // Filter questions by difficulty
 export function filterByDifficulty(
   questions: Question[],

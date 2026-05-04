@@ -440,7 +440,89 @@ The practical benefit: one base model, multiple personalities. You might have a 
 
 As you create custom model versions, tracking becomes critical. Which training data produced each version? How did performance compare across iterations? If the new version performs worse than expected, can you roll back instantly?
 
-Bedrock maintains metadata about your custom models: training job details, evaluation results, deployment history. Combine this with your own documentation practices—detailed notes about what each version was intended to improve, what dataset changes were made, what the evaluation showed.
+**SageMaker Model Registry** provides the infrastructure for this. It stores model versions with metadata, approval status, and deployment history—acting as version control for your models:
+
+```python
+import boto3
+
+sagemaker = boto3.client('sagemaker')
+
+# Register a new model version
+sagemaker.create_model_package(
+    ModelPackageGroupName='customer-service-model',
+    ModelPackageDescription='Fine-tuned Claude for customer service v3 - improved refund handling',
+    InferenceSpecification={
+        'Containers': [{
+            'Image': '763104351884.dkr.ecr.us-east-1.amazonaws.com/inference:latest',
+            'ModelDataUrl': 's3://models/customer-service/v3/model.tar.gz'
+        }],
+        'SupportedContentTypes': ['application/json'],
+        'SupportedResponseMIMETypes': ['application/json']
+    },
+    # Custom metadata for tracking
+    CustomerMetadataProperties={
+        'TrainingDataset': 's3://data/training/customer-service-v3.jsonl',
+        'TrainingExamples': '2500',
+        'BaseModel': 'anthropic.claude-3-haiku-20240307-v1:0',
+        'EvalAccuracy': '0.94',
+        'EvalBaseline': '0.87'
+    },
+    ModelApprovalStatus='PendingManualApproval'  # Requires human review
+)
+
+# Approve after evaluation passes
+sagemaker.update_model_package(
+    ModelPackageArn='arn:aws:sagemaker:us-east-1:123456789:model-package/customer-service-model/3',
+    ModelApprovalStatus='Approved'
+)
+```
+
+**The deployment pipeline** for custom models follows a standard pattern:
+
+```
+Training → Evaluation → Registry → Approval → Staging → Production
+    ↓           ↓           ↓          ↓          ↓          ↓
+  S3 data   Golden set   Version    Human/    Canary     Full
+  + config  + metrics   + metadata  auto gate  deploy    rollout
+```
+
+**Rollback strategies:**
+- **Instant rollback**: Keep the previous model version deployed alongside the new one. Route traffic back via AppConfig or API Gateway weighted routing.
+- **Canary deployment**: Route 5-10% of traffic to the new model. Monitor quality metrics (accuracy, latency, user ratings). If metrics degrade, route 100% back to the previous version.
+- **Blue/green**: Maintain two identical environments. Switch DNS or load balancer when the new version is validated. Roll back by switching back.
+
+**Bedrock's built-in tracking** complements SageMaker Model Registry. Bedrock maintains metadata about custom fine-tuning jobs (training configuration, hyperparameters, completion status) and your custom model versions are accessible via the same `InvokeModel` API. For Bedrock-native fine-tuning, you don't need SageMaker Model Registry—Bedrock tracks your versions. Use SageMaker Model Registry when you're managing models across multiple training environments or need formal approval workflows.
+
+### Customization Decision Framework
+
+This is a **high-value exam topic**. Many questions present a scenario and ask which customization approach is most appropriate.
+
+| Approach | When to Use | Data Required | Time | Cost | Reversible? |
+|----------|-------------|---------------|------|------|-------------|
+| **Prompt engineering** | First attempt for any task | 0 examples (just instructions) | Minutes | Free | Instantly |
+| **Few-shot examples** | Need consistent formatting or style | 3-10 examples in the prompt | Minutes | Slightly more tokens per request | Instantly |
+| **RAG** | Need access to current/proprietary knowledge | Your document corpus | Days (pipeline setup) | Retrieval + generation costs | Remove knowledge base |
+| **Fine-tuning** | Need consistent behavior across many inputs | 100-1,000+ examples | Days-weeks | Training job + ongoing inference | Deploy previous version |
+| **Continued pre-training** | Need deep domain knowledge embedded in model | 1,000s of domain documents | Weeks | Significant training costs | Deploy previous version |
+| **LoRA adapters** | Need multiple specialized behaviors from one model | 100-1,000+ examples per adapter | Days | Less than full fine-tuning | Swap adapters |
+| **Custom model import** | Have externally trained model | Complete model weights | Hours (import) | Provisioned Throughput required | Import different model |
+
+**The decision flow:**
+
+```mermaid
+graph TD
+    A[Task not working well enough] --> B{Tried 10+ prompt<br/>formulations?}
+    B -->|No| C[Improve prompts first]
+    B -->|Yes| D{Need current or<br/>proprietary knowledge?}
+    D -->|Yes| E[RAG with Knowledge Bases]
+    D -->|No| F{Need consistent<br/>format/style/voice?}
+    F -->|Yes| G{Multiple specialized<br/>behaviors needed?}
+    F -->|No| H{Need deep domain<br/>understanding?}
+    G -->|Yes| I[LoRA Adapters<br/>One base model, many adapters]
+    G -->|No| J[Fine-Tuning<br/>Dedicated custom model]
+    H -->|Yes| K[Continued Pre-Training]
+    H -->|No| L[Re-examine prompts<br/>The problem is elsewhere]
+```
 
 ### The Golden Rule of Customization
 
@@ -692,7 +774,11 @@ graph TD
 | "high availability" or "resilience" | Cross-Region Inference with **inference profile ARN**. Automatic regional failover. |
 | "complex reasoning" or "nuanced analysis" | Larger models (Sonnet, Opus). These tasks justify the cost. |
 | "specific format" or "consistent style" | Fine-tuning with example input-output pairs. |
+| "multiple specialized behaviors from one model" | LoRA adapters — swap at inference time without loading different models. |
+| "model versioning" or "approval workflow" | SageMaker Model Registry for formal version tracking and deployment gates. |
+| "rollback to previous model" | Canary deployment + AppConfig routing. Keep previous version deployed. |
 | "domain knowledge" or "proprietary terminology" | Continued pre-training with domain documents. |
+| "current information" or "proprietary documents" | RAG (not fine-tuning). Fine-tuning doesn't add retrievable knowledge. |
 | "compare models objectively" | Bedrock Model Evaluation with **JSONL test dataset**. |
 | "RAG quality" or "hallucination detection" | RAG metrics: **context relevance**, **faithfulness**, **groundedness**. |
 | "data residency" or "compliance" | Cross-Region Inference respects geographic boundaries (US→US, EU→EU). |
@@ -725,6 +811,9 @@ graph TD
 |---------|----------------|
 | **Defaulting to the biggest model** | Haiku handles most classification and extraction tasks. Using Opus costs 15x more for no benefit on simple tasks. |
 | **Fine-tuning before exhausting prompt options** | Fine-tuning takes weeks and costs thousands. Better prompts often solve the problem for free. |
+| **Fine-tuning when RAG is the right answer** | Fine-tuning embeds behavior, not retrievable knowledge. If you need current/proprietary data, RAG is the answer. |
+| **No model versioning or rollback plan** | Custom models can regress. Without version tracking (SageMaker Model Registry) and rollback capability, you're stuck with a bad model. |
+| **Full fine-tuning when LoRA adapters would work** | LoRA is faster, cheaper, and lets you swap behaviors at inference time. Only use full fine-tuning when LoRA doesn't achieve target quality. |
 | **Single-region deployment** | When that region has issues, your app goes down. Cross-Region Inference is a simple configuration change that adds automatic failover. |
 | **Hardcoding model IDs** | You'll need to redeploy every time you want to switch models. Configuration-driven selection lets you switch instantly. |
 | **No fallback plan** | Models fail, regions go down. Without graceful degradation, your users see errors instead of reduced functionality. |

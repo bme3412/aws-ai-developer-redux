@@ -677,6 +677,31 @@
               "id": "5.1.4",
               "description": "Quality assurance: automated testing, regression detection, benchmark maintenance",
               "services": ["AWS Lambda", "Amazon CloudWatch"]
+            },
+            {
+              "id": "5.1.5",
+              "description": "Multi-perspective assessment: RAG evaluation, LLM-as-a-Judge automated quality, human feedback collection",
+              "services": ["Amazon Bedrock Model Evaluations", "Amazon SageMaker Ground Truth"]
+            },
+            {
+              "id": "5.1.6",
+              "description": "Retrieval quality testing: relevance scoring, context matching verification, retrieval latency measurements",
+              "services": ["Amazon Bedrock Knowledge Bases", "Amazon OpenSearch Service"]
+            },
+            {
+              "id": "5.1.7",
+              "description": "Agent performance: task completion rates, tool usage effectiveness, Bedrock Agent evaluations, reasoning quality",
+              "services": ["Amazon Bedrock Agents", "Amazon CloudWatch"]
+            },
+            {
+              "id": "5.1.8",
+              "description": "Reporting systems: visualization tools, automated reporting, model comparison visualizations",
+              "services": ["Amazon QuickSight", "Amazon CloudWatch"]
+            },
+            {
+              "id": "5.1.9",
+              "description": "Deployment validation: synthetic user workflows, hallucination rate testing, semantic drift checks, automated quality gates",
+              "services": ["AWS Step Functions", "Amazon CloudWatch"]
             }
           ]
         },

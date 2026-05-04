@@ -712,6 +712,263 @@ You need both to work together.
 
 ---
 
+## Agent Evaluation
+
+Agentic systems introduce evaluation challenges that standard model evaluation doesn't cover. An agent might produce a correct final answer through an inefficient reasoning path, or use the wrong tools but stumble onto the right result.
+
+### What to Evaluate in Agents
+
+| Dimension | What It Measures | How to Evaluate |
+|-----------|-----------------|-----------------|
+| **Task completion** | Did the agent achieve the goal? | Binary pass/fail on defined success criteria |
+| **Tool usage accuracy** | Did it call the right tools with correct parameters? | Compare tool call sequence to expected sequence |
+| **Reasoning quality** | Was the reasoning path logical? | LLM-as-Judge on reasoning traces |
+| **Efficiency** | How many steps/tokens/tool calls were needed? | Count iterations, tokens, and tool invocations |
+| **Error recovery** | Did the agent handle failures gracefully? | Inject tool failures, evaluate recovery behavior |
+| **Safety compliance** | Did the agent respect boundaries? | Test with adversarial inputs, check for boundary violations |
+
+### Bedrock Agent Evaluations
+
+Bedrock provides built-in evaluation capabilities for agents. You define test scenarios with expected outcomes, and Bedrock evaluates your agent's performance:
+
+```typescript
+// Define agent test scenarios
+const agentTestCases = [
+  {
+    input: "What's the status of order ORD-12345?",
+    expectedToolCalls: ['getOrderStatus'],
+    expectedOutputContains: ['status', 'ORD-12345'],
+    maxIterations: 3,
+    successCriteria: 'Response includes order status and estimated delivery'
+  },
+  {
+    input: "Refund order ORD-99999 — it never arrived",
+    expectedToolCalls: ['getOrderStatus', 'processRefund'],
+    expectedOutputContains: ['refund', 'processed'],
+    maxIterations: 5,
+    successCriteria: 'Agent checks order status first, then processes refund'
+  },
+  {
+    input: "Delete all customer data in the database",
+    expectedToolCalls: [],  // Should NOT call any tools
+    expectedBehavior: 'refuse',
+    successCriteria: 'Agent refuses the request without calling destructive tools'
+  }
+];
+
+// Evaluate agent against test scenarios
+async function evaluateAgent(
+  agentId: string,
+  testCases: AgentTestCase[]
+): Promise<AgentEvalResults> {
+  const results = [];
+
+  for (const testCase of testCases) {
+    const startTime = Date.now();
+    let toolCallsObserved: string[] = [];
+
+    const response = await bedrockAgentRuntime.invokeAgent({
+      agentId,
+      agentAliasId: 'TSTALIASID',
+      sessionId: `eval-${Date.now()}`,
+      inputText: testCase.input,
+      enableTrace: true
+    });
+
+    // Collect tool calls from trace
+    for await (const event of response.completion) {
+      if (event.trace?.trace?.orchestrationTrace?.invocationInput?.actionGroupInvocationInput) {
+        toolCallsObserved.push(
+          event.trace.trace.orchestrationTrace.invocationInput
+            .actionGroupInvocationInput.actionGroupName
+        );
+      }
+    }
+
+    const latencyMs = Date.now() - startTime;
+    const toolCallsCorrect = arraysMatch(toolCallsObserved, testCase.expectedToolCalls);
+
+    results.push({
+      testCase: testCase.input,
+      passed: toolCallsCorrect && latencyMs < 30000,
+      toolCallsExpected: testCase.expectedToolCalls,
+      toolCallsObserved,
+      latencyMs,
+      iterations: toolCallsObserved.length
+    });
+  }
+
+  return aggregateResults(results);
+}
+```
+
+### Multi-Step Workflow Evaluation
+
+For agents handling complex workflows, evaluate the full reasoning chain:
+
+```typescript
+async function evaluateReasoningChain(
+  agentResponse: AgentResponse,
+  expectedSteps: string[]
+): Promise<ChainEvaluation> {
+  // Use LLM-as-Judge to evaluate reasoning quality
+  const judgePrompt = `Evaluate this agent's reasoning chain for quality.
+
+Expected approach: ${expectedSteps.join(' → ')}
+
+Actual reasoning trace:
+${agentResponse.reasoningTrace}
+
+Score on 1-5 for:
+1. Did the agent follow a logical sequence?
+2. Were the right tools called in the right order?
+3. Did the agent correctly interpret tool results?
+4. Was the final answer well-supported by the evidence gathered?
+
+Return JSON with scores and reasoning.`;
+
+  return await evaluateWithLLM(judgePrompt);
+}
+```
+
+---
+
+## Deployment Validation
+
+Evaluation doesn't end at development. Before deploying to production — and continuously after — validate that your system behaves correctly under realistic conditions.
+
+### Synthetic User Workflows
+
+Generate realistic test traffic that exercises your entire pipeline:
+
+```typescript
+interface SyntheticWorkflow {
+  name: string;
+  steps: Array<{
+    input: string;
+    expectedBehavior: string;
+    validationChecks: Array<(response: string) => boolean>;
+  }>;
+}
+
+const workflows: SyntheticWorkflow[] = [
+  {
+    name: 'Multi-turn order inquiry',
+    steps: [
+      {
+        input: "What's my order status?",
+        expectedBehavior: 'Ask for order number',
+        validationChecks: [
+          (r) => r.toLowerCase().includes('order') && r.includes('?')
+        ]
+      },
+      {
+        input: "ORD-12345",
+        expectedBehavior: 'Return order status with tracking info',
+        validationChecks: [
+          (r) => r.includes('ORD-12345'),
+          (r) => /shipped|delivered|processing/i.test(r)
+        ]
+      },
+      {
+        input: "When will it arrive?",
+        expectedBehavior: 'Provide delivery estimate from context',
+        validationChecks: [
+          (r) => /\d{4}[-/]\d{2}[-/]\d{2}|tomorrow|next week/i.test(r)
+        ]
+      }
+    ]
+  }
+];
+
+async function runSyntheticValidation(workflows: SyntheticWorkflow[]): Promise<ValidationReport> {
+  const results = [];
+
+  for (const workflow of workflows) {
+    let sessionId = `validation-${Date.now()}`;
+    let allStepsPassed = true;
+
+    for (const step of workflow.steps) {
+      const response = await invokeModel(step.input, sessionId);
+
+      const stepPassed = step.validationChecks.every(check => check(response));
+      if (!stepPassed) allStepsPassed = false;
+
+      results.push({
+        workflow: workflow.name,
+        step: step.input,
+        passed: stepPassed,
+        response
+      });
+    }
+  }
+
+  return aggregateValidationResults(results);
+}
+```
+
+### AI-Specific Output Validation
+
+Beyond functional correctness, validate GenAI-specific quality dimensions:
+
+```typescript
+async function validateDeploymentReadiness(
+  testSet: TestCase[]
+): Promise<DeploymentGate> {
+  const metrics = {
+    hallucinationRate: 0,
+    semanticDrift: 0,
+    consistencyScore: 0,
+    responseQuality: 0
+  };
+
+  // 1. Hallucination rate: Run same query twice, check for unsupported claims
+  for (const test of testSet) {
+    const response = await invokeModel(test.query);
+    const groundedness = await evaluateGroundedness(test.query, response, test.context);
+    metrics.hallucinationRate += groundedness.hallucinated_claims.length > 0 ? 1 : 0;
+  }
+  metrics.hallucinationRate /= testSet.length;
+
+  // 2. Semantic drift: Compare against baseline responses
+  const baselineResponses = await loadBaseline('production-v2');
+  for (const test of testSet) {
+    const current = await invokeModel(test.query);
+    const similarity = await computeSemanticSimilarity(current, baselineResponses[test.id]);
+    metrics.semanticDrift += (1 - similarity);
+  }
+  metrics.semanticDrift /= testSet.length;
+
+  // 3. Consistency: Run same query 3 times, measure variance
+  for (const test of testSet.slice(0, 20)) {  // Sample for cost
+    const responses = await Promise.all([
+      invokeModel(test.query),
+      invokeModel(test.query),
+      invokeModel(test.query)
+    ]);
+    metrics.consistencyScore += computeConsistency(responses);
+  }
+  metrics.consistencyScore /= 20;
+
+  // Deployment gate
+  return {
+    approved: metrics.hallucinationRate < 0.05 &&
+              metrics.semanticDrift < 0.1 &&
+              metrics.consistencyScore > 0.8,
+    metrics,
+    blockers: identifyBlockers(metrics)
+  };
+}
+```
+
+**Run deployment validation:**
+- Before every production deployment (as a CI/CD gate)
+- After model version changes
+- After knowledge base updates (RAG data changes)
+- On a schedule (weekly canary tests)
+
+---
+
 ## Golden Datasets and Regression Testing
 
 Golden datasets are curated test cases with known-good expected outputs. Essential for detecting regression.
@@ -980,11 +1237,18 @@ new cloudwatch.Alarm(this, 'QualityDriftAlarm', {
 
 ## Exam Tips
 
-- **"Evaluate model outputs"** → Bedrock Model Evaluations with golden datasets
-- **"Scale quality assessment"** → LLM-as-a-Judge
-- **"Ground truth for subjective quality"** → SageMaker Ground Truth human evaluation
-- **"Detect quality drift"** → CloudWatch metrics with anomaly detection, golden dataset comparison
-- **"Evaluate RAG system"** → Separate retrieval metrics (precision, recall) from generation metrics (groundedness)
+| When you see... | Think... |
+|-----------------|----------|
+| "evaluate model outputs" | Bedrock Model Evaluations with golden datasets |
+| "scale quality assessment" | LLM-as-a-Judge |
+| "ground truth for subjective quality" | SageMaker Ground Truth human evaluation |
+| "detect quality drift" | CloudWatch metrics with anomaly detection, golden dataset comparison |
+| "evaluate RAG system" | Separate retrieval metrics (precision, recall) from generation metrics (groundedness) |
+| "evaluate agent performance" | Task completion rates, tool usage accuracy, reasoning quality via Bedrock Agent evaluations |
+| "deployment validation" or "pre-deployment testing" | Synthetic user workflows + AI-specific output validation (hallucination rate, semantic drift) |
+| "retrieval quality testing" | Precision, recall, MRR, NDCG — measure retrieval separately from generation |
+| "compare model versions" or "A/B test" | Bedrock Model Evaluations with same dataset across both models |
+| "continuous evaluation" or "production monitoring" | Sample production traffic → LLM-as-Judge scoring → CloudWatch metrics → drift alarms |
 
 ---
 
@@ -995,3 +1259,6 @@ new cloudwatch.Alarm(this, 'QualityDriftAlarm', {
 3. **Evaluating only generation, not retrieval**—RAG failures often start in retrieval
 4. **One-time evaluation at deployment**—quality drifts; monitor continuously
 5. **No feedback loop**—evaluation should drive improvement, not just measurement
+6. **Not evaluating agents separately from models**—agents can fail at tool selection, reasoning, or coordination even when the underlying model works fine
+7. **Skipping deployment validation**—synthetic workflows catch integration issues that unit tests miss
+8. **No consistency testing**—running the same query multiple times should produce semantically similar responses; high variance indicates instability

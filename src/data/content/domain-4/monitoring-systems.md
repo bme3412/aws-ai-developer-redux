@@ -817,6 +817,117 @@ Anomalies to watch:
 - New tool usage patterns (behavior change)
 - Tool timeout spikes (external service issues)
 
+### Multi-Agent Coordination Monitoring
+
+When using Agent Squad or custom multi-agent systems, monitoring becomes more complex. You need to track not just individual agents but their interactions:
+
+```typescript
+interface MultiAgentMetrics {
+  requestId: string;
+  supervisorAgentId: string;
+  delegatedTo: string[];           // Which specialists were invoked
+  delegationLatencyMs: number;     // Time for supervisor to route
+  specialistLatencyMs: Record<string, number>; // Per-specialist latency
+  totalRoundTrips: number;         // How many inter-agent messages
+  synthesisLatencyMs: number;      // Time to combine specialist outputs
+}
+
+async function recordMultiAgentMetrics(metrics: MultiAgentMetrics): Promise<void> {
+  await cloudwatch.putMetricData({
+    Namespace: 'GenAI/MultiAgent',
+    MetricData: [
+      {
+        MetricName: 'AgentsDelegatedTo',
+        Value: metrics.delegatedTo.length,
+        Unit: 'Count'
+      },
+      {
+        MetricName: 'InterAgentRoundTrips',
+        Value: metrics.totalRoundTrips,
+        Unit: 'Count'
+      },
+      {
+        MetricName: 'EndToEndLatency',
+        Dimensions: [{ Name: 'Supervisor', Value: metrics.supervisorAgentId }],
+        Value: metrics.delegationLatencyMs + metrics.synthesisLatencyMs +
+               Math.max(...Object.values(metrics.specialistLatencyMs)),
+        Unit: 'Milliseconds'
+      }
+    ]
+  });
+}
+```
+
+**What to watch in multi-agent systems:**
+- **Routing accuracy** — Is the supervisor sending requests to the right specialist? Track by logging supervisor reasoning + specialist success rates.
+- **Cascading failures** — When one specialist fails, does it cascade? Monitor specialist error rates independently.
+- **Token amplification** — Multi-agent systems multiply token usage. Each inter-agent message consumes tokens. Track total tokens per user request, not per agent.
+- **Coordination overhead** — If supervisor routing + synthesis takes longer than the specialist work, the multi-agent pattern may be adding latency without value.
+
+### Cost Anomaly Detection
+
+**AWS Cost Anomaly Detection** provides ML-powered detection of unexpected cost spikes. Configure it specifically for GenAI workloads:
+
+```typescript
+// Cost Anomaly Detection monitor for Bedrock
+const anomalyMonitor = new ce.CfnAnomalyMonitor(this, 'BedrockCostMonitor', {
+  monitorName: 'GenAI-Bedrock-Costs',
+  monitorType: 'DIMENSIONAL',
+  monitorDimension: 'SERVICE',
+  monitorSpecification: JSON.stringify({
+    Dimensions: {
+      Key: 'SERVICE',
+      Values: ['Amazon Bedrock']
+    }
+  })
+});
+
+// Subscription for alerts
+new ce.CfnAnomalySubscription(this, 'CostAlert', {
+  subscriptionName: 'GenAI-Cost-Alert',
+  monitorArnList: [anomalyMonitor.attrMonitorArn],
+  subscribers: [{
+    type: 'EMAIL',
+    address: 'genai-team@company.com'
+  }],
+  threshold: 50  // Alert when anomaly exceeds $50
+});
+```
+
+**Why this matters for the exam:** The exam tests whether you know that GenAI cost monitoring goes beyond CloudWatch token metrics. Cost Anomaly Detection catches spending patterns that raw token counts miss — like a model switch that increased per-token cost, or a retry storm that doubled invocation volume.
+
+### Response Drift Detection with Invocation Logs
+
+Bedrock Model Invocation Logs capture full request/response payloads. Use them to detect **semantic drift** — when model outputs change meaning over time without any configuration change:
+
+```sql
+-- CloudWatch Logs Insights: Detect response length drift
+fields @timestamp, modelId,
+       length(responseBody) as response_length
+| filter modelId LIKE 'anthropic.claude%'
+| stats avg(response_length) as avg_len,
+        percentile(response_length, 95) as p95_len,
+        count(*) as total
+  by bin(1d)
+| sort @timestamp desc
+
+-- Detect prompt-response pattern changes
+fields @timestamp, inputTokenCount, outputTokenCount,
+       (outputTokenCount * 1.0 / inputTokenCount) as expansion_ratio
+| stats avg(expansion_ratio) as avg_expansion,
+        percentile(expansion_ratio, 99) as p99_expansion
+  by bin(1h)
+| sort @timestamp desc
+```
+
+**Use invocation logs to build a drift detection pipeline:**
+1. Sample N responses daily from invocation logs
+2. Run LLM-as-Judge scoring on the sample (consistency, quality)
+3. Compare scores against rolling 30-day baseline
+4. Alert when scores drop below 2 standard deviations
+
+This catches drift that infrastructure metrics miss entirely — the model still responds fast and without errors, but answers are subtly worse.
+
 ---
 
 ## Troubleshooting with Monitoring Data
@@ -1018,11 +1129,18 @@ Watch for:
 
 ## Exam Tips
 
-- **"Distributed tracing"** or **"bottleneck identification"** → X-Ray
-- **"GenAI-specific metrics"** → Custom CloudWatch metrics (tokens, quality, hallucination)
-- **"Detect quality regression"** → Golden datasets with automated testing
-- **"Detailed FM interaction data"** → Bedrock invocation logging
-- **"Different dashboards for different audiences"** → Operational (eng), Business (leadership), Compliance (governance)
+| When you see... | Think... |
+|-----------------|----------|
+| "distributed tracing" or "bottleneck identification" | X-Ray |
+| "GenAI-specific metrics" | Custom CloudWatch metrics (tokens, quality, hallucination) |
+| "detect quality regression" | Golden datasets with automated testing |
+| "detailed FM interaction data" or "request/response logging" | Bedrock Model Invocation Logging |
+| "different dashboards for different audiences" | Operational (eng), Business (leadership), Compliance (governance) |
+| "multi-agent monitoring" or "coordination tracking" | Custom metrics for routing accuracy, inter-agent round trips, specialist latency |
+| "cost anomaly" or "unexpected spending" | AWS Cost Anomaly Detection configured for Amazon Bedrock |
+| "response drift" or "output quality degradation" | Invocation log sampling + LLM-as-Judge scoring against baseline |
+| "tool call patterns" or "agent confusion" | CloudWatch custom metrics with agent/tool dimensions + anomaly detection |
+| "token usage anomaly" or "prompt injection" | CloudWatch anomaly detection on InputTokenCount (spikes indicate attacks or prompt bloat) |
 
 ---
 
@@ -1033,3 +1151,6 @@ Watch for:
 3. **Skipping X-Ray tracing**—makes bottleneck identification nearly impossible
 4. **Not enabling invocation logging**—missing detailed data for debugging and compliance
 5. **Same dashboard for everyone**—different audiences need different views
+6. **Not monitoring multi-agent token amplification**—each inter-agent message multiplies cost; track total tokens per user request
+7. **No cost anomaly detection**—GenAI cost spikes are common and can be massive; use AWS Cost Anomaly Detection
+8. **Ignoring semantic drift**—model outputs can degrade without any infrastructure symptoms; sample and evaluate continuously

@@ -215,6 +215,65 @@ const modelCard = await sagemaker.send(new CreateModelCardCommand({
 }));
 ```
 
+### Programmatic Model Card Lifecycle
+
+Model cards aren't static documents — they have a lifecycle. As models evolve through development, evaluation, and deployment, their model cards should be updated programmatically as part of CI/CD:
+
+```typescript
+// Automated model card updates in deployment pipeline
+async function updateModelCardForDeployment(
+  modelCardName: string,
+  evaluationResults: EvalResults,
+  deploymentTarget: string
+): Promise<void> {
+  // 1. Get current model card
+  const currentCard = await sagemaker.send(new DescribeModelCardCommand({
+    ModelCardName: modelCardName
+  }));
+
+  const content = JSON.parse(currentCard.Content);
+
+  // 2. Update with latest evaluation results
+  content.evaluation_details.push({
+    metric_type: 'pre_deployment_eval',
+    value: evaluationResults.overallScore,
+    evaluation_observation: `Pre-deployment evaluation for ${deploymentTarget}. ` +
+      `Pass rate: ${evaluationResults.passRate}%, ` +
+      `Hallucination rate: ${evaluationResults.hallucinationRate}%`,
+    datasets: [evaluationResults.datasetName]
+  });
+
+  // 3. Add deployment record
+  content.additional_information.deployment_history = [
+    ...(content.additional_information.deployment_history || []),
+    {
+      target: deploymentTarget,
+      date: new Date().toISOString(),
+      eval_score: evaluationResults.overallScore,
+      approver: evaluationResults.approver
+    }
+  ];
+
+  // 4. Update status
+  await sagemaker.send(new UpdateModelCardCommand({
+    ModelCardName: modelCardName,
+    Content: JSON.stringify(content),
+    ModelCardStatus: 'Approved'  // Draft → PendingReview → Approved → Archived
+  }));
+}
+```
+
+**Model card statuses and transitions:**
+
+| Status | Meaning | Next Steps |
+|--------|---------|------------|
+| **Draft** | Being authored, not ready for review | Complete documentation, submit for review |
+| **PendingReview** | Submitted for governance review | Governance team reviews, approves or returns |
+| **Approved** | Cleared for deployment | Deploy model, monitor in production |
+| **Archived** | No longer in active use | Retained for audit trail, not deployable |
+
+**Exam tip:** The exam tests whether you know model cards are *programmatic* — they can be created, updated, and queried via API, not just filled out manually in a console.
+
 ### Model Registry: Version Tracking
 
 Model cards attach to specific model versions in the Model Registry. This creates a complete history: which model version was deployed when, what its documented capabilities were at deployment time, and how it evolved over time.
@@ -347,6 +406,47 @@ citations.forEach(citation => {
 ```
 
 Log these citations for audit purposes. When questions arise about where information came from, you have a complete record.
+
+### Attribution Metadata in FM-Generated Content
+
+When FM-generated content enters business processes (reports, customer communications, decision records), embed attribution metadata so the content can be traced back to its AI origin:
+
+```typescript
+interface AIGeneratedContent {
+  content: string;
+  attribution: {
+    modelId: string;
+    modelVersion: string;
+    generatedAt: string;
+    promptVersion: string;
+    knowledgeSources: string[];     // S3 URIs, KB IDs
+    confidenceScore?: number;
+    guardrailsApplied: string[];
+    humanReviewed: boolean;
+  };
+}
+
+function tagGeneratedContent(
+  response: BedrockResponse,
+  context: RequestContext
+): AIGeneratedContent {
+  return {
+    content: response.text,
+    attribution: {
+      modelId: context.modelId,
+      modelVersion: response.modelVersion,
+      generatedAt: new Date().toISOString(),
+      promptVersion: context.promptTemplateVersion,
+      knowledgeSources: context.retrievedDocuments.map(d => d.sourceUri),
+      confidenceScore: context.groundednessScore,
+      guardrailsApplied: context.guardrailIds,
+      humanReviewed: false
+    }
+  };
+}
+```
+
+This enables **data source tracking** (Skill 3.3.2 in the exam guide): when FM-generated content is used downstream, you can always trace it back to the model, prompt, and knowledge sources that produced it.
 
 ---
 
@@ -683,11 +783,16 @@ const anomalyAlarm = new cloudwatch.Alarm(this, 'UsageAnomalyAlarm', {
 
 ## Exam Tips
 
-- **"Document model capabilities"** → SageMaker Model Cards
-- **"Track data lineage"** or **"data sources"** → Glue Data Lineage and Data Catalog
-- **"Audit logging"** → CloudTrail for API calls, CloudWatch Logs for application events
-- **"Organizational governance"** → AWS Organizations with SCPs
-- **"Continuous compliance"** → AWS Config with rules and auto-remediation
+| When you see... | Think... |
+|-----------------|----------|
+| "document model capabilities" or "model documentation" | SageMaker Model Cards (programmatic, with lifecycle statuses) |
+| "track data lineage" or "data sources" | Glue Data Lineage and Data Catalog |
+| "source attribution" or "where did this answer come from" | Bedrock KB citations + attribution metadata tagging |
+| "audit logging" | CloudTrail for API calls, CloudWatch Logs for application events |
+| "organizational governance" | AWS Organizations with SCPs |
+| "continuous compliance" | AWS Config with rules and auto-remediation |
+| "model approval workflow" | SageMaker Model Registry with PendingManualApproval status |
+| "trace AI-generated content back to source" | Attribution metadata embedded in FM outputs |
 
 ---
 

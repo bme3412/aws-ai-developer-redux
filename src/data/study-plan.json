@@ -52,26 +52,26 @@
       "tasks": [
         {
           "day": "1-2",
-          "activity": "Domain 2.1: Agentic AI Patterns",
-          "details": "Learn Bedrock Agents, Action Groups, and orchestration patterns. Understand ReAct and tool calling.",
+          "activity": "Domain 2.1: Agentic AI & Agent Frameworks",
+          "details": "Learn Bedrock Agents, Strands Agents SDK, AWS Agent Squad, and AgentCore. Understand ReAct patterns, MCP for tool connectivity, and when to use each framework.",
           "timeMinutes": 120
         },
         {
           "day": "3",
-          "activity": "Domain 2.2: Model Deployment Options",
-          "details": "Compare Bedrock vs SageMaker vs Lambda deployments. Understand when to use each option.",
+          "activity": "Domain 2.2: Model Deployment & Customization",
+          "details": "Compare Bedrock vs SageMaker vs Lambda deployments. Learn model cascading, LoRA adapters, and SageMaker Model Registry for versioning and rollback.",
           "timeMinutes": 60
         },
         {
           "day": "4-5",
-          "activity": "Domain 2.3-2.4: Integration Patterns",
-          "details": "Learn API Gateway integration, VPC endpoints, sync vs async patterns, streaming responses.",
+          "activity": "Domain 2.3-2.4: Integration & API Patterns",
+          "details": "Learn API Gateway integration, streaming APIs, intelligent routing, CI/CD for GenAI, and GenAI gateway architectures.",
           "timeMinutes": 120
         },
         {
           "day": "6",
-          "activity": "Domain 2.5: Pre-built Solutions",
-          "details": "Explore Amazon Q Business and Q Developer use cases. Understand when to use pre-built vs custom solutions.",
+          "activity": "Domain 2.5: Pre-built Solutions & Developer Tools",
+          "details": "Study Amazon Q Business (enterprise knowledge with ACLs), Q Developer (code assistance), Bedrock Data Automation (document processing), and Amplify AI Kit.",
           "timeMinutes": 60
         },
         {
@@ -82,7 +82,7 @@
         }
       ],
       "practiceQuestions": 17,
-      "keyServices": ["Amazon Bedrock Agents", "AWS Lambda", "Amazon API Gateway", "Amazon Q"]
+      "keyServices": ["Amazon Bedrock Agents", "Strands Agents SDK", "AWS Agent Squad", "Amazon Q Business", "Amazon Q Developer", "AWS Lambda"]
     },
     {
       "week": 3,

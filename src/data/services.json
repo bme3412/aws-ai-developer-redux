@@ -419,6 +419,62 @@
       "description": "AWS at 5G network edge.",
       "examRelevance": "Ultra-low latency GenAI. Know deployment model, carrier integration.",
       "relatedTasks": ["2.3"]
+    },
+    {
+      "name": "Amazon Bedrock AgentCore",
+      "category": "AI/ML",
+      "description": "Managed infrastructure for deploying and running AI agents at scale. Provides hosting, auto-scaling, session management, and observability.",
+      "examRelevance": "Know when to use AgentCore vs self-hosted Lambda/ECS for agent deployment. Managed runtime for Strands Agents and other frameworks.",
+      "relatedTasks": ["2.1", "2.7"]
+    },
+    {
+      "name": "Amazon Q Business Apps",
+      "category": "AI/ML",
+      "description": "No-code enterprise AI applications built on Amazon Q Business data sources and permissions.",
+      "examRelevance": "Know as the no-code option for business users to build AI apps on enterprise data without developer involvement.",
+      "relatedTasks": ["2.5"]
+    },
+    {
+      "name": "Amazon SageMaker Unified Studio",
+      "category": "AI/ML",
+      "description": "Unified web-based IDE for ML development combining notebooks, experiments, model training, and deployment.",
+      "examRelevance": "In-scope service. Know as the unified interface for SageMaker capabilities.",
+      "relatedTasks": ["1.2"]
+    },
+    {
+      "name": "Amazon SageMaker Clarify",
+      "category": "AI/ML",
+      "description": "Model explainability and bias detection. Evaluates models for fairness across demographic groups and provides feature importance explanations.",
+      "examRelevance": "Know for bias detection and model explainability. Relevant for responsible AI and fairness evaluation questions.",
+      "relatedTasks": ["3.4", "5.1"]
+    },
+    {
+      "name": "AWS Cost Anomaly Detection",
+      "category": "Management & Governance",
+      "description": "ML-powered service that detects unexpected cost increases and spending anomalies across AWS services.",
+      "examRelevance": "Know for GenAI cost monitoring. Configure monitors for Amazon Bedrock to catch cost spikes from retry storms, infinite agent loops, or model tier changes.",
+      "relatedTasks": ["4.1", "4.3"]
+    },
+    {
+      "name": "Amazon Managed Grafana",
+      "category": "Management & Governance",
+      "description": "Fully managed Grafana service for creating observability dashboards with data from CloudWatch, X-Ray, and other sources.",
+      "examRelevance": "Know as an alternative to CloudWatch dashboards for comprehensive GenAI observability. Supports complex visualizations and cross-account monitoring.",
+      "relatedTasks": ["4.3"]
+    },
+    {
+      "name": "AWS AppSync",
+      "category": "Networking",
+      "description": "Managed GraphQL and Pub/Sub API service for building real-time applications with offline data synchronization.",
+      "examRelevance": "Know for real-time GenAI interfaces. Supports WebSocket subscriptions for streaming model responses to clients.",
+      "relatedTasks": ["2.4", "2.5"]
+    },
+    {
+      "name": "Amazon Augmented AI (A2I)",
+      "category": "AI/ML",
+      "description": "Human-in-the-loop review workflows for AI predictions. Routes low-confidence results to human reviewers for validation.",
+      "examRelevance": "Know for human review workflows in GenAI pipelines. Useful for high-stakes applications where automated outputs need human validation before action.",
+      "relatedTasks": ["3.1", "5.1"]
     }
   ]
 }

@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getDomains, getDomain } from '@/lib/domains';
-import { getDomainQuestions, getAllQuestions, shuffleQuestions } from '@/lib/content';
+import { getDomainQuestions, getAllQuestions, shuffleQuestions, isAnswerCorrect } from '@/lib/content';
 import { addReviewScore, markQuestionCompleted, getQuestionCompletion } from '@/lib/progress';
 import { Question } from '@/types/review';
 import QuestionCard from '@/components/review/QuestionCard';
@@ -110,9 +110,7 @@ function ReviewContent() {
     setAnswers(prev => ({ ...prev, [currentQuestion.id]: selectedIds }));
     setShowResults(prev => ({ ...prev, [currentQuestion.id]: true }));
 
-    // Save question completion to localStorage
-    const isCorrect = JSON.stringify(selectedIds.sort()) === JSON.stringify(currentQuestion.correctAnswers.sort());
-    markQuestionCompleted(currentQuestion.id, isCorrect);
+    markQuestionCompleted(currentQuestion.id, isAnswerCorrect(selectedIds, currentQuestion.correctAnswers));
   };
 
   const handleNext = () => {
@@ -120,10 +118,9 @@ function ReviewContent() {
       setCurrentIndex(currentIndex + 1);
     } else {
       // Calculate and save score
-      const correct = questions.filter(q => {
-        const selected = answers[q.id] || [];
-        return JSON.stringify(selected.sort()) === JSON.stringify(q.correctAnswers.sort());
-      }).length;
+      const correct = questions.filter(q =>
+        isAnswerCorrect(answers[q.id] || [], q.correctAnswers)
+      ).length;
       addReviewScore(domainFilter ? `domain-${domainFilter}` : 'general', correct, questions.length);
       setIsComplete(true);
     }
@@ -142,11 +139,6 @@ function ReviewContent() {
     setIsComplete(false);
     // Reshuffle questions
     setQuestions(shuffleQuestions(questions));
-  };
-
-  const isCorrect = (questionId: string, correctAnswers: string[]) => {
-    const selected = answers[questionId] || [];
-    return JSON.stringify(selected.sort()) === JSON.stringify(correctAnswers.sort());
   };
 
   if (isLoading) {
@@ -177,7 +169,7 @@ function ReviewContent() {
   }
 
   if (isComplete) {
-    const correctCount = questions.filter(q => isCorrect(q.id, q.correctAnswers)).length;
+    const correctCount = questions.filter(q => isAnswerCorrect(answers[q.id] || [], q.correctAnswers)).length;
     const percentage = Math.round((correctCount / questions.length) * 100);
 
     return (
@@ -223,7 +215,7 @@ function ReviewContent() {
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Review Your Answers</h3>
           <div className="space-y-2">
             {questions.map((q, idx) => {
-              const correct = isCorrect(q.id, q.correctAnswers);
+              const correct = isAnswerCorrect(answers[q.id] || [], q.correctAnswers);
               return (
                 <button
                   key={q.id}
@@ -325,12 +317,24 @@ function ReviewContent() {
           ← Previous
         </button>
 
-        {showResults[currentQuestion.id] && (
+        {showResults[currentQuestion.id] ? (
           <button
             onClick={handleNext}
             className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors"
           >
             {currentIndex < questions.length - 1 ? 'Next Question →' : 'See Results'}
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              if (currentIndex < questions.length - 1) {
+                setCurrentIndex(currentIndex + 1);
+              }
+            }}
+            disabled={currentIndex >= questions.length - 1}
+            className="px-4 py-2 text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Skip →
           </button>
         )}
       </div>

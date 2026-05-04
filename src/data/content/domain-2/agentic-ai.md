@@ -60,13 +60,174 @@ All agentic systems share a common structure, often called the **agent loop**:
 
 ### AWS Tools for Building Agents
 
-AWS provides several services and frameworks for building agentic systems:
+AWS provides several services and frameworks for building agentic systems. Choosing the right one depends on how much control you need versus how much infrastructure you want managed.
 
-**Amazon Bedrock Agents** is the managed service approach. You define the agent's purpose, configure available action groups (tools backed by Lambda functions), optionally connect knowledge bases for RAG, and Bedrock handles the agent loop orchestration. The model reasons about which actions to take and calls your Lambda functions automatically.
+**Amazon Bedrock Agents** is the fully managed approach. You define the agent's purpose, configure available action groups (tools backed by Lambda functions), optionally connect knowledge bases for RAG, and Bedrock handles the agent loop orchestration. The model reasons about which actions to take and calls your Lambda functions automatically. You don't write the agent loop—Bedrock owns it.
 
-**Strands Agents SDK** is AWS's framework for building custom agents with more control. It handles the complexity of the agent loop—prompt construction, tool calling, result parsing, conversation management—while letting you customize behavior. Strands works with any model that supports tool use.
+**Strands Agents SDK** is AWS's open-source Python framework for building custom agents with more control. It handles the complexity of the agent loop—prompt construction, tool calling, result parsing, conversation management—while letting you customize behavior at every step. Strands works with any model that supports tool use (Bedrock, OpenAI, local models) and gives you full visibility into the reasoning process.
 
-**AWS Agent Squad** enables multi-agent systems where specialized agents collaborate. A supervisor agent coordinates, routing tasks to specialist agents with domain expertise. This pattern scales capabilities without making any single agent impossibly complex.
+**AWS Agent Squad** enables multi-agent systems where specialized agents collaborate. A supervisor agent coordinates, routing tasks to specialist agents with domain expertise. Agent Squad handles the routing logic, context passing between agents, and response aggregation. Each specialist can be a Strands agent, a Bedrock Agent, or any callable.
+
+**Amazon Bedrock AgentCore** is managed infrastructure for deploying and running agents at scale. While Strands and Agent Squad define agent *logic*, AgentCore provides the *runtime*—hosting, scaling, session management, and observability for your agents in production. Think of it as "Lambda for agents": you provide the agent code, AgentCore handles everything else.
+
+### Choosing an Agent Framework
+
+| Factor | Bedrock Agents | Strands SDK | Agent Squad | AgentCore |
+|--------|---------------|-------------|-------------|-----------|
+| **What it is** | Managed agent service | Open-source agent framework | Multi-agent orchestrator | Managed agent runtime |
+| **Control level** | Low (Bedrock owns the loop) | High (you customize everything) | Medium (you define agents, it routes) | Medium (you write code, it hosts) |
+| **Model flexibility** | Bedrock models only | Any model (Bedrock, OpenAI, local) | Any agent type | Any agent framework |
+| **Tool definition** | OpenAPI specs + Lambda | Python decorators | Per-agent tools | Depends on framework |
+| **Multi-agent** | No (single agent) | No (single agent) | Yes (supervisor + specialists) | Hosts any pattern |
+| **Infrastructure** | Fully managed | You host (Lambda, ECS, etc.) | You host | Fully managed hosting |
+| **Best for** | Quick setup, standard patterns | Custom logic, complex reasoning | Specialized collaboration | Production deployment at scale |
+| **Exam signal** | "managed agent", "action groups" | "custom agent", "open-source" | "multi-agent", "coordinate specialists" | "deploy agents", "managed runtime" |
+
+### Strands Agents SDK: Building Custom Agents
+
+Strands gives you a clean Python API for building agents while handling the tedious parts (prompt formatting, tool parsing, conversation management):
+
+```python
+from strands import Agent
+from strands.tools import tool
+
+# Define tools with simple decorators
+@tool
+def get_order_status(order_id: str) -> dict:
+    """Look up the current status of a customer order.
+
+    Args:
+        order_id: The order ID to look up (e.g., "ORD-12345")
+    """
+    # Your actual database lookup
+    order = orders_table.get_item(Key={'orderId': order_id})['Item']
+    return {
+        'orderId': order_id,
+        'status': order['status'],
+        'estimatedDelivery': order.get('estimatedDelivery'),
+        'trackingNumber': order.get('trackingNumber')
+    }
+
+@tool
+def process_refund(order_id: str, amount: float, reason: str) -> dict:
+    """Process a refund for a customer order.
+
+    Args:
+        order_id: The order to refund
+        amount: Refund amount in dollars (must not exceed order total)
+        reason: Reason for the refund
+    """
+    # Validation + processing logic
+    order = get_order(order_id)
+    if amount > order['total']:
+        return {'error': f'Amount {amount} exceeds order total {order["total"]}'}
+    return execute_refund(order_id, amount, reason)
+
+# Create the agent with tools
+agent = Agent(
+    model='us.anthropic.claude-3-7-sonnet-20250219-v1:0',  # Bedrock cross-region
+    system_prompt="""You are a customer service agent for TechCorp.
+    Help customers with order inquiries and refund requests.
+    Always verify order details before processing refunds.
+    Never refund more than the order total.""",
+    tools=[get_order_status, process_refund]
+)
+
+# Run the agent — it handles the entire ReAct loop
+response = agent("What's the status of order ORD-12345? "
+                 "If it's been more than 7 days, process a full refund.")
+print(response)
+```
+
+**What Strands handles for you:**
+- Building the system prompt with tool definitions
+- Parsing model responses for tool calls
+- Executing tools and feeding results back to the model
+- Managing conversation history across turns
+- Retry logic for transient failures
+
+**What you control:**
+- Tool implementations (your business logic)
+- System prompt (agent personality and constraints)
+- Model selection (swap models without changing tools)
+- Stopping conditions and iteration limits
+
+### AWS Agent Squad: Multi-Agent Orchestration
+
+Agent Squad implements the supervisor pattern with minimal boilerplate. You define specialist agents and a supervisor; Agent Squad handles routing, context passing, and response aggregation:
+
+```python
+from agent_squad import AgentSquad, Agent as SquadAgent, BedrockAgent
+
+# Define specialist agents
+order_agent = SquadAgent(
+    name='OrderSpecialist',
+    description='Handles order status, tracking, returns, and cancellations',
+    model_id='us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+    system_prompt='You are an order management specialist...',
+    tools=[get_order_status, cancel_order, initiate_return]
+)
+
+billing_agent = SquadAgent(
+    name='BillingSpecialist',
+    description='Handles invoices, payments, refunds, and billing disputes',
+    model_id='us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+    system_prompt='You are a billing specialist...',
+    tools=[get_invoice, process_refund, update_payment_method]
+)
+
+tech_agent = SquadAgent(
+    name='TechSupport',
+    description='Handles technical troubleshooting, configuration, and product issues',
+    model_id='us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+    system_prompt='You are a technical support specialist...',
+    tools=[lookup_product, check_compatibility, create_ticket]
+)
+
+# Create the squad with a supervisor
+squad = AgentSquad(
+    name='CustomerServiceSquad',
+    agents=[order_agent, billing_agent, tech_agent],
+    # Supervisor uses agent descriptions to route requests
+    supervisor_model='us.anthropic.claude-3-7-sonnet-20250219-v1:0'
+)
+
+# The supervisor analyzes the request and routes to the right specialist
+response = squad.run("I was charged twice for order ORD-12345 and the product "
+                     "doesn't work. I want a refund and help fixing it.")
+# Supervisor routes to billing_agent for the refund
+# AND to tech_agent for the product issue
+# Then synthesizes both responses
+```
+
+**Key Agent Squad capabilities:**
+- **Automatic routing** — supervisor analyzes requests and picks the right specialist based on descriptions
+- **Multi-agent delegation** — complex requests can involve multiple specialists
+- **Context sharing** — specialists receive relevant context from the supervisor
+- **Response synthesis** — supervisor combines specialist outputs into a coherent response
+- **Mixed agent types** — specialists can be Strands agents, Bedrock Agents, or custom callables
+
+### Amazon Bedrock AgentCore: Managed Agent Runtime
+
+AgentCore solves the deployment problem. Building an agent is one thing; running it reliably in production at scale is another. AgentCore provides:
+
+- **Managed hosting** — deploy agent code without managing servers, containers, or scaling
+- **Session management** — maintain conversation state across requests automatically
+- **Auto-scaling** — handle traffic spikes without capacity planning
+- **Observability** — built-in logging, tracing, and metrics for agent execution
+- **Memory management** — persistent agent memory across sessions
+
+**When to use AgentCore vs self-hosting:**
+
+| Factor | AgentCore | Self-Hosted (Lambda/ECS) |
+|--------|-----------|--------------------------|
+| **Setup effort** | Deploy code, AgentCore handles rest | Configure compute, networking, scaling |
+| **Scaling** | Automatic | Manual or auto-scaling rules |
+| **Session state** | Managed | You build (DynamoDB, ElastiCache) |
+| **Observability** | Built-in | You instrument (X-Ray, CloudWatch) |
+| **Cost model** | Per invocation | Compute + storage + networking |
+| **Customization** | Standard runtime | Full control |
+| **Best for** | Most production agents | Specialized requirements, existing infra |
 
 ---
 
@@ -600,7 +761,7 @@ User Request → **SUPERVISOR AGENT** ("Who should handle this?")
 - Easy to add new specialists without modifying existing ones
 - Natural fit for organizational structures
 
-**AWS Agent Squad** implements this pattern. You define a supervisor agent and register specialist agents. The supervisor automatically routes requests based on agent descriptions and capabilities.
+**AWS Agent Squad** implements this pattern (see the detailed code example earlier in this article). You define a supervisor agent and register specialist agents. The supervisor automatically routes requests based on agent descriptions and capabilities. Agent Squad handles context passing between agents and synthesizes responses from multiple specialists when a request spans domains.
 
 ### The Peer-to-Peer Pattern
 
@@ -955,10 +1116,13 @@ def get_order_status(order_id: str) -> dict:
 | When you see... | Think... |
 |-----------------|----------|
 | "autonomous" or "multi-step tasks" | Bedrock Agents or Strands Agents SDK |
-| "tool use" or "API integration" | Action Groups with Lambda |
+| "managed agent" or "action groups" | Bedrock Agents (fully managed, OpenAPI specs + Lambda) |
+| "custom agent logic" or "open-source framework" | Strands Agents SDK (full control, any model) |
 | "coordinate multiple specialized agents" | Supervisor pattern with Agent Squad |
+| "deploy agents at scale" or "managed runtime" | Amazon Bedrock AgentCore |
 | "self-organizing agents" or "decentralized" | Peer-to-peer with EventBridge |
 | "standardized tool interface" or "portable tools" | Model Context Protocol (MCP) |
+| "tool use" or "API integration" | Action Groups with Lambda (Bedrock Agents) or @tool decorator (Strands) |
 | "prevent harmful actions" or "agent safety" | IAM least privilege + guardrails |
 | "human approval for sensitive actions" | Step Functions callback pattern |
 | "reasoning loop" or "Thought-Action-Observation" | ReAct pattern |
@@ -973,19 +1137,22 @@ def get_order_status(order_id: str) -> dict:
 > **1. Agents are autonomous systems that plan, use tools, reason, and iterate to achieve goals.**
 > This is fundamentally different from simple prompt-response interactions. Agents don't just generate text—they take actions in the world.
 
-> **2. The ReAct pattern (Thought → Action → Observation → Repeat) is foundational.**
+> **2. Bedrock Agents for managed, Strands SDK for custom, Agent Squad for multi-agent.**
+> Choose Bedrock Agents when you want Bedrock to own the loop. Choose Strands when you need full control over reasoning. Choose Agent Squad when specialized agents must collaborate. Deploy any of them on AgentCore for managed production hosting.
+
+> **3. The ReAct pattern (Thought → Action → Observation → Repeat) is foundational.**
 > Interleaving reasoning with actions produces better results than either alone. The thought trace provides transparency and debuggability.
 
-> **3. MCP standardizes tool interfaces for portability across AI systems.**
+> **4. MCP standardizes tool interfaces for portability across AI systems.**
 > Build tools once as MCP servers, use them with any MCP-compatible agent. The ecosystem is growing and network effects compound.
 
-> **4. Supervisor pattern for coordinated specialists; peer-to-peer for resilient collaboration.**
+> **5. Supervisor pattern for coordinated specialists; peer-to-peer for resilient collaboration.**
 > Agent Squad implements supervisor pattern. EventBridge enables peer-to-peer. Choose based on accountability needs and failure tolerance.
 
-> **5. Lambda for stateless tools, ECS for stateful or long-running tools.**
+> **6. Lambda for stateless tools, ECS for stateful or long-running tools.**
 > Most tools are stateless API calls—Lambda is perfect. Move to ECS for persistent connections, large memory, or operations exceeding 15 minutes.
 
-> **6. Agent safety requires defense in depth.**
+> **7. Agent safety requires defense in depth.**
 > IAM boundaries, Step Functions operational controls, human-in-the-loop for sensitive actions, tool parameter validation, and Guardrails content filtering. No single layer is sufficient.
 
 ---
@@ -995,6 +1162,9 @@ def get_order_status(order_id: str) -> dict:
 | Mistake | Why It Matters |
 |---------|----------------|
 | **Building agents when simple prompting suffices** | Agents add complexity. If you just need Q&A, a ReAct loop is overkill. |
+| **Using Bedrock Agents when you need custom control** | Bedrock Agents owns the loop. If you need custom reasoning, stopping logic, or non-Bedrock models, use Strands SDK. |
+| **Building custom multi-agent routing instead of Agent Squad** | Agent Squad handles supervisor routing, context sharing, and response synthesis. Don't reinvent this. |
+| **Self-hosting agents without considering AgentCore** | AgentCore provides managed hosting, scaling, session state, and observability. Evaluate it before building your own infra. |
 | **Broad IAM permissions for agents** | Violates least privilege. Compromised agents can only do what IAM permits. |
 | **No iteration limits on agent loops** | Agents can get stuck, accumulating costs and taking repeated actions. |
 | **Skipping human-in-the-loop for high-stakes actions** | Some actions are too consequential for full autonomy. |

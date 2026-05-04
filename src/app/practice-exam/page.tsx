@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { generatePracticeExam, analyzeQuestionCoverage } from '@/lib/content';
+import { generatePracticeExam, analyzeQuestionCoverage, isAnswerCorrect } from '@/lib/content';
 import { addReviewScore, markQuestionCompleted } from '@/lib/progress';
 import { Question } from '@/types/review';
 import QuestionCard from '@/components/review/QuestionCard';
@@ -142,8 +142,7 @@ export default function PracticeExamPage() {
     const question = examState.questions[examState.currentIndex];
     if (!question) return;
 
-    const isCorrect = JSON.stringify(selectedIds.sort()) === JSON.stringify(question.correctAnswers.sort());
-    markQuestionCompleted(question.id, isCorrect);
+    markQuestionCompleted(question.id, isAnswerCorrect(selectedIds, question.correctAnswers));
 
     setExamState(prev => ({
       ...prev,
@@ -174,10 +173,9 @@ export default function PracticeExamPage() {
   const submitExam = useCallback(() => {
     // Calculate and save scores
     const { questions, answers } = examState;
-    const correct = questions.filter(q => {
-      const selected = answers[q.id] || [];
-      return JSON.stringify(selected.sort()) === JSON.stringify(q.correctAnswers.sort());
-    }).length;
+    const correct = questions.filter(q =>
+      isAnswerCorrect(answers[q.id] || [], q.correctAnswers)
+    ).length;
 
     addReviewScore('practice-exam', correct, questions.length);
     setExamState(prev => ({ ...prev, status: 'completed' }));
@@ -193,10 +191,9 @@ export default function PracticeExamPage() {
 
     const domainResults = breakdown.map(({ domainId, count, weight }) => {
       const domainQuestions = questions.filter(q => q.domain === domainId);
-      const correct = domainQuestions.filter(q => {
-        const selected = answers[q.id] || [];
-        return JSON.stringify(selected.sort()) === JSON.stringify(q.correctAnswers.sort());
-      }).length;
+      const correct = domainQuestions.filter(q =>
+        isAnswerCorrect(answers[q.id] || [], q.correctAnswers)
+      ).length;
 
       return {
         domainId,
@@ -207,10 +204,9 @@ export default function PracticeExamPage() {
       };
     });
 
-    const totalCorrect = questions.filter(q => {
-      const selected = answers[q.id] || [];
-      return JSON.stringify(selected.sort()) === JSON.stringify(q.correctAnswers.sort());
-    }).length;
+    const totalCorrect = questions.filter(q =>
+      isAnswerCorrect(answers[q.id] || [], q.correctAnswers)
+    ).length;
 
     return {
       domainResults,
@@ -549,10 +545,9 @@ export default function PracticeExamPage() {
         {/* Review Questions */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Review Questions</h2>
-          <div className="grid grid-cols-10 gap-2">
+          <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
             {examState.questions.map((q, idx) => {
-              const selected = examState.answers[q.id] || [];
-              const isCorrect = JSON.stringify(selected.sort()) === JSON.stringify(q.correctAnswers.sort());
+              const correct = isAnswerCorrect(examState.answers[q.id] || [], q.correctAnswers);
               return (
                 <button
                   key={q.id}
@@ -564,7 +559,7 @@ export default function PracticeExamPage() {
                     }));
                   }}
                   className={`w-full aspect-square rounded-lg text-sm font-medium transition-colors ${
-                    isCorrect
+                    correct
                       ? 'bg-green-100 text-green-700 hover:bg-green-200'
                       : 'bg-red-100 text-red-700 hover:bg-red-200'
                   }`}

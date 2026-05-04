@@ -7,7 +7,7 @@ import { getDomain } from '@/lib/domains';
 import { getDomainQuestions } from '@/lib/content';
 import { markArticleRead, isArticleRead } from '@/lib/progress';
 import { Question } from '@/types/review';
-import MarkdownArticle from '@/components/learn/MarkdownArticle';
+import ArticleLayout from '@/components/learn/ArticleLayout';
 import QuestionCard from '@/components/review/QuestionCard';
 import {
   ArrowLeft,
@@ -104,7 +104,6 @@ export default function TopicPage() {
     try {
       const allQuestions = await getDomainQuestions(domainId);
       const taskQuestions = allQuestions.filter(q => q.task === task?.id);
-      // Shuffle questions
       const shuffled = taskQuestions.sort(() => Math.random() - 0.5);
       setQuestions(shuffled);
     } catch (err) {
@@ -160,9 +159,9 @@ export default function TopicPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
+    <div className="max-w-7xl mx-auto px-6 py-8">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
+      <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
         <Link href="/learn" className="hover:text-gray-700">Learn</Link>
         <span>/</span>
         <Link href={`/learn/${domainId}`} className="hover:text-gray-700">
@@ -200,7 +199,12 @@ export default function TopicPage() {
           <p className="text-gray-500">{error}</p>
         </div>
       ) : markdown ? (
-        <MarkdownArticle content={markdown} />
+        <ArticleLayout
+          key={topicSlug}
+          markdown={markdown}
+          accentColor={colors.accent}
+          textColor={colors.text}
+        />
       ) : null}
 
       {/* Mark Complete */}
@@ -273,7 +277,7 @@ export default function TopicPage() {
                   {questions.length > 0 && (
                     <p className={`text-sm ${colors.modalSubtext}`}>
                       Question {currentIndex + 1} of {questions.length}
-                      {answeredCount > 0 && ` • ${correctCount}/{answeredCount} correct`}
+                      {answeredCount > 0 && ` • ${correctCount}/${answeredCount} correct`}
                     </p>
                   )}
                 </div>
