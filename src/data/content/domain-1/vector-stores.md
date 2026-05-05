@@ -38,6 +38,10 @@ Once you have vectors, you need a way to measure how "close" they are. Several d
 
 For Titan Embeddings V2, cosine similarity is the recommended default. The model outputs normalized vectors, so dot product would work identically, but cosine is the standard configuration in AWS documentation and examples.
 
+```fillin
+For Titan Embeddings V2, {{cosine similarity}} is the recommended default distance metric.
+```
+
 ---
 
 ## Under the Hood: How Vector Similarity Actually Works
@@ -112,6 +116,11 @@ graph TD
 | 100,000 | 100,000 | ~50 | 2,000x |
 | 10,000,000 | 10,000,000 | ~70 | 140,000x |
 
+```recall
+Q: Why is HNSW search called "approximate" nearest neighbor?
+A: The graph navigation might miss vectors that are actually closer but weren't on the traversal path. It trades a small accuracy loss (95-99% recall) for massive speed gains.
+```
+
 ### Why Recall Is "Approximate"
 
 HNSW doesn't guarantee finding the absolute nearest neighbors. The graph navigation might miss vectors that are actually closer but weren't on the traversal path.
@@ -131,6 +140,14 @@ In practice:
 | Pre-filtering | → Depends on filter selectivity | ↑ Faster (smaller search space) |
 | Normalized vectors | → No change | ↑ Faster (simpler math) |
 
+```quickcheck
+Q: Which HNSW parameter do you tune most often to optimize query latency vs accuracy?
+A: ef_search
+B: M (connections per node)
+correct: A
+feedback: ef_search controls search-time thoroughness and directly affects query latency. M is set at index creation time.
+```
+
 ---
 
 ## Decision Framework: Choosing Your Vector Store
@@ -148,6 +165,11 @@ Use this framework to select the right vector store for your use case.
 | Complex filtering + aggregations | **OpenSearch** | Full query DSL available |
 | Join vectors with relational data | **Aurora pgvector** | SQL joins work natively |
 | Prototyping quickly | **Bedrock Knowledge Bases** | Fastest time to working RAG |
+
+```recall
+Q: What should you choose for a new RAG project that needs minimal operational overhead?
+A: Bedrock Knowledge Bases — fully managed, handles parsing, chunking, embedding, storage, and sync automatically.
+```
 
 ### Decision Tree
 
@@ -191,6 +213,10 @@ graph TD
 | **Chunking Control** | Limited presets | Full control | Full control |
 | **Index Tuning** | Limited | Full control | Full control |
 | **Exam Signal** | "simplest", "managed" | "scale", "hybrid" | "PostgreSQL", "SQL" |
+
+```fillin
+On the exam, "simplest" or "minimal operational overhead" signals → {{Bedrock Knowledge Bases}}. "Scale" or "hybrid search" signals → OpenSearch.
+```
 
 ### Chunking Strategy Selection
 
@@ -236,6 +262,14 @@ result = json.loads(response['body'].read())
 embedding = result['embedding']  # List of 512 floats
 ```
 
+```quickcheck
+Q: What is the recommended default dimension for Titan Embeddings V2?
+A: 512 dimensions
+B: 1024 dimensions
+correct: A
+feedback: 512 dims retain ~99% of semantic quality while using half the storage. AWS recommends it as a balanced default.
+```
+
 ---
 
 ## Approximate Nearest Neighbor Search
@@ -277,6 +311,11 @@ Three parameters control HNSW behavior, each with important trade-offs:
 **ef_construction** controls how thoroughly the algorithm explores when building the index. Higher values create a better-connected graph that searches more accurately. But building takes longer. This is a one-time cost, so if you're not frequently rebuilding indexes, err toward higher values (256-512). For frequently updated indexes, lower values (128) reduce ingestion latency.
 
 **ef_search** controls search-time thoroughness. Higher values explore more nodes, finding better matches but taking longer. This is the parameter you tune most often because it directly affects query latency. Start with ef_search roughly equal to k (the number of results you want), then increase until accuracy plateaus.
+
+```recall
+Q: What's the difference between ef_construction and ef_search in HNSW?
+A: ef_construction controls how thoroughly the graph is built (one-time cost at index creation). ef_search controls how thoroughly each query explores the graph (per-query cost you tune for latency).
+```
 
 Here's how these parameters appear in an OpenSearch index mapping:
 
@@ -328,6 +367,10 @@ IVF has different trade-offs than HNSW:
 | Memory usage | Higher | Lower |
 | Update handling | Good (incremental) | Poor (requires retraining) |
 | Best for | Real-time, dynamic data | Large static datasets |
+
+```fillin
+HNSW handles updates well because it can add new vectors {{incrementally}} — just insert them into the graph. IVF requires periodic index rebuilds.
+```
 
 The update handling difference is critical. HNSW can add new vectors incrementally—just insert them into the graph. IVF's clusters are based on the data distribution when the index was built. If you add many new vectors, the clusters become imbalanced and search quality degrades. You need to periodically rebuild the index (recompute centroids), which takes time.
 
@@ -515,6 +558,15 @@ aoss_client.create_access_policy(
 )
 ```
 
+```quickcheck
+Q: Which OpenSearch Serverless collection type must you use for RAG / semantic search?
+A: VECTORSEARCH
+B: SEARCH
+C: TIMESERIES
+correct: A
+feedback: VECTORSEARCH collections are optimized for k-NN operations. SEARCH collections use standard inverted indexes and perform poorly for vector queries.
+```
+
 OpenSearch Serverless uses **OCUs** (OpenSearch Compute Units) for capacity. You have separate indexing OCUs and search OCUs. The minimum is 2 total OCUs (1 indexing + 1 search), and the service scales automatically based on workload. Each OCU costs roughly $0.24/hour, so even minimum capacity runs about $350/month—factor this into cost planning.
 
 For Bedrock Knowledge Bases using OpenSearch Serverless as the vector store, AWS manages the collection automatically. You don't configure OCUs or collection types; the service handles it.
@@ -561,6 +613,11 @@ When to consider alternatives:
 - Your scale is approaching billions of vectors
 - You need advanced features like multi-tenancy, filtering optimizations, or custom scoring
 
+```recall
+Q: What do the pgvector operators <=>, <->, and <#> compute?
+A: <=> is cosine distance, <-> is L2 (Euclidean) distance, <#> is negative inner product.
+```
+
 ### The Selection Decision
 
 For most new RAG projects, start with Bedrock Knowledge Bases. It handles the entire pipeline, integrates well with other Bedrock features, and requires minimal operational investment. You can always migrate later if you outgrow it.
@@ -598,6 +655,10 @@ def fixed_size_chunk(text, max_tokens=512, overlap_percent=0.2):
 ```
 
 Fixed-size chunking is fast and predictable but naive. It ignores document structure completely—you might slice a sentence in half, separate a heading from its content, or split a code block across chunks. For simple documents or rapid prototyping, it works fine. For production with complex documents, you usually want something smarter.
+
+```fillin
+Chunk overlap ensures that concepts {{spanning chunk boundaries}} appear in at least one complete chunk.
+```
 
 ### Semantic Chunking
 
@@ -655,6 +716,15 @@ Bedrock Knowledge Bases supports hierarchical chunking with configurable parent 
 
 **The critical constraint**: You cannot change chunking strategy after creating a data source in Bedrock Knowledge Bases. The strategy is baked into how documents are processed and stored. If you want to try a different strategy, you create a new data source and re-ingest everything. Choose wisely upfront, or plan for potential re-ingestion.
 
+```quickcheck
+Q: Which chunking strategy is the best default for production with complex, structured documents?
+A: Hierarchical chunking
+B: Fixed-size chunking
+C: Semantic chunking
+correct: A
+feedback: Hierarchical chunking creates parent (broad context) and child (specific detail) chunks, handling technical manuals and mixed-format content well.
+```
+
 ---
 
 ## Metadata and Filtering
@@ -692,6 +762,11 @@ Pre-filtering is efficient because you're searching a smaller set. If you filter
 Post-filtering has a dangerous failure mode: if most of your top semantic matches fail the filter, you end up with few or no results. Request k=10 results, find 8 great semantic matches that fail the filter, and you return only 2 results (or none).
 
 Most production systems use pre-filtering because the efficiency gains outweigh the risks. If your filters are reasonable (not excluding 99% of documents), pre-filtering works well.
+
+```recall
+Q: What is the key advantage of pre-filtering over post-filtering in vector search?
+A: Pre-filtering narrows the candidate set before similarity computation, making search faster. Post-filtering risks returning few/no results if top semantic matches fail the filter.
+```
 
 ### Access Control Through Metadata
 
@@ -847,6 +922,10 @@ Vector stores require ongoing maintenance to stay useful. Documents are added, m
 **Event-driven sync**: Respond to changes immediately. S3 event notifications trigger Lambda functions that update vectors as soon as documents change. Lowest latency but most complex to implement.
 
 Bedrock Knowledge Bases supports on-demand and scheduled sync. For event-driven architectures, you'd build a custom pipeline.
+
+```fillin
+Without proper deletion handling, your RAG system returns information from {{documents that no longer exist}} — potentially showing outdated or confidential content.
+```
 
 ### Incremental Updates
 
