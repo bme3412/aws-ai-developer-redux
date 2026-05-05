@@ -6,6 +6,8 @@ import { TocHeading } from '@/lib/markdown-utils';
 export function useScrollSpy(headings: TocHeading[]): string | null {
   const [activeId, setActiveId] = useState<string | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (headings.length === 0) return;
@@ -31,9 +33,14 @@ export function useScrollSpy(headings: TocHeading[]): string | null {
         });
 
         if (visibleHeadings.size > 0) {
-          // Pick the topmost visible heading based on document order
           const topVisible = headings.find(h => visibleHeadings.has(h.id));
-          if (topVisible) setActiveId(topVisible.id);
+          if (topVisible && topVisible.id !== activeIdRef.current) {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+            debounceRef.current = setTimeout(() => {
+              setActiveId(topVisible.id);
+              activeIdRef.current = topVisible.id;
+            }, 50);
+          }
         }
       },
       {
@@ -44,7 +51,10 @@ export function useScrollSpy(headings: TocHeading[]): string | null {
 
     headingElements.forEach(el => observerRef.current!.observe(el));
 
-    return () => observerRef.current?.disconnect();
+    return () => {
+      observerRef.current?.disconnect();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [headings]);
 
   return activeId;

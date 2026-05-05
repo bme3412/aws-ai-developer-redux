@@ -5,7 +5,11 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import CodeBlockEnhanced from '@/components/learn/CodeBlockEnhanced';
 import ExamTipCallout, { detectCalloutType } from '@/components/learn/ExamTipCallout';
+import RecallCard from '@/components/learn/RecallCard';
+import FillInTheBlank from '@/components/learn/FillInTheBlank';
+import QuickCheck from '@/components/learn/QuickCheck';
 import { generateSlug } from '@/lib/markdown-utils';
+import { parseRecallCard, parseFillIn, parseQuickCheck } from '@/lib/active-learning-parsers';
 
 interface MarkdownArticleProps {
   content: string;
@@ -87,6 +91,17 @@ export default function MarkdownArticle({ content }: MarkdownArticleProps) {
             if (match) {
               const language = match[1];
               const code = String(children).replace(/\n$/, '');
+
+              if (language === 'recall') {
+                return <RecallCard {...parseRecallCard(code)} />;
+              }
+              if (language === 'fillin') {
+                return <FillInTheBlank {...parseFillIn(code)} />;
+              }
+              if (language === 'quickcheck') {
+                return <QuickCheck {...parseQuickCheck(code)} />;
+              }
+
               return <CodeBlockEnhanced language={language} code={code} />;
             }
             return (

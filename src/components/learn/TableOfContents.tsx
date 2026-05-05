@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { List, X, ChevronsUpDown } from 'lucide-react';
+import { List } from 'lucide-react';
 import { TocHeading } from '@/lib/markdown-utils';
 
 interface TableOfContentsProps {
@@ -12,7 +12,7 @@ interface TableOfContentsProps {
   onCollapseAll: () => void;
 }
 
-export default function TableOfContents({
+const TableOfContents = React.memo(function TableOfContents({
   headings,
   activeId,
   accentColor,
@@ -31,24 +31,12 @@ export default function TableOfContents({
 
   const tocContent = (
     <nav aria-label="Table of contents">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-          On this page
-        </h3>
-        <button
-          onClick={mobileOpen ? () => setMobileOpen(false) : undefined}
-          className="lg:hidden p-1 text-gray-400 hover:text-gray-600"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
       <ul className="space-y-1">
         {headings.map((heading) => (
           <li key={heading.id}>
             <button
               onClick={() => handleClick(heading.id)}
-              className={`block w-full text-left text-sm py-1.5 px-3 rounded transition-all duration-150 ${
+              className={`block w-full text-left text-sm py-1.5 px-3 rounded transition-colors duration-200 ${
                 heading.level === 3 ? 'pl-6' : ''
               } ${
                 activeId === heading.id
@@ -87,7 +75,7 @@ export default function TableOfContents({
     <>
       {/* Desktop TOC - sticky sidebar */}
       <aside className="hidden lg:block w-64 flex-shrink-0">
-        <div className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pr-2 py-4">
+        <div className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pr-2 py-4 will-change-[transform]">
           {tocContent}
         </div>
       </aside>
@@ -121,4 +109,6 @@ export default function TableOfContents({
       </div>
     </>
   );
-}
+});
+
+export default TableOfContents;

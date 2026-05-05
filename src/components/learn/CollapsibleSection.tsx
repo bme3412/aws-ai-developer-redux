@@ -11,7 +11,7 @@ interface CollapsibleSectionProps {
   children: React.ReactNode;
 }
 
-export default function CollapsibleSection({
+const CollapsibleSection = React.memo(function CollapsibleSection({
   id,
   title,
   isExpanded,
@@ -49,4 +49,6 @@ export default function CollapsibleSection({
       </div>
     </section>
   );
-}
+});
+
+export default CollapsibleSection;

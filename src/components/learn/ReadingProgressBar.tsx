@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Clock } from 'lucide-react';
+import { useReadingProgress } from '@/hooks/useReadingProgress';
 
 interface ReadingProgressBarProps {
   progress: number;
@@ -9,7 +10,7 @@ interface ReadingProgressBarProps {
   accentColor: string;
 }
 
-export default function ReadingProgressBar({
+function ReadingProgressBar({
   progress,
   readingTime,
   accentColor,
@@ -19,8 +20,8 @@ export default function ReadingProgressBar({
       {/* Fixed progress bar below TopBar */}
       <div className="fixed top-[53px] left-0 right-0 z-40 h-[3px] bg-gray-100">
         <div
-          className={`h-full ${accentColor} transition-all duration-150 ease-out`}
-          style={{ width: `${progress}%` }}
+          className={`h-full w-full ${accentColor} transition-transform duration-200 ease-out origin-left`}
+          style={{ transform: `scaleX(${progress / 100})` }}
         />
       </div>
 
@@ -40,3 +41,25 @@ export default function ReadingProgressBar({
     </>
   );
 }
+
+/** Self-contained wrapper that owns the reading progress state */
+export function ReadingProgressBarContainer({
+  contentRef,
+  readingTime,
+  accentColor,
+}: {
+  contentRef: React.RefObject<HTMLElement | null>;
+  readingTime: number;
+  accentColor: string;
+}) {
+  const progress = useReadingProgress(contentRef);
+  return (
+    <ReadingProgressBar
+      progress={progress}
+      readingTime={readingTime}
+      accentColor={accentColor}
+    />
+  );
+}
+
+export default ReadingProgressBar;

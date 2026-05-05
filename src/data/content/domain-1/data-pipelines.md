@@ -72,6 +72,11 @@ graph TD
 | **Embedding** | Wrong model, dimension mismatch | Retrieval fails entirely |
 | **Retrieval** | Wrong documents, poor ranking | Hallucination, wrong answers |
 
+```recall
+Q: At which pipeline stage is fixing errors cheapest?
+A: Validation (pre-processing) — reject immediately at near-zero cost, before expensive embedding or model invocation.
+```
+
 ### Why Early Validation Saves Money
 
 Catching problems early is cheaper:
@@ -84,6 +89,10 @@ Catching problems early is cheaper:
 | Model invocation | ~$0.01+/call | User sees bad output, investigate |
 
 **Key insight:** Model invocations are 100-1000x more expensive than validation. Every garbage input you catch early saves expensive inference and user frustration.
+
+```fillin
+Model invocations are {{100-1000x}} more expensive than validation checks.
+```
 
 ---
 
@@ -101,6 +110,14 @@ Use this framework to select the right AWS services for each pipeline stage.
 | Structured data | Direct ingest | **Glue Data Quality** | Glue ETL |
 | Web content | Lambda scraping | Format validation | Lambda |
 | Real-time user input | N/A | **Lambda validation** | Lambda |
+
+```quickcheck
+Q: A client sends you a 500-page PDF for analysis. Which API pattern must you use?
+A: Textract async APIs (StartDocumentAnalysis)
+B: Textract sync API (AnalyzeDocument)
+correct: A
+feedback: Synchronous APIs only handle single pages up to 10MB. Multi-page documents require async APIs with job polling.
+```
 
 ### Decision Tree
 
@@ -156,6 +173,11 @@ graph TD
 | Bedrock KB managed | Medium | Low (after ingestion) | Per query + storage | Lowest |
 | Custom pipeline | Flexible | Flexible | Depends on design | Highest |
 
+```recall
+Q: Which pipeline approach has the lowest complexity for RAG ingestion?
+A: Bedrock Knowledge Bases (managed) — handles chunking, embedding, and retrieval with minimal setup.
+```
+
 ---
 
 ## Data Quality: The Foundation of Everything
@@ -172,6 +194,10 @@ These checks sound trivial, and they are—individually. But production systems 
 
 Format validation should be immediate and unforgiving. The moment bad data arrives, reject it with a clear error message. Don't let it proceed through expensive processing steps only to fail cryptically later.
 
+```fillin
+Format validation should be immediate and {{unforgiving}} — reject bad data the moment it arrives.
+```
+
 ### Completeness Checking: Ensuring Nothing's Missing
 
 Your prompt template expects certain fields—a customer name, an order history, a product description. If any field is missing, the resulting prompt is incomplete. The model will still generate output, but that output will be generic at best and fabricated at worst. A response that should reference "your recent order of the Blue Widget" becomes "your order" or invents order details that don't exist.
@@ -179,6 +205,14 @@ Your prompt template expects certain fields—a customer name, an order history,
 Completeness checking verifies that all expected data elements exist before building prompts. This is particularly important in RAG systems, where retrieved context might be empty or partial. If retrieval returns nothing, what happens? If it returns documents without the expected metadata, how does your prompt handle it?
 
 Define what "complete" means for each pipeline stage and verify it explicitly. Don't assume data will be complete because it usually is—verify because sometimes it isn't.
+
+```quickcheck
+Q: In a RAG system, what happens when retrieval returns no documents and no check is in place?
+A: The model produces a generic or fabricated response
+B: The API returns an error automatically
+correct: A
+feedback: Models produce confident-sounding output regardless of input quality. Empty context leads to hallucination, not errors.
+```
 
 ### Anomaly Detection: Catching the Weird Stuff
 
@@ -206,6 +240,11 @@ Rules = [
 ```
 
 These rules run automatically as part of your Glue ETL jobs. When data fails quality checks, the pipeline can halt, quarantine bad records, or alert operators—depending on your configuration.
+
+```recall
+Q: What language does AWS Glue Data Quality use for defining validation rules?
+A: DQDL (Data Quality Definition Language)
+```
 
 The declarative approach has significant advantages. Rules are readable and auditable. Adding new rules doesn't require code changes. Quality thresholds can be adjusted without redeploying pipelines. And Glue tracks quality metrics over time, showing trends that might indicate upstream data problems.
 
@@ -249,6 +288,10 @@ def validate_request(event):
 
 Lambda validation should fail fast and return clear error messages. Users can't fix problems they don't understand. "Invalid input" is useless; "question exceeds 10,000 character limit" is actionable.
 
+```fillin
+Lambda validation should fail fast and return {{clear error messages}} that users can act on.
+```
+
 ---
 
 ## Multimodal Data Processing
@@ -291,6 +334,14 @@ def prepare_image_for_bedrock(image_path):
 ```
 
 **Error handling is essential.** Images can be corrupted, truncated, or in unexpected formats. Validation should verify that image data is actually valid before attempting AI processing. A corrupted image that passes to the API produces unhelpful error messages.
+
+```quickcheck
+Q: Base64 encoding inflates image file size by approximately what percentage?
+A: 33%
+B: 100%
+correct: A
+feedback: Base64 encoding inflates size by ~33%, which affects payload limits and transmission time.
+```
 
 ### Document Processing with Amazon Textract
 
@@ -336,6 +387,11 @@ response = textract.analyze_document(
 
 You can combine multiple FeatureTypes in a single call, extracting tables, forms, and layout structure simultaneously.
 
+```recall
+Q: Which Textract FeatureType preserves headings, paragraphs, and page structure — critical for RAG chunking?
+A: LAYOUT — it analyzes document structure so chunking respects semantic boundaries.
+```
+
 ### Synchronous vs. Asynchronous Textract APIs
 
 Textract provides two API patterns with different use cases.
@@ -374,6 +430,10 @@ while 'NextToken' in results:
 ```
 
 For exam purposes: if you see "500-page PDF" or "multi-page document" in a question, the answer involves async APIs with `Start*` operations and job polling. Synchronous APIs simply cannot handle large multi-page documents.
+
+```fillin
+Synchronous Textract APIs are limited to {{10 MB}} file size and single-page documents.
+```
 
 ### Specialized Extraction APIs
 
@@ -526,6 +586,14 @@ When inputs exceed limits, you have options:
 
 **Chunking and aggregation** processes content in pieces. Break a long document into chunks, process each separately, then synthesize results. This works for analysis tasks where each chunk can be processed independently.
 
+```quickcheck
+Q: When input exceeds the model's token limit, which approach preserves the most information?
+A: Summarization
+B: Truncation
+correct: A
+feedback: Summarization compresses while preserving meaning. Truncation loses data and may cut mid-thought.
+```
+
 ### Special Characters and Encoding
 
 JSON has strict rules about special characters. Newlines must be `\n`. Quotes must be escaped as `\"`. Backslashes become `\\`. Control characters need Unicode escapes.
@@ -615,6 +683,11 @@ for entity in response['Entities']:
 # ORGANIZATION: Acme Corp
 ```
 
+```recall
+Q: Name two advantages of using Comprehend over foundation models for entity extraction.
+A: Lower per-request cost (10-100x cheaper) and faster inference (~100ms vs 1-3s).
+```
+
 ### Custom Entity Recognition: Teaching Comprehend Your Domain
 
 Out-of-the-box Comprehend recognizes standard entity types—PERSON, ORGANIZATION, DATE, LOCATION. But your domain likely has specific entities it doesn't know: product codes, internal project names, medical terms, legal citations.
@@ -699,6 +772,10 @@ Both Comprehend custom models and foundation models can classify and extract ent
 For **stable, high-volume tasks** where categories and entities don't change frequently, train Comprehend models. The lower per-request cost compounds at scale.
 
 For **evolving needs** where categories change frequently or you're still iterating, foundation models offer flexibility. Update the prompt rather than retraining.
+
+```fillin
+For stable, high-volume classification tasks, train {{Comprehend custom models}} instead of using foundation models.
+```
 
 ### Text Normalization
 
