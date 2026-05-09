@@ -1,13 +1,16 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getDomains, getDomain } from '@/lib/domains';
 import { getDomainQuestions, getAllQuestions, shuffleQuestions, isAnswerCorrect } from '@/lib/content';
-import { addReviewScore, markQuestionCompleted, getQuestionCompletion } from '@/lib/progress';
+import { addReviewScore, markQuestionCompleted, getQuestionCompletion, getProgress, startPracticeSession, recordQuestionAttempt, completePracticeSession } from '@/lib/progress';
+import { getWeakAreaQuestions, selectAdaptiveQuestions } from '@/lib/analytics';
 import { Question } from '@/types/review';
+import { PracticeMode } from '@/types/domain';
 import QuestionCard from '@/components/review/QuestionCard';
+import PracticeModeSelector from '@/components/review/PracticeModeSelector';
 import {
   ClipboardCheck,
   RefreshCw,
@@ -18,6 +21,7 @@ import {
   ChevronRight,
   Play,
   FileText,
+  Clock,
 } from 'lucide-react';
 
 interface TaskQuestionCount {
@@ -48,13 +52,28 @@ function ReviewContent() {
   const [isComplete, setIsComplete] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [previouslyCompleted, setPreviouslyCompleted] = useState<Record<string, { correct: boolean }>>({});
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
   const domain = domainFilter ? getDomain(parseInt(domainFilter)) : null;
   const task = domain && taskFilter ? domain.tasks.find(t => t.id === taskFilter) : null;
 
+  // Timer countdown for quick mode
+  useEffect(() => {
+    if (timeRemaining === null || timeRemaining <= 0 || isComplete) return;
+    const interval = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev === null || prev <= 1) return 0;
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timeRemaining, isComplete]);
+
   useEffect(() => {
     async function loadQuestions() {
       setIsLoading(true);
+      setTimeRemaining(null);
       try {
         let loadedQuestions: Question[] = [];
 
@@ -69,20 +88,40 @@ function ReviewContent() {
           loadedQuestions = loadedQuestions.filter(q => q.task === taskFilter);
         }
 
+        const progress = getProgress();
+
         // Apply mode-based filtering
         if (mode === 'quick') {
           loadedQuestions = shuffleQuestions(loadedQuestions).slice(0, 10);
+          setTimeRemaining(15 * 60); // 15 minutes
         } else if (mode === 'full') {
           loadedQuestions = shuffleQuestions(loadedQuestions).slice(0, 65);
         } else if (mode === 'all') {
-          // Show all questions without shuffling limit
           loadedQuestions = shuffleQuestions(loadedQuestions);
+        } else if (mode === 'hard') {
+          loadedQuestions = shuffleQuestions(
+            loadedQuestions.filter(q => q.difficulty === 'medium' || q.difficulty === 'hard')
+          ).slice(0, 20);
+        } else if (mode === 'weak-areas') {
+          const weak = getWeakAreaQuestions(progress, loadedQuestions);
+          loadedQuestions = shuffleQuestions(weak).slice(0, 20);
+        } else if (mode === 'adaptive') {
+          loadedQuestions = selectAdaptiveQuestions(loadedQuestions, progress, 20);
         } else {
           // Default: shuffle and take up to 20 for practice
           loadedQuestions = shuffleQuestions(loadedQuestions).slice(0, 20);
         }
 
         setQuestions(loadedQuestions);
+
+        // Start session tracking
+        const sid = startPracticeSession(
+          (mode || 'practice') as PracticeMode,
+          loadedQuestions.map(q => q.id),
+          domainFilter ? parseInt(domainFilter) : undefined,
+          taskFilter || undefined
+        );
+        setSessionId(sid);
 
         // Load previously completed questions
         const completed: Record<string, { correct: boolean }> = {};
@@ -107,10 +146,14 @@ function ReviewContent() {
   const handleAnswer = (selectedIds: string[]) => {
     if (!currentQuestion) return;
 
+    const correct = isAnswerCorrect(selectedIds, currentQuestion.correctAnswers);
     setAnswers(prev => ({ ...prev, [currentQuestion.id]: selectedIds }));
     setShowResults(prev => ({ ...prev, [currentQuestion.id]: true }));
 
-    markQuestionCompleted(currentQuestion.id, isAnswerCorrect(selectedIds, currentQuestion.correctAnswers));
+    markQuestionCompleted(currentQuestion.id, correct);
+    if (sessionId) {
+      recordQuestionAttempt(sessionId, currentQuestion.id, correct);
+    }
   };
 
   const handleNext = () => {
@@ -122,6 +165,7 @@ function ReviewContent() {
         isAnswerCorrect(answers[q.id] || [], q.correctAnswers)
       ).length;
       addReviewScore(domainFilter ? `domain-${domainFilter}` : 'general', correct, questions.length);
+      if (sessionId) completePracticeSession(sessionId);
       setIsComplete(true);
     }
   };
@@ -273,6 +317,12 @@ function ReviewContent() {
         <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
           <span>Question {currentIndex + 1} of {questions.length}</span>
           <div className="flex items-center gap-3">
+            {timeRemaining !== null && (
+              <span className={`flex items-center gap-1 font-mono ${timeRemaining < 60 ? 'text-red-600 font-semibold' : timeRemaining < 300 ? 'text-amber-600' : 'text-gray-600'}`}>
+                <Clock className="w-3.5 h-3.5" />
+                {Math.floor(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
+              </span>
+            )}
             {Object.keys(previouslyCompleted).length > 0 && (
               <span className="text-green-600">
                 {Object.values(previouslyCompleted).filter(c => c.correct).length} previously correct
@@ -497,6 +547,8 @@ export default function ReviewPage() {
             {totalQuestions} exam-style questions organized by domain and task.
           </p>
         </div>
+
+        <PracticeModeSelector />
 
         {/* Domain Sections */}
         <div className="mb-8">

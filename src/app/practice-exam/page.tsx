@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { generatePracticeExam, analyzeQuestionCoverage, isAnswerCorrect } from '@/lib/content';
-import { addReviewScore, markQuestionCompleted } from '@/lib/progress';
+import { addReviewScore, markQuestionCompleted, startPracticeSession, recordQuestionAttempt, completePracticeSession } from '@/lib/progress';
 import { Question } from '@/types/review';
 import QuestionCard from '@/components/review/QuestionCard';
 import {
@@ -36,6 +36,7 @@ interface ExamState {
   flagged: Set<string>;
   timeRemaining: number; // seconds
   startTime: number | null;
+  sessionId: string | null;
 }
 
 interface CoverageData {
@@ -71,6 +72,7 @@ export default function PracticeExamPage() {
     flagged: new Set(),
     timeRemaining: EXAM_TIME_MINUTES * 60,
     startTime: null,
+    sessionId: null,
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -102,6 +104,7 @@ export default function PracticeExamPage() {
     setIsLoading(true);
     try {
       const { questions, breakdown } = await generatePracticeExam(65);
+      const sid = startPracticeSession('exam', questions.map(q => q.id));
       setExamState({
         status: 'running',
         questions,
@@ -112,6 +115,7 @@ export default function PracticeExamPage() {
         flagged: new Set(),
         timeRemaining: EXAM_TIME_MINUTES * 60,
         startTime: Date.now(),
+        sessionId: sid,
       });
     } catch (error) {
       console.error('Failed to generate exam:', error);
@@ -142,7 +146,11 @@ export default function PracticeExamPage() {
     const question = examState.questions[examState.currentIndex];
     if (!question) return;
 
-    markQuestionCompleted(question.id, isAnswerCorrect(selectedIds, question.correctAnswers));
+    const correct = isAnswerCorrect(selectedIds, question.correctAnswers);
+    markQuestionCompleted(question.id, correct);
+    if (examState.sessionId) {
+      recordQuestionAttempt(examState.sessionId, question.id, correct);
+    }
 
     setExamState(prev => ({
       ...prev,
@@ -172,12 +180,13 @@ export default function PracticeExamPage() {
 
   const submitExam = useCallback(() => {
     // Calculate and save scores
-    const { questions, answers } = examState;
+    const { questions, answers, sessionId: sid } = examState;
     const correct = questions.filter(q =>
       isAnswerCorrect(answers[q.id] || [], q.correctAnswers)
     ).length;
 
     addReviewScore('practice-exam', correct, questions.length);
+    if (sid) completePracticeSession(sid);
     setExamState(prev => ({ ...prev, status: 'completed' }));
   }, [examState]);
 

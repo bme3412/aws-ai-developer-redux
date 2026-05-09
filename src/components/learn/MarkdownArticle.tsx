@@ -41,7 +41,7 @@ function extractTextFromBlockquote(node: React.ReactNode): string {
   return '';
 }
 
-export default function MarkdownArticle({ content }: MarkdownArticleProps) {
+export default React.memo(function MarkdownArticle({ content }: MarkdownArticleProps) {
   return (
     <article className="prose prose-gray max-w-none">
       <ReactMarkdown
@@ -167,4 +167,4 @@ export default function MarkdownArticle({ content }: MarkdownArticleProps) {
       </ReactMarkdown>
     </article>
   );
-}
+});

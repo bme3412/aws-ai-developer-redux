@@ -1,4 +1,4 @@
-import { Progress } from '@/types/domain';
+import { Progress, PracticeMode } from '@/types/domain';
 import { getDomains } from './domains';
 
 const STORAGE_KEY = 'aws-genai-study-progress';
@@ -143,6 +143,72 @@ export function getOverallProgress(): {
 
 export function resetProgress(): void {
   saveProgress(getDefaultProgress());
+}
+
+export function startPracticeSession(
+  mode: PracticeMode,
+  questionIds: string[],
+  domainFilter?: number,
+  taskFilter?: string
+): string {
+  const progress = getProgress();
+  if (!progress.practiceSessions) progress.practiceSessions = [];
+
+  const sessionId = `s-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  progress.practiceSessions.push({
+    id: sessionId,
+    mode,
+    startedAt: new Date().toISOString(),
+    domainFilter,
+    taskFilter,
+    results: {},
+  });
+
+  if (progress.practiceSessions.length > 100) {
+    progress.practiceSessions = progress.practiceSessions.slice(-100);
+  }
+
+  saveProgress(progress);
+  return sessionId;
+}
+
+export function recordQuestionAttempt(
+  sessionId: string,
+  questionId: string,
+  correct: boolean
+): void {
+  const progress = getProgress();
+  if (!progress.questionAttempts) progress.questionAttempts = [];
+
+  progress.questionAttempts.push({
+    questionId,
+    correct,
+    timestamp: new Date().toISOString(),
+    sessionId,
+  });
+
+  const session = progress.practiceSessions?.find(s => s.id === sessionId);
+  if (session) {
+    session.results[questionId] = correct;
+  }
+
+  if (progress.questionAttempts.length > 5000) {
+    progress.questionAttempts = progress.questionAttempts.slice(-5000);
+  }
+
+  saveProgress(progress);
+}
+
+export function completePracticeSession(sessionId: string): void {
+  const progress = getProgress();
+  const session = progress.practiceSessions?.find(s => s.id === sessionId);
+  if (session) {
+    session.completedAt = new Date().toISOString();
+    const results = Object.values(session.results);
+    session.total = results.length;
+    session.score = results.filter(Boolean).length;
+  }
+  saveProgress(progress);
 }
 
 export function markQuestionCompleted(questionId: string, correct: boolean): void {

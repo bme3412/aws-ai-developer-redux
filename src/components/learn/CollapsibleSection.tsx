@@ -7,7 +7,7 @@ interface CollapsibleSectionProps {
   id: string;
   title: string;
   isExpanded: boolean;
-  onToggle: () => void;
+  onToggle: (id: string) => void;
   children: React.ReactNode;
 }
 
@@ -21,7 +21,7 @@ const CollapsibleSection = React.memo(function CollapsibleSection({
   return (
     <section id={id} className="scroll-mt-24 mb-2">
       <button
-        onClick={onToggle}
+        onClick={() => onToggle(id)}
         className="w-full flex items-center gap-3 group text-left py-3 border-b border-gray-200 hover:border-gray-300 transition-colors"
         aria-expanded={isExpanded}
         aria-controls={`section-content-${id}`}

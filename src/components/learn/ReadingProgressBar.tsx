@@ -31,12 +31,9 @@ function ReadingProgressBar({
           <Clock className="w-3.5 h-3.5" />
           <span>{readingTime} min read</span>
         </div>
-        {progress > 0 && progress < 100 && (
-          <span className="text-gray-400">{progress}% read</span>
-        )}
-        {progress >= 100 && (
-          <span className="text-green-600 font-medium">Complete</span>
-        )}
+        <span className={progress >= 100 ? 'text-green-600 font-medium' : 'text-gray-400'}>
+          {progress <= 0 ? '\u00A0' : progress >= 100 ? 'Complete' : `${progress}% read`}
+        </span>
       </div>
     </>
   );

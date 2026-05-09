@@ -74,7 +74,7 @@ export default function ArticleLayout({ markdown, accentColor, textColor }: Arti
                 id={section.id}
                 title={section.title}
                 isExpanded={expandedSections.has(section.id)}
-                onToggle={() => toggleSection(section.id)}
+                onToggle={toggleSection}
               >
                 <MarkdownArticle content={section.content} />
               </CollapsibleSection>
