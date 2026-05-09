@@ -45,12 +45,12 @@ export default function PracticeModeSelector() {
   return (
     <div className="mb-8">
       <h2 className="text-lg font-semibold text-gray-900 mb-3">Practice Modes</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-5 sm:overflow-visible">
         {modes.map(({ key, label, description, icon: Icon, color }) => (
           <Link
             key={key}
             href={`/review?mode=${key}`}
-            className={`border rounded-xl p-4 text-center transition-colors ${color}`}
+            className={`border rounded-xl p-4 text-center transition-colors flex-shrink-0 w-36 sm:w-auto ${color}`}
           >
             <Icon className="w-5 h-5 mx-auto mb-2" />
             <div className="text-sm font-semibold">{label}</div>
