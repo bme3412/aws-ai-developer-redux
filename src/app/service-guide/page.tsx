@@ -100,8 +100,8 @@ export default function ServiceGuidePage() {
   const totalServices = guideData.categories.reduce((sum, c) => sum + c.services.length, 0);
 
   return (
-    <div className="flex">
-      <div className="flex-1 max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-8 pb-24 md:pb-8">
+    <div className="overflow-x-hidden">
+      <div className="max-w-4xl mx-auto px-3 md:px-6 py-6 md:py-8 pb-24 md:pb-8">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-1">
@@ -182,7 +182,7 @@ export default function ServiceGuidePage() {
                 {/* Category Header */}
                 <button
                   onClick={() => handleToggleCategory(cat.id)}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 text-left bg-white hover:bg-gray-50 transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3 md:px-4 py-3 text-left bg-white hover:bg-gray-50 transition-colors"
                   aria-expanded={isExpanded}
                 >
                   <div className={`w-8 h-8 rounded-lg ${colors.light} flex items-center justify-center flex-shrink-0`}>
@@ -204,22 +204,22 @@ export default function ServiceGuidePage() {
                     <div className="border-t border-gray-100">
 
                       {/* Quick Decision Patterns — scenario-based */}
-                      <div className="px-4 py-3 bg-gray-50/70">
+                      <div className="px-3 md:px-4 py-3 bg-gray-50/70">
                         <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
                           When you see a scenario like this...
                         </h3>
                         <div className="space-y-2.5">
                           {cat.decisionPatterns.map((pattern: Record<string, string>, i: number) => (
-                            <div key={i} className="bg-white rounded-lg border border-gray-200 p-3">
-                              <p className="text-[13px] text-gray-700 leading-relaxed mb-2">
+                            <div key={i} className="bg-white rounded-lg border border-gray-200 p-2.5 md:p-3">
+                              <p className="text-xs md:text-[13px] text-gray-700 leading-relaxed mb-2">
                                 {pattern.scenario || pattern.signal}
                               </p>
-                              <div className="flex items-start gap-2 pl-1">
-                                <span className="text-green-500 text-base leading-none mt-0.5 shrink-0">&#10132;</span>
-                                <div>
-                                  <span className="text-sm font-semibold text-gray-900">{pattern.service || pattern.answer}</span>
+                              <div className="flex items-start gap-1.5">
+                                <span className="text-green-500 text-sm leading-none mt-0.5 shrink-0">&#10132;</span>
+                                <div className="min-w-0">
+                                  <span className="text-[13px] md:text-sm font-semibold text-gray-900">{pattern.service || pattern.answer}</span>
                                   {pattern.why && (
-                                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{pattern.why}</p>
+                                    <p className="text-[11px] md:text-xs text-gray-500 mt-0.5 leading-relaxed">{pattern.why}</p>
                                   )}
                                 </div>
                               </div>
@@ -229,7 +229,7 @@ export default function ServiceGuidePage() {
                       </div>
 
                       {/* Service Cards */}
-                      <div className="px-4 py-3 space-y-2">
+                      <div className="px-3 md:px-4 py-3 space-y-2">
                         {cat.services.map((svc, i) => {
                           const svcKey = `${cat.id}-${i}`;
                           const isSvcExpanded = expandedServices.has(svcKey);
@@ -313,7 +313,7 @@ export default function ServiceGuidePage() {
                                     )}
 
                                     {/* Question links */}
-                                    <div className="flex items-center gap-1.5 pt-1">
+                                    <div className="flex items-center gap-1.5 pt-1 flex-wrap">
                                       <Zap className="w-3 h-3 text-gray-300" />
                                       <span className="text-[10px] text-gray-400 font-medium">Practice:</span>
                                       {svc.questionIds.map(qid => (
