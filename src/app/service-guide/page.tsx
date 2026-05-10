@@ -22,8 +22,6 @@ import {
   HeartHandshake,
   FileText,
   Zap,
-  ThumbsUp,
-  ThumbsDown,
 } from 'lucide-react';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -205,26 +203,20 @@ export default function ServiceGuidePage() {
                   <div className="overflow-hidden">
                     <div className="border-t border-gray-100">
 
-                      {/* Quick Decision Patterns — compact table style */}
+                      {/* Quick Decision Patterns — clean table */}
                       <div className="px-4 py-3 bg-gray-50/70">
-                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-                          Quick Decision Cheat Sheet
+                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2.5">
+                          If you see this in a question...
                         </h3>
-                        <div className="space-y-1.5">
+                        <div className="rounded-lg border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
                           {cat.decisionPatterns.map((pattern, i) => (
-                            <div key={i} className="bg-white rounded-lg border border-gray-200 p-2.5">
-                              <p className="text-xs text-gray-500 mb-1.5 leading-snug">
-                                <span className="font-semibold text-gray-800">{pattern.signal}</span>
+                            <div key={i} className="px-3 py-2.5 flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3">
+                              <p className="text-xs text-gray-900 font-medium sm:w-2/5 leading-snug shrink-0">
+                                {pattern.signal}
                               </p>
-                              <div className="flex flex-col sm:flex-row gap-1.5">
-                                <div className="flex items-start gap-1.5 flex-1">
-                                  <ThumbsUp className="w-3 h-3 text-green-500 mt-0.5 flex-shrink-0" />
-                                  <p className="text-xs text-green-800 leading-snug">{pattern.answer}</p>
-                                </div>
-                                <div className="flex items-start gap-1.5 flex-1">
-                                  <ThumbsDown className="w-3 h-3 text-red-400 mt-0.5 flex-shrink-0" />
-                                  <p className="text-xs text-red-700/70 leading-snug">{pattern.notAnswer}</p>
-                                </div>
+                              <div className="flex items-baseline gap-1.5 sm:flex-1 min-w-0">
+                                <span className="text-green-500 text-sm leading-none shrink-0">&#10132;</span>
+                                <p className="text-xs text-green-800 font-medium leading-snug">{pattern.answer}</p>
                               </div>
                             </div>
                           ))}
