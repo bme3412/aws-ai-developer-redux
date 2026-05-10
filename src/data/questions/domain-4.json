@@ -2502,6 +2502,264 @@
         "Amazon CloudWatch"
       ],
       "examTip": "Monitor vector store: search latency, index health, storage, and relevance scores."
+    },
+    {
+      "id": "d4-cq01",
+      "domain": 4,
+      "task": "4.1",
+      "skills": [
+        "4.1.1"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company operates a GenAI-powered customer service platform that handles 100,000 queries per day. Analysis shows that 70% of queries are simple FAQ-type questions (order status, return policies), 25% require moderate reasoning (product recommendations, troubleshooting), and 5% require complex reasoning (complaint resolution, escalation decisions). Currently, all queries are processed by Claude 3.5 Sonnet, costing approximately $1,300 per day.",
+      "question": "Which optimization strategy will deliver the GREATEST cost reduction while maintaining response quality?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Switch all queries to Claude 3.5 Haiku to reduce per-token cost across the board"
+        },
+        {
+          "id": "b",
+          "text": "Implement a model tiering strategy using a lightweight classifier to route FAQ queries to Haiku, moderate queries to Sonnet, and complex queries to Sonnet with extended context"
+        },
+        {
+          "id": "c",
+          "text": "Enable prompt caching for all queries to reduce input token costs"
+        },
+        {
+          "id": "d",
+          "text": "Reduce the max_tokens parameter for all responses to limit output token costs"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Model tiering routes 70% of queries (simple FAQs) to the cheaper Haiku model, which handles them with equal quality at ~4x lower cost. Moderate queries stay on Sonnet, and complex queries get the full Sonnet treatment. This targets the largest volume segment (70%) with the highest cost savings per query, while maintaining quality where it matters. Estimated savings: routing 70,000 daily FAQ queries from Sonnet to Haiku saves approximately $750/day.",
+      "incorrectExplanations": {
+        "a": "Switching all queries to Haiku reduces cost but degrades quality for the 25% moderate and 5% complex queries that benefit from Sonnet's stronger reasoning. This trades quality for cost, which the question says to maintain.",
+        "c": "Prompt caching reduces input token costs for repeated or similar prompts, but with 100,000 diverse customer queries, cache hit rates are typically low. The savings are much smaller than model tiering, which affects 70% of traffic.",
+        "d": "Reducing max_tokens for all responses risks truncating complex answers that need detailed explanations. It also only reduces output token costs, not input token costs, and the savings are proportional to the reduction — much less impactful than routing 70% of queries to a cheaper model."
+      },
+      "parseStrategy": {
+        "keyPhrase": "GREATEST cost reduction while maintaining response quality",
+        "eliminationHints": [
+          "All Haiku = quality degradation for complex queries (violates 'maintain quality')",
+          "Prompt caching = low hit rate for diverse queries = small savings",
+          "Reduced max_tokens = truncation risk + smaller savings",
+          "Model tiering = 70% of traffic at ~4x lower cost = largest savings"
+        ],
+        "decisionFramework": "When query complexity varies, model tiering provides the best cost-quality tradeoff. Route simple queries to cheap models, complex queries to powerful models. Target the largest volume segment for maximum impact."
+      },
+      "services": [
+        "Amazon Bedrock"
+      ],
+      "examTip": "Model tiering is the highest-leverage cost optimization for GenAI applications with diverse query complexity. Route the highest-volume, lowest-complexity queries to the cheapest model first.",
+      "strategicBreakdown": {
+        "whatIsBeingAsked": "How to reduce costs for a high-volume GenAI application with mixed query complexity without losing quality.",
+        "testedConcepts": [
+          "Model tiering strategy",
+          "Cost per token comparison",
+          "Query classification",
+          "Prompt caching",
+          "Token optimization"
+        ],
+        "servicesInPlay": [
+          {
+            "service": "Amazon Bedrock (Claude 3.5 Haiku)",
+            "role": "Cheaper model for simple FAQ queries (70% of volume)",
+            "isCorrectAnswer": true
+          },
+          {
+            "service": "Amazon Bedrock (Claude 3.5 Sonnet)",
+            "role": "Higher-capability model for moderate and complex queries",
+            "isCorrectAnswer": true
+          },
+          {
+            "service": "Amazon Bedrock Prompt Caching",
+            "role": "Distractor — low hit rate for diverse queries",
+            "isCorrectAnswer": false
+          }
+        ],
+        "approachStrategy": "The question provides the query distribution (70/25/5). Model tiering targets the 70% segment for maximum savings. Calculate: 70% at ~4x savings >> any other optimization that applies uniformly.",
+        "commonMistakes": [
+          "Switching all traffic to the cheapest model without considering quality (violates 'maintaining quality')",
+          "Overestimating prompt caching hit rates for diverse query patterns",
+          "Not recognizing that model tiering targets the highest-volume segment for maximum leverage"
+        ],
+        "timeManagementTip": "70% simple queries + cost optimization = model tiering to cheaper model for simple queries. The distribution in the scenario is the hint."
+      }
+    },
+    {
+      "id": "d4-cq02",
+      "domain": 4,
+      "task": "4.2",
+      "skills": [
+        "4.2.1"
+      ],
+      "type": "multiple-response",
+      "difficulty": "hard",
+      "scenario": "A company's RAG application has a p50 time-to-first-token (TTFT) of 3.2 seconds, but users report that the experience feels slow. Analysis shows that the retrieval step takes 1.8 seconds (60% of TTFT), embedding the query takes 400ms, and the remaining 1 second is model inference queuing and first-token generation. The company wants to reduce TTFT to under 1.5 seconds.",
+      "question": "Which combination of optimizations will MOST effectively reduce TTFT? (Select TWO.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Switch to a smaller, faster foundation model to reduce inference time"
+        },
+        {
+          "id": "b",
+          "text": "Optimize the vector search by reducing the number of retrieved documents (k value) and using approximate nearest neighbor search with HNSW indexes"
+        },
+        {
+          "id": "c",
+          "text": "Enable response streaming to reduce the total response generation time"
+        },
+        {
+          "id": "d",
+          "text": "Cache frequently used query embeddings to eliminate redundant embedding computation for repeated or similar queries"
+        },
+        {
+          "id": "e",
+          "text": "Increase the number of OpenSearch Serverless compute units to handle more concurrent queries"
+        }
+      ],
+      "correctAnswers": [
+        "b",
+        "d"
+      ],
+      "explanation": "Retrieval takes 1.8 seconds (60% of TTFT), making it the primary optimization target. Reducing k and using HNSW indexes can cut retrieval time from 1.8s to under 500ms. Caching query embeddings eliminates the 400ms embedding step for repeated queries, bringing it to near-zero. Together: ~500ms retrieval + ~0ms embedding + 1s inference = ~1.5s TTFT, meeting the target.",
+      "incorrectExplanations": {
+        "a": "Model inference and queuing account for only 1 second of the 3.2s TTFT. Even halving this to 500ms only saves 500ms. The biggest bottleneck is retrieval (1.8s), not inference.",
+        "c": "Streaming improves perceived latency after the first token appears, but TTFT measures the time until the first token arrives. Streaming does not reduce TTFT — it improves the experience after TTFT.",
+        "e": "More compute units help with concurrent query throughput, not individual query latency. The p50 TTFT of 3.2 seconds is per-query latency, which is determined by retrieval logic and index performance, not total capacity."
+      },
+      "parseStrategy": {
+        "keyPhrase": "MOST effectively reduce TTFT",
+        "eliminationHints": [
+          "Smaller model saves only 500ms (inference is 1s of 3.2s) — not enough alone",
+          "Streaming improves experience after TTFT, doesn't reduce TTFT itself",
+          "More compute units = throughput, not individual query latency",
+          "Optimize retrieval (1.8s) and embedding (400ms) for biggest impact"
+        ],
+        "decisionFramework": "Optimize the biggest bottleneck first. Retrieval = 1.8s = 56% of TTFT → optimize retrieval. Embedding = 400ms = 13% → cache embeddings. Together they address 69% of TTFT."
+      },
+      "services": [
+        "Amazon OpenSearch Serverless",
+        "Amazon Bedrock"
+      ],
+      "examTip": "Always optimize the biggest bottleneck first. If the question gives a latency breakdown, target the largest component. Streaming improves perceived latency after TTFT, not TTFT itself.",
+      "strategicBreakdown": {
+        "whatIsBeingAsked": "Which two optimizations reduce time-to-first-token from 3.2s to under 1.5s, given that retrieval takes 1.8s and embedding takes 400ms?",
+        "testedConcepts": [
+          "Time-to-first-token optimization",
+          "Vector search performance",
+          "HNSW indexes",
+          "Embedding caching",
+          "Streaming vs TTFT"
+        ],
+        "servicesInPlay": [
+          {
+            "service": "Amazon OpenSearch Serverless",
+            "role": "Vector search optimization with HNSW indexes and reduced k value",
+            "isCorrectAnswer": true
+          },
+          {
+            "service": "Amazon Bedrock / Embedding Cache",
+            "role": "Cache query embeddings to eliminate redundant computation",
+            "isCorrectAnswer": true
+          }
+        ],
+        "approachStrategy": "Use the latency breakdown: retrieval (1.8s) + embedding (400ms) + inference (1s) = 3.2s. Target the largest components. Retrieval optimization saves ~1.3s. Embedding caching saves ~400ms. Together: 3.2 - 1.3 - 0.4 = 1.5s. Meets the target.",
+        "commonMistakes": [
+          "Thinking streaming reduces TTFT (it doesn't — it improves experience after the first token)",
+          "Targeting inference time when retrieval is the bigger bottleneck",
+          "Confusing throughput (concurrent queries) with latency (individual query time)"
+        ],
+        "timeManagementTip": "Read the latency breakdown carefully. The largest component (retrieval = 1.8s) is the primary optimization target. Then check which other component can be cached or eliminated."
+      }
+    },
+    {
+      "id": "d4-cq03",
+      "domain": 4,
+      "task": "4.3",
+      "skills": [
+        "4.3.1"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A company's GenAI application has been in production for 3 months. The operations team notices that user satisfaction scores have been gradually declining, but there are no error spikes, latency increases, or throughput changes in their CloudWatch dashboards. The team suspects the model's response quality has degraded over time.",
+      "question": "Which monitoring approach will MOST effectively detect response quality degradation in production?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Enable Amazon Bedrock model invocation logging and manually review a random sample of prompts and responses weekly"
+        },
+        {
+          "id": "b",
+          "text": "Implement an automated evaluation pipeline that runs a golden dataset of test queries against the model daily and tracks quality metrics (accuracy, relevance, completeness) over time in CloudWatch custom metrics"
+        },
+        {
+          "id": "c",
+          "text": "Set up CloudWatch alarms on Bedrock throttling metrics to detect when the model is under heavy load"
+        },
+        {
+          "id": "d",
+          "text": "Monitor the model's token usage per request — if token counts increase, response quality is likely degrading"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "A golden dataset evaluation pipeline provides consistent, objective quality measurement over time. By running the same test queries daily and tracking quality scores, the team can detect gradual degradation trends that manual review or infrastructure metrics would miss. Custom CloudWatch metrics enable dashboards, alarms, and trend analysis for quality — treating quality as a first-class operational metric.",
+      "incorrectExplanations": {
+        "a": "Manual review is subjective, inconsistent, and doesn't scale. Weekly sampling may miss gradual degradation trends. Without consistent evaluation criteria and baseline comparisons, manual review cannot reliably detect slow quality drift.",
+        "c": "Throttling metrics indicate capacity issues, not response quality. The scenario explicitly states there are no latency increases or throughput changes. Throttling is not the issue.",
+        "d": "Token usage per request does not correlate with response quality. A response can use many tokens and be high quality, or few tokens and be poor quality. Token count is a cost metric, not a quality metric."
+      },
+      "parseStrategy": {
+        "keyPhrase": "MOST effectively detect response quality degradation",
+        "eliminationHints": [
+          "Manual review = subjective, doesn't scale, misses gradual trends",
+          "Throttling metrics = capacity, not quality",
+          "Token usage = cost, not quality",
+          "Golden dataset + automated evaluation = objective, consistent, trend-capable"
+        ],
+        "decisionFramework": "Quality degradation over time requires consistent, automated measurement with a fixed benchmark (golden dataset). Infrastructure metrics (latency, throttling, tokens) don't measure quality."
+      },
+      "services": [
+        "Amazon CloudWatch",
+        "Amazon Bedrock"
+      ],
+      "examTip": "Golden datasets are the standard for detecting quality regression in GenAI. Run the same test queries over time and track scores. Infrastructure metrics don't measure response quality.",
+      "strategicBreakdown": {
+        "whatIsBeingAsked": "How to detect gradual response quality degradation when infrastructure metrics show no issues.",
+        "testedConcepts": [
+          "Golden dataset evaluation",
+          "Quality monitoring",
+          "Custom CloudWatch metrics",
+          "Quality vs infrastructure metrics",
+          "Regression detection"
+        ],
+        "servicesInPlay": [
+          {
+            "service": "Amazon CloudWatch (Custom Metrics)",
+            "role": "Track quality scores over time with dashboards and alarms",
+            "isCorrectAnswer": true
+          },
+          {
+            "service": "Amazon Bedrock",
+            "role": "Model inference — quality may degrade due to model updates or data drift",
+            "isCorrectAnswer": false
+          }
+        ],
+        "approachStrategy": "The scenario says infrastructure metrics are fine but quality is declining. This eliminates all infrastructure-focused options (C, D). Between manual review (A) and automated evaluation (B), automated is more consistent and detects gradual trends.",
+        "commonMistakes": [
+          "Assuming infrastructure metrics (latency, throughput) reflect response quality",
+          "Thinking manual review can detect gradual quality trends",
+          "Confusing token usage metrics with quality metrics"
+        ],
+        "timeManagementTip": "No error spikes + quality declining = need quality-specific metrics. Golden dataset evaluation is the standard answer. 15 seconds."
+      }
     }
   ]
 }

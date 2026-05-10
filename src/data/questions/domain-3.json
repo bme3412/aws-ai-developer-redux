@@ -3401,6 +3401,361 @@
         "Amazon Bedrock Guardrails"
       ],
       "examTip": "Contextual grounding validates that citations actually support the claims made."
+    },
+    {
+      "id": "d3-cq01",
+      "domain": 3,
+      "task": "3.1",
+      "skills": [
+        "3.1.1"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A financial services company has deployed a GenAI chatbot using Amazon Bedrock with guardrails. The guardrail is configured with content filters at MEDIUM strength for all categories. Users report that the chatbot refuses to discuss legitimate investment risk scenarios, blocking responses about market crashes, portfolio losses, and recession impacts because the content filter classifies financial risk discussion as harmful content.",
+      "question": "Which adjustment will allow legitimate financial risk discussions while maintaining safety controls?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Remove all content filters from the guardrail to prevent false positives"
+        },
+        {
+          "id": "b",
+          "text": "Change the content filter strength from MEDIUM to LOW for the relevant categories, which raises the confidence threshold required to block content"
+        },
+        {
+          "id": "c",
+          "text": "Disable the guardrail entirely and rely on the model's built-in safety training"
+        },
+        {
+          "id": "d",
+          "text": "Add a post-processing Lambda function that overrides guardrail blocks for financial terminology"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Changing content filter strength from MEDIUM to LOW raises the confidence threshold from approximately 0.5 to approximately 0.8. This means only clearly harmful content is blocked, while legitimate financial risk discussions (which score lower on harm classifiers) are allowed through. Safety controls remain active for genuinely harmful content.",
+      "incorrectExplanations": {
+        "a": "Removing all content filters eliminates safety controls entirely, which is unacceptable for a financial services application. The goal is to tune sensitivity, not remove protection.",
+        "c": "Disabling the guardrail removes all safety layers including PII protection, denied topics, and content filtering. Model built-in safety is insufficient for enterprise compliance requirements.",
+        "d": "A Lambda function that overrides guardrail blocks based on keyword matching creates a security bypass. Malicious users could craft prompts containing financial terminology to circumvent safety controls."
+      },
+      "parseStrategy": {
+        "keyPhrase": "allow legitimate discussions while maintaining safety",
+        "eliminationHints": [
+          "Removing filters = no safety (eliminates A)",
+          "Disabling guardrail = no compliance controls (eliminates C)",
+          "Lambda override = security bypass vulnerability (eliminates D)",
+          "Adjusting filter strength = tuning sensitivity while keeping controls"
+        ],
+        "decisionFramework": "When guardrails are too aggressive, lower the filter strength (MEDIUM → LOW) rather than removing them. LOW still catches clearly harmful content but reduces false positives."
+      },
+      "services": [
+        "Amazon Bedrock Guardrails"
+      ],
+      "examTip": "Guardrail content filter strengths: HIGH catches subtle content (more false positives), MEDIUM is balanced, LOW catches only clearly harmful content (fewer false positives). Adjust strength, don't remove filters.",
+      "strategicBreakdown": {
+        "whatIsBeingAsked": "How to reduce guardrail false positives without removing safety controls.",
+        "testedConcepts": [
+          "Guardrail content filter strengths",
+          "Confidence thresholds",
+          "False positive tuning",
+          "Defense-in-depth"
+        ],
+        "servicesInPlay": [
+          {
+            "service": "Amazon Bedrock Guardrails",
+            "role": "Content filtering with configurable strength levels",
+            "isCorrectAnswer": true
+          }
+        ],
+        "approachStrategy": "The problem is false positives (legitimate content being blocked). The solution is reducing sensitivity (MEDIUM → LOW), not removing controls (A, C) or bypassing them (D).",
+        "commonMistakes": [
+          "Thinking LOW strength means no filtering (it still blocks clearly harmful content)",
+          "Removing guardrails instead of tuning them",
+          "Creating workarounds that bypass security controls"
+        ],
+        "timeManagementTip": "False positives → reduce sensitivity. MEDIUM → LOW. Eliminate any option that removes controls entirely. 20 seconds."
+      }
+    },
+    {
+      "id": "d3-cq02",
+      "domain": 3,
+      "task": "3.2",
+      "skills": [
+        "3.2.1"
+      ],
+      "type": "multiple-response",
+      "difficulty": "hard",
+      "scenario": "A healthcare company is building a patient inquiry system using Amazon Bedrock. The system must process patient messages that may contain PII such as Social Security numbers, medical record numbers, and dates of birth. The company must ensure that PII is never sent to the foundation model and that the model's responses do not contain any patient PII. The solution must comply with HIPAA requirements.",
+      "question": "Which combination of controls ensures PII is protected throughout the entire request-response pipeline? (Select TWO.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Enable Bedrock model invocation logging and store all prompts and responses in an S3 bucket for HIPAA audit trails"
+        },
+        {
+          "id": "b",
+          "text": "Configure Amazon Bedrock Guardrails with PII filters set to ANONYMIZE on both input and output, replacing detected PII with placeholder tokens"
+        },
+        {
+          "id": "c",
+          "text": "Use Amazon Comprehend to detect and redact PII from user messages before they are sent to Bedrock, storing original messages in an encrypted DynamoDB table with restricted access"
+        },
+        {
+          "id": "d",
+          "text": "Instruct the foundation model via system prompt to never include PII in its responses"
+        },
+        {
+          "id": "e",
+          "text": "Deploy the application in a VPC with no internet access to prevent data exfiltration"
+        }
+      ],
+      "correctAnswers": [
+        "b",
+        "c"
+      ],
+      "explanation": "Guardrails PII filters with ANONYMIZE on both input and output provide a safety net that catches PII before it reaches the model (input filter) and before it reaches the user (output filter). Amazon Comprehend provides an additional pre-processing layer with more granular PII detection and redaction, while storing originals securely for potential re-identification. Together, these two controls create defense-in-depth: Comprehend catches PII before Bedrock, and Guardrails catch anything Comprehend misses.",
+      "incorrectExplanations": {
+        "a": "Enabling invocation logging with PII-containing prompts would create a new compliance risk — the logs themselves would contain PII. This contradicts the requirement to never send PII to the model (which logging records).",
+        "d": "System prompt instructions are not a reliable PII protection mechanism. Foundation models do not guarantee compliance with prompt instructions and can hallucinate or reproduce PII from context. PII protection must be enforced by deterministic systems, not model behavior.",
+        "e": "VPC isolation prevents internet access but does not address PII within the application pipeline. Bedrock is accessed via VPC endpoints, so the data still flows to the model. VPC isolation is a network control, not a data classification control."
+      },
+      "parseStrategy": {
+        "keyPhrase": "PII is protected throughout the entire request-response pipeline",
+        "eliminationHints": [
+          "Invocation logging with PII = creates new compliance risk (eliminates A)",
+          "System prompt instructions = not reliable for PII control (eliminates D)",
+          "VPC isolation = network control, not PII control (eliminates E)",
+          "Guardrails PII ANONYMIZE = input + output PII filtering",
+          "Comprehend + encrypted storage = pre-processing PII redaction"
+        ],
+        "decisionFramework": "PII protection requires deterministic controls (Comprehend, Guardrails), not model-behavior-dependent controls (system prompts). Defense-in-depth means multiple layers: pre-processing (Comprehend) + runtime (Guardrails)."
+      },
+      "services": [
+        "Amazon Bedrock Guardrails",
+        "Amazon Comprehend",
+        "Amazon DynamoDB"
+      ],
+      "examTip": "Never rely on prompt instructions for PII protection — models are not deterministic. Use Bedrock Guardrails (ANONYMIZE) and Comprehend for defense-in-depth PII control.",
+      "strategicBreakdown": {
+        "whatIsBeingAsked": "Which two controls create a defense-in-depth PII protection pipeline for a HIPAA-compliant Bedrock application?",
+        "testedConcepts": [
+          "Bedrock Guardrails PII filters",
+          "Amazon Comprehend PII detection",
+          "Defense-in-depth",
+          "HIPAA compliance",
+          "Deterministic vs model-dependent controls"
+        ],
+        "servicesInPlay": [
+          {
+            "service": "Amazon Bedrock Guardrails",
+            "role": "Runtime PII anonymization on input and output",
+            "isCorrectAnswer": true
+          },
+          {
+            "service": "Amazon Comprehend",
+            "role": "Pre-processing PII detection and redaction",
+            "isCorrectAnswer": true
+          },
+          {
+            "service": "Amazon DynamoDB",
+            "role": "Encrypted storage for original messages (supports re-identification)",
+            "isCorrectAnswer": false
+          },
+          {
+            "service": "Bedrock Model Invocation Logging",
+            "role": "Distractor — logging PII creates new compliance risk",
+            "isCorrectAnswer": false
+          }
+        ],
+        "approachStrategy": "Identify controls that deterministically prevent PII from reaching the model. Eliminate model-dependent controls (D) and controls that create new risks (A). Then select the two that provide defense-in-depth: pre-processing (Comprehend) and runtime (Guardrails).",
+        "commonMistakes": [
+          "Trusting system prompts for PII protection (models are not reliable for this)",
+          "Enabling invocation logging without considering that logs will contain PII",
+          "Thinking VPC isolation solves data classification problems"
+        ],
+        "timeManagementTip": "Eliminate D immediately (prompt-based PII control is never correct). Eliminate A (logging PII = new risk). Eliminate E (network ≠ data control). B and C remain."
+      }
+    },
+    {
+      "id": "d3-cq03",
+      "domain": 3,
+      "task": "3.3",
+      "skills": [
+        "3.3.1"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A regulated insurance company has deployed multiple GenAI applications using Amazon Bedrock. Auditors require the company to demonstrate which foundation models are being used, what data sources are being accessed, and who is invoking the models. The company needs a comprehensive audit trail that captures model usage across all applications without requiring changes to application code.",
+      "question": "Which AWS service provides the MOST comprehensive audit trail for Bedrock model usage without application code changes?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Amazon CloudWatch Logs with custom metrics published by each application"
+        },
+        {
+          "id": "b",
+          "text": "AWS CloudTrail configured to log all Bedrock API calls, capturing the invoking principal, model ID, and request metadata"
+        },
+        {
+          "id": "c",
+          "text": "Amazon Bedrock model invocation logging with prompts and responses stored in S3"
+        },
+        {
+          "id": "d",
+          "text": "AWS X-Ray tracing enabled on each application's Lambda functions"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "AWS CloudTrail automatically logs all AWS API calls, including Bedrock InvokeModel calls, without any application code changes. Each log entry captures the invoking IAM principal (who), the model ID (which model), the timestamp, source IP, and request parameters. This provides the audit trail auditors need — who invoked which model and when — across all applications using the same AWS account.",
+      "incorrectExplanations": {
+        "a": "CloudWatch Logs with custom metrics requires each application to publish metrics, which means application code changes. The question explicitly requires no code changes.",
+        "c": "Bedrock model invocation logging captures prompts and responses, which is useful for debugging but may create compliance risks by storing sensitive data. It also requires explicit enablement per model, not automatic across all applications. CloudTrail captures the audit metadata (who, what, when) more appropriately for auditors.",
+        "d": "X-Ray provides performance tracing (latency, error rates) but does not capture the audit information auditors need (which model, invoking principal). It also requires instrumentation in application code."
+      },
+      "parseStrategy": {
+        "keyPhrase": "MOST comprehensive audit trail without application code changes",
+        "eliminationHints": [
+          "CloudWatch custom metrics = requires code changes (violates requirement)",
+          "X-Ray = performance tracing, not audit trail + requires instrumentation",
+          "Invocation logging = captures prompts (may be sensitive) + requires per-model enablement",
+          "CloudTrail = automatic API logging for all Bedrock calls with no code changes"
+        ],
+        "decisionFramework": "For audit trails of AWS API usage: CloudTrail. It is automatic, captures who/what/when, and requires no application changes."
+      },
+      "services": [
+        "AWS CloudTrail",
+        "Amazon Bedrock"
+      ],
+      "examTip": "CloudTrail = WHO did WHAT and WHEN (audit trail). CloudWatch = metrics and logs (monitoring). X-Ray = latency and tracing (performance). Invocation logs = prompts and responses (debugging). Know which service answers which question.",
+      "strategicBreakdown": {
+        "whatIsBeingAsked": "Which service gives auditors a complete record of Bedrock model usage (who, which model, when) without modifying applications?",
+        "testedConcepts": [
+          "AWS CloudTrail",
+          "Audit logging",
+          "Bedrock governance",
+          "CloudTrail vs CloudWatch vs X-Ray",
+          "Compliance monitoring"
+        ],
+        "servicesInPlay": [
+          {
+            "service": "AWS CloudTrail",
+            "role": "Automatic API call logging with principal, model ID, and metadata",
+            "isCorrectAnswer": true
+          },
+          {
+            "service": "Amazon CloudWatch",
+            "role": "Distractor — requires custom metrics (code changes)",
+            "isCorrectAnswer": false
+          },
+          {
+            "service": "Amazon Bedrock Invocation Logging",
+            "role": "Distractor — captures prompts/responses, not audit metadata",
+            "isCorrectAnswer": false
+          },
+          {
+            "service": "AWS X-Ray",
+            "role": "Distractor — performance tracing, not audit trail",
+            "isCorrectAnswer": false
+          }
+        ],
+        "approachStrategy": "The auditors need who, what model, and when. CloudTrail automatically captures all of this for every AWS API call. No code changes needed. Done.",
+        "commonMistakes": [
+          "Confusing CloudTrail (API audit) with CloudWatch (monitoring and metrics)",
+          "Choosing invocation logging when auditors want usage metadata, not prompt content",
+          "Thinking X-Ray provides governance/audit capabilities"
+        ],
+        "timeManagementTip": "Audit trail + no code changes = CloudTrail. This is a 10-second question."
+      }
+    },
+    {
+      "id": "d3-cq04",
+      "domain": 3,
+      "task": "3.4",
+      "skills": [
+        "3.4.1"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A news organization is using Amazon Bedrock to generate article summaries from source articles. Editors have found that the model sometimes adds claims not present in the original article — for example, attributing quotes to people who were not quoted in the source. The organization needs an automated mechanism to detect when the model generates claims that are not grounded in the provided source material.",
+      "question": "Which Amazon Bedrock feature is specifically designed to detect ungrounded claims in model outputs?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Bedrock Guardrails content filters configured with HIGH strength for the MISCONDUCT category"
+        },
+        {
+          "id": "b",
+          "text": "Bedrock Guardrails contextual grounding checks that compare model output claims against the provided reference context"
+        },
+        {
+          "id": "c",
+          "text": "Bedrock model evaluation jobs that measure ROUGE scores between generated summaries and source articles"
+        },
+        {
+          "id": "d",
+          "text": "Bedrock Guardrails denied topic filters configured with topic definitions for fabricated content"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Contextual grounding checks in Bedrock Guardrails are specifically designed to detect hallucination — claims in the model's output that are not supported by the provided reference context. The feature compares each claim in the output against the source material and calculates a grounding score. If the score falls below the configured threshold, the response is blocked as potentially hallucinated. This directly addresses the scenario of generated summaries containing claims not present in the source article.",
+      "incorrectExplanations": {
+        "a": "Content filters detect harmful content categories (hate, violence, sexual, misconduct). They are not designed to detect factual claims that are ungrounded in source material. A fabricated quote is not necessarily harmful content — it's inaccurate content.",
+        "c": "Model evaluation jobs with ROUGE scores measure word overlap between generated and reference text. They run as batch evaluations, not as real-time checks on individual responses. ROUGE also doesn't detect semantic hallucination — a summary could have high ROUGE overlap while still containing a fabricated claim.",
+        "d": "Denied topic filters block entire responses about specified topics. They cannot detect whether individual claims within a response are grounded in source material. They operate at the topic level, not the claim level."
+      },
+      "parseStrategy": {
+        "keyPhrase": "detect ungrounded claims",
+        "eliminationHints": [
+          "Content filters = harmful content, not factual accuracy (eliminates A)",
+          "ROUGE scores = word overlap, not semantic grounding + batch only (eliminates C)",
+          "Denied topics = topic-level blocking, not claim-level verification (eliminates D)",
+          "Contextual grounding = claim-level comparison against reference context"
+        ],
+        "decisionFramework": "Ungrounded claims = hallucination. Bedrock's contextual grounding check is the purpose-built feature for detecting hallucination by comparing output claims against provided context."
+      },
+      "services": [
+        "Amazon Bedrock Guardrails"
+      ],
+      "examTip": "Contextual grounding checks are for hallucination detection. Content filters are for harmful content. Denied topics are for off-limits subjects. Know which guardrail component handles which problem.",
+      "strategicBreakdown": {
+        "whatIsBeingAsked": "Which Bedrock feature detects when generated summaries contain information not present in the source material (hallucination)?",
+        "testedConcepts": [
+          "Contextual grounding checks",
+          "Hallucination detection",
+          "Guardrail components",
+          "Content filters vs grounding checks vs denied topics"
+        ],
+        "servicesInPlay": [
+          {
+            "service": "Amazon Bedrock Guardrails (Contextual Grounding)",
+            "role": "Compares output claims against reference context to detect ungrounded content",
+            "isCorrectAnswer": true
+          },
+          {
+            "service": "Amazon Bedrock Guardrails (Content Filters)",
+            "role": "Distractor — detects harmful content, not factual accuracy",
+            "isCorrectAnswer": false
+          },
+          {
+            "service": "Amazon Bedrock Model Evaluation",
+            "role": "Distractor — batch evaluation with ROUGE, not real-time grounding check",
+            "isCorrectAnswer": false
+          }
+        ],
+        "approachStrategy": "Ungrounded claims = hallucination. Map to the guardrail component designed for hallucination detection: contextual grounding checks. Eliminate components designed for different purposes.",
+        "commonMistakes": [
+          "Confusing content filters (harmful content) with grounding checks (factual accuracy)",
+          "Thinking ROUGE scores detect hallucination (they measure word overlap, not semantic grounding)",
+          "Not knowing that guardrails have separate components for different types of safety"
+        ],
+        "timeManagementTip": "Hallucination detection = contextual grounding. Direct mapping: 10 seconds."
+      }
     }
   ]
 }
