@@ -11,11 +11,27 @@ import {
   CheckCircle,
   XCircle,
   BookOpen,
+  Shuffle,
+  Bookmark,
 } from 'lucide-react';
 import { Question } from '@/types/review';
 import { isAnswerCorrect } from '@/lib/content';
 import { markQuestionCompleted, getQuestionCompletion } from '@/lib/progress';
 import QuestionCard from '@/components/review/QuestionCard';
+
+const BOOKMARKS_KEY = 'aws-genai-bookmarked-questions';
+
+function getBookmarks(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const stored = localStorage.getItem(BOOKMARKS_KEY);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch { return new Set(); }
+}
+
+function saveBookmarks(bookmarks: Set<string>) {
+  localStorage.setItem(BOOKMARKS_KEY, JSON.stringify([...bookmarks]));
+}
 
 export default function OfficialPracticePage() {
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -26,6 +42,9 @@ export default function OfficialPracticePage() {
   const [isComplete, setIsComplete] = useState(false);
   const [mode, setMode] = useState<'browse' | 'quiz'>('browse');
   const [previouslyCompleted, setPreviouslyCompleted] = useState<Record<string, { correct: boolean }>>({});
+  const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
+  const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false);
+  const [isShuffled, setIsShuffled] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -41,6 +60,9 @@ export default function OfficialPracticePage() {
           if (c) completed[q.id] = { correct: c.correct };
         });
         setPreviouslyCompleted(completed);
+
+        // Load bookmarks
+        setBookmarks(getBookmarks());
       } catch (e) {
         console.error('Failed to load official practice questions:', e);
       } finally {
@@ -49,6 +71,40 @@ export default function OfficialPracticePage() {
     }
     load();
   }, []);
+
+  const toggleBookmark = (questionId: string) => {
+    setBookmarks(prev => {
+      const next = new Set(prev);
+      if (next.has(questionId)) next.delete(questionId);
+      else next.add(questionId);
+      saveBookmarks(next);
+      return next;
+    });
+  };
+
+  const handleShuffle = () => {
+    const shuffled = [...questions];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    setQuestions(shuffled);
+    setCurrentIndex(0);
+    setAnswers({});
+    setShowResults({});
+    setIsShuffled(true);
+  };
+
+  const handleUnshuffle = () => {
+    const sorted = [...questions].sort((a, b) => {
+      const numA = parseInt(a.id.replace('op-', ''));
+      const numB = parseInt(b.id.replace('op-', ''));
+      return numA - numB;
+    });
+    setQuestions(sorted);
+    setCurrentIndex(0);
+    setIsShuffled(false);
+  };
 
   const currentQuestion = questions[currentIndex];
   const answeredCount = Object.keys(showResults).filter(k => showResults[k]).length;
@@ -181,7 +237,7 @@ export default function OfficialPracticePage() {
         </div>
 
         {/* Mode selection */}
-        <div className="grid md:grid-cols-2 gap-4 mb-8">
+        <div className="grid md:grid-cols-2 gap-4 mb-6">
           <button
             onClick={() => { setMode('browse'); setCurrentIndex(0); setAnswers({}); setShowResults({}); }}
             className="p-5 bg-white border-2 border-teal-200 hover:border-teal-400 rounded-xl text-left transition-colors"
@@ -198,34 +254,70 @@ export default function OfficialPracticePage() {
           </button>
         </div>
 
+        {/* Shuffle + Bookmarked filter */}
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={isShuffled ? handleUnshuffle : handleShuffle}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+              isShuffled
+                ? 'bg-teal-100 text-teal-700 hover:bg-teal-200'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <Shuffle className="w-4 h-4" />
+            {isShuffled ? 'Shuffled' : 'Shuffle'}
+          </button>
+          {bookmarks.size > 0 && (
+            <button
+              onClick={() => setShowBookmarkedOnly(!showBookmarkedOnly)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                showBookmarkedOnly
+                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <Bookmark className="w-4 h-4" />
+              Bookmarked ({bookmarks.size})
+            </button>
+          )}
+        </div>
+
         {/* Question grid */}
         <div className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">All Questions</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            {showBookmarkedOnly ? `Bookmarked Questions (${bookmarks.size})` : 'All Questions'}
+          </h2>
           <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
             {questions.map((q, idx) => {
+              if (showBookmarkedOnly && !bookmarks.has(q.id)) return null;
               const prev = previouslyCompleted[q.id];
+              const isBookmarked = bookmarks.has(q.id);
               return (
                 <button
                   key={q.id}
                   onClick={() => { setMode('browse'); setCurrentIndex(idx); }}
-                  className={`aspect-square rounded-lg text-sm font-medium transition-colors flex items-center justify-center ${
+                  className={`aspect-square rounded-lg text-sm font-medium transition-colors flex items-center justify-center relative ${
                     prev
                       ? prev.correct
                         ? 'bg-green-100 text-green-700 hover:bg-green-200'
                         : 'bg-red-100 text-red-700 hover:bg-red-200'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
-                  title={`Q${idx + 1}: Domain ${q.domain}, Task ${q.task} (${q.type})`}
+                  title={`Q${idx + 1}: Domain ${q.domain}, Task ${q.task} (${q.type})${isBookmarked ? ' [Bookmarked]' : ''}`}
                 >
                   {idx + 1}
+                  {isBookmarked && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-400 rounded-full" />
+                  )}
                 </button>
               );
             })}
           </div>
-          <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+          <div className="flex items-center gap-4 mt-3 text-xs text-gray-500 flex-wrap">
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100" /> Previously correct</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100" /> Previously incorrect</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100" /> Not attempted</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Bookmarked</span>
           </div>
         </div>
 
@@ -268,6 +360,17 @@ export default function OfficialPracticePage() {
               </span>
             )}
             <span>{answeredCount} answered this session</span>
+            <button
+              onClick={() => toggleBookmark(currentQuestion.id)}
+              className={`p-1 rounded transition-colors ${
+                bookmarks.has(currentQuestion.id)
+                  ? 'text-amber-500 hover:text-amber-600'
+                  : 'text-gray-300 hover:text-gray-500'
+              }`}
+              title={bookmarks.has(currentQuestion.id) ? 'Remove bookmark' : 'Bookmark this question'}
+            >
+              <Bookmark className={`w-5 h-5 ${bookmarks.has(currentQuestion.id) ? 'fill-current' : ''}`} />
+            </button>
           </div>
         </div>
         <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
