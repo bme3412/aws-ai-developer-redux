@@ -53,11 +53,11 @@
       "services": [
         {
           "name": "Amazon Bedrock Knowledge Bases",
-          "whatItDoes": "Managed RAG service: handles chunking, embedding, vector indexing, and retrieval from S3 data sources",
+          "whatItDoes": "Fully managed RAG pipeline — ingests documents from S3, chunks them, generates embeddings, stores vectors, and retrieves relevant context at query time",
           "whenToChoose": [
-            "RAG with minimal operational overhead",
-            "Managed vector store needed",
-            "S3 as document source"
+            "You want RAG without managing infrastructure (chunking, embedding, vector DB)",
+            "Data lives in S3 (PDFs, docs, HTML)",
+            "You need a managed vector store (OpenSearch Serverless) provisioned automatically"
           ],
           "examKeywords": [
             "RAG",
@@ -66,12 +66,12 @@
             "RetrieveAndGenerate"
           ],
           "whenNotToChoose": [
-            "Need full control over embedding pipeline",
-            "Non-S3 sources requiring custom ingestion"
+            "You need custom embedding models or chunking logic you control end-to-end",
+            "Data sources aren't in S3 (e.g., live APIs, databases requiring custom connectors)"
           ],
           "commonTraps": [
-            "KB does NOT auto-sync when S3 documents change -- you must trigger StartIngestionJob",
-            "Embedding model version changes cause silent retrieval degradation (vector drift)"
+            "S3 changes do NOT auto-sync. You must call StartIngestionJob (or schedule it) to re-embed updated documents.",
+            "Switching embedding model versions causes vector drift — old vectors become incompatible with new queries, silently degrading retrieval quality."
           ],
           "questionIds": [
             "op-09",

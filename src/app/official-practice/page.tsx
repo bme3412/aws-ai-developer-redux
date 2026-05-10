@@ -176,7 +176,7 @@ export default function OfficialPracticePage() {
             <h1 className="text-3xl font-bold text-gray-900">Official Practice Questions</h1>
           </div>
           <p className="text-gray-600">
-            {questions.length} exam-style questions from the AWS official practice set. Each includes a strategic breakdown to help you understand what&apos;s being tested and how to approach it.
+            100 exam-style questions for the AIP-C01 exam. Each includes a strategic breakdown to help you understand what&apos;s being tested and how to approach it.
           </p>
         </div>
 

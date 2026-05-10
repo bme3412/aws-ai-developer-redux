@@ -111,7 +111,7 @@ export default function ServiceGuidePage() {
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Service Decision Guide</h1>
           </div>
           <p className="text-gray-500 text-sm ml-12">
-            {guideData.categories.length} categories &middot; {totalServices} services &middot; derived from 60 practice questions
+            {guideData.categories.length} categories &middot; {totalServices} services &middot; derived from 100 practice questions
           </p>
         </div>
 
@@ -264,51 +264,54 @@ export default function ServiceGuidePage() {
                                 style={{ gridTemplateRows: isSvcExpanded ? '1fr' : '0fr' }}
                               >
                                 <div className="overflow-hidden">
-                                  <div className="px-3 pb-3 space-y-2.5 border-t border-gray-100 pt-2.5">
+                                  <div className="px-3 pb-3 space-y-3 border-t border-gray-100 pt-3">
 
                                     {/* Choose / Avoid — side by side */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       <div className="rounded-lg bg-green-50 p-2.5">
-                                        <div className="flex items-center gap-1 mb-1.5">
+                                        <div className="flex items-center gap-1.5 mb-2">
                                           <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                                          <span className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Use when</span>
+                                          <span className="text-[11px] font-bold text-green-700 uppercase tracking-wide">Use when</span>
                                         </div>
-                                        <ul className="space-y-1">
+                                        <ul className="space-y-1.5">
                                           {svc.whenToChoose.map((r, j) => (
-                                            <li key={j} className="text-xs text-green-800 leading-snug flex gap-1.5">
-                                              <span className="text-green-400 mt-0.5">-</span>
-                                              {r}
+                                            <li key={j} className="text-[13px] text-green-800 leading-snug flex gap-2 items-start">
+                                              <span className="text-green-500 font-bold leading-none mt-[3px]">&bull;</span>
+                                              <span>{r}</span>
                                             </li>
                                           ))}
                                         </ul>
                                       </div>
                                       <div className="rounded-lg bg-red-50 p-2.5">
-                                        <div className="flex items-center gap-1 mb-1.5">
+                                        <div className="flex items-center gap-1.5 mb-2">
                                           <XCircle className="w-3.5 h-3.5 text-red-400" />
-                                          <span className="text-[10px] font-bold text-red-600 uppercase tracking-wide">Not for</span>
+                                          <span className="text-[11px] font-bold text-red-600 uppercase tracking-wide">Not for</span>
                                         </div>
-                                        <ul className="space-y-1">
+                                        <ul className="space-y-1.5">
                                           {svc.whenNotToChoose.map((r, j) => (
-                                            <li key={j} className="text-xs text-red-700 leading-snug flex gap-1.5">
-                                              <span className="text-red-300 mt-0.5">-</span>
-                                              {r}
+                                            <li key={j} className="text-[13px] text-red-700 leading-snug flex gap-2 items-start">
+                                              <span className="text-red-400 font-bold leading-none mt-[3px]">&bull;</span>
+                                              <span>{r}</span>
                                             </li>
                                           ))}
                                         </ul>
                                       </div>
                                     </div>
 
-                                    {/* Common Trap */}
+                                    {/* Common Traps — each trap gets its own card */}
                                     {svc.commonTraps.length > 0 && (
-                                      <div className="rounded-lg bg-amber-50 p-2.5 flex gap-2">
-                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
-                                        <div className="space-y-1">
-                                          {svc.commonTraps.map((trap, j) => (
-                                            <p key={j} className="text-xs text-amber-800 leading-snug">
-                                              <span className="font-semibold">Trap: </span>{trap}
-                                            </p>
-                                          ))}
-                                        </div>
+                                      <div className="space-y-2">
+                                        {svc.commonTraps.map((trap, j) => (
+                                          <div key={j} className="rounded-lg bg-amber-50 border border-amber-200 p-3 flex gap-2.5">
+                                            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                                            <div className="min-w-0">
+                                              <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wide">Exam Trap</span>
+                                              <p className="text-[13px] text-amber-900 leading-relaxed mt-0.5">
+                                                {trap}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        ))}
                                       </div>
                                     )}
 
