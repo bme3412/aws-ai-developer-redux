@@ -27,12 +27,28 @@ export interface Question {
 
   // Article reference for article-specific questions
   articleReference?: string;
+
+  // Comprehensive study guide / attack plan
+  strategicBreakdown?: StrategicBreakdown;
 }
 
 export interface QuestionParseStrategy {
   keyPhrase: string;              // What to look for in the question
   eliminationHints: string[];     // How to narrow down options
   decisionFramework: string;      // Mental model to apply
+}
+
+export interface StrategicBreakdown {
+  whatIsBeingAsked: string;        // Plain-language reframe of the question
+  testedConcepts: string[];        // Knowledge areas being tested
+  servicesInPlay: {
+    service: string;
+    role: string;                  // Why this service is relevant
+    isCorrectAnswer: boolean;      // Part of the correct answer?
+  }[];
+  approachStrategy: string;        // Step-by-step strategic thinking process
+  commonMistakes: string[];        // Traps / common errors to avoid
+  timeManagementTip?: string;      // How to handle time-wise
 }
 
 export interface QuestionOption {

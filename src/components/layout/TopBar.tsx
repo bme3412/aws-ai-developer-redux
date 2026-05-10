@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, ClipboardCheck, BarChart3 } from 'lucide-react';
+import { BookOpen, ClipboardCheck, BarChart3, Shield } from 'lucide-react';
 
 const navItems = [
   { href: '/learn', label: 'Learn', icon: BookOpen },
   { href: '/review', label: 'Review', icon: ClipboardCheck },
+  { href: '/official-practice', label: 'Official', icon: Shield },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
 ];
 

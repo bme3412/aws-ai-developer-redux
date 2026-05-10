@@ -146,7 +146,7 @@ function ReviewContent() {
   const handleAnswer = (selectedIds: string[]) => {
     if (!currentQuestion) return;
 
-    const correct = isAnswerCorrect(selectedIds, currentQuestion.correctAnswers);
+    const correct = isAnswerCorrect(selectedIds, currentQuestion.correctAnswers, currentQuestion.type === 'ordering');
     setAnswers(prev => ({ ...prev, [currentQuestion.id]: selectedIds }));
     setShowResults(prev => ({ ...prev, [currentQuestion.id]: true }));
 
@@ -162,7 +162,7 @@ function ReviewContent() {
     } else {
       // Calculate and save score
       const correct = questions.filter(q =>
-        isAnswerCorrect(answers[q.id] || [], q.correctAnswers)
+        isAnswerCorrect(answers[q.id] || [], q.correctAnswers, q.type === 'ordering')
       ).length;
       addReviewScore(domainFilter ? `domain-${domainFilter}` : 'general', correct, questions.length);
       if (sessionId) completePracticeSession(sessionId);
@@ -213,7 +213,7 @@ function ReviewContent() {
   }
 
   if (isComplete) {
-    const correctCount = questions.filter(q => isAnswerCorrect(answers[q.id] || [], q.correctAnswers)).length;
+    const correctCount = questions.filter(q => isAnswerCorrect(answers[q.id] || [], q.correctAnswers, q.type === 'ordering')).length;
     const percentage = Math.round((correctCount / questions.length) * 100);
 
     return (
@@ -259,7 +259,7 @@ function ReviewContent() {
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Review Your Answers</h3>
           <div className="space-y-2">
             {questions.map((q, idx) => {
-              const correct = isAnswerCorrect(answers[q.id] || [], q.correctAnswers);
+              const correct = isAnswerCorrect(answers[q.id] || [], q.correctAnswers, q.type === 'ordering');
               return (
                 <button
                   key={q.id}

@@ -146,7 +146,7 @@ export default function PracticeExamPage() {
     const question = examState.questions[examState.currentIndex];
     if (!question) return;
 
-    const correct = isAnswerCorrect(selectedIds, question.correctAnswers);
+    const correct = isAnswerCorrect(selectedIds, question.correctAnswers, question.type === 'ordering');
     markQuestionCompleted(question.id, correct);
     if (examState.sessionId) {
       recordQuestionAttempt(examState.sessionId, question.id, correct);
@@ -182,7 +182,7 @@ export default function PracticeExamPage() {
     // Calculate and save scores
     const { questions, answers, sessionId: sid } = examState;
     const correct = questions.filter(q =>
-      isAnswerCorrect(answers[q.id] || [], q.correctAnswers)
+      isAnswerCorrect(answers[q.id] || [], q.correctAnswers, q.type === 'ordering')
     ).length;
 
     addReviewScore('practice-exam', correct, questions.length);
@@ -201,7 +201,7 @@ export default function PracticeExamPage() {
     const domainResults = breakdown.map(({ domainId, count, weight }) => {
       const domainQuestions = questions.filter(q => q.domain === domainId);
       const correct = domainQuestions.filter(q =>
-        isAnswerCorrect(answers[q.id] || [], q.correctAnswers)
+        isAnswerCorrect(answers[q.id] || [], q.correctAnswers, q.type === 'ordering')
       ).length;
 
       return {
@@ -214,7 +214,7 @@ export default function PracticeExamPage() {
     });
 
     const totalCorrect = questions.filter(q =>
-      isAnswerCorrect(answers[q.id] || [], q.correctAnswers)
+      isAnswerCorrect(answers[q.id] || [], q.correctAnswers, q.type === 'ordering')
     ).length;
 
     return {
@@ -556,7 +556,7 @@ export default function PracticeExamPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Review Questions</h2>
           <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
             {examState.questions.map((q, idx) => {
-              const correct = isAnswerCorrect(examState.answers[q.id] || [], q.correctAnswers);
+              const correct = isAnswerCorrect(examState.answers[q.id] || [], q.correctAnswers, q.type === 'ordering');
               return (
                 <button
                   key={q.id}
