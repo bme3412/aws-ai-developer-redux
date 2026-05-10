@@ -1,0 +1,788 @@
+{
+  "categories": [
+    {
+      "id": "rag-pipeline",
+      "title": "RAG Pipeline Decisions",
+      "subtitle": "Knowledge Bases, vector stores, chunking, embedding, and retrieval quality",
+      "icon": "Database",
+      "color": "blue",
+      "questionIds": ["op-04", "op-09", "op-10", "op-13", "op-23", "op-28", "op-36", "op-37", "op-54", "op-55"],
+      "decisionPatterns": [
+        {
+          "signal": "\"document structure matters\" or \"clauses span multiple paragraphs\"",
+          "answer": "Hierarchical chunking (preserves parent-child section structure)",
+          "notAnswer": "Fixed-size chunking (breaks document structure, splits clauses)"
+        },
+        {
+          "signal": "\"retrieval returns wrong category/product\" or \"similar terminology across products\"",
+          "answer": "Metadata filtering (restrict search by product/category before semantic search)",
+          "notAnswer": "Increasing top-K (more results = more noise, not better precision)"
+        },
+        {
+          "signal": "\"specialized domain terminology\" + \"best semantic search accuracy\"",
+          "answer": "Embedding model trained on similar domain data",
+          "notAnswer": "Highest-dimension embedding model (dimensions != accuracy)"
+        },
+        {
+          "signal": "\"outdated information\" + \"knowledge base not current\"",
+          "answer": "StartIngestionJob API or automated sync schedule",
+          "notAnswer": "Deleting and recreating the KB (destructive, unnecessary)"
+        },
+        {
+          "signal": "\"model adds claims beyond source context\" (RAG hallucination)",
+          "answer": "Guardrails contextual grounding checks (verifies against reference)",
+          "notAnswer": "Content filters (those block harmful content, not ungrounded claims)"
+        },
+        {
+          "signal": "\"reduce hallucinations\" in safety-critical application",
+          "answer": "RAG (data grounding) + Guardrails grounding checks (verification) together",
+          "notAnswer": "Higher temperature (increases hallucinations) or \"don't hallucinate\" prompt (ineffective)"
+        }
+      ],
+      "services": [
+        {
+          "name": "Amazon Bedrock Knowledge Bases",
+          "whatItDoes": "Managed RAG service: handles chunking, embedding, vector indexing, and retrieval from S3 data sources",
+          "whenToChoose": ["RAG with minimal operational overhead", "Managed vector store needed", "S3 as document source"],
+          "examKeywords": ["RAG", "knowledge retrieval", "document grounding", "RetrieveAndGenerate"],
+          "whenNotToChoose": ["Need full control over embedding pipeline", "Non-S3 sources requiring custom ingestion"],
+          "commonTraps": ["KB does NOT auto-sync when S3 documents change -- you must trigger StartIngestionJob", "Embedding model version changes cause silent retrieval degradation (vector drift)"],
+          "questionIds": ["op-09", "op-10", "op-23", "op-28", "op-36", "op-37", "op-55"]
+        },
+        {
+          "name": "Hierarchical Chunking",
+          "whatItDoes": "Chunking strategy that preserves document structure (sections, subsections, clauses) instead of splitting at arbitrary character boundaries",
+          "whenToChoose": ["Legal documents", "Technical manuals", "Any structured document where context spans paragraphs"],
+          "examKeywords": ["document structure", "clauses span multiple paragraphs", "reference other sections"],
+          "whenNotToChoose": ["Simple, flat text like FAQs or product descriptions"],
+          "commonTraps": ["Thinking bigger fixed chunks solve structure problems -- they add noise without preserving relationships", "Confusing chunk size tuning with chunking strategy changes"],
+          "questionIds": ["op-23"]
+        },
+        {
+          "name": "Metadata Filtering",
+          "whatItDoes": "Pre-filters vector search by metadata tags (product, category, department) before semantic similarity is evaluated",
+          "whenToChoose": ["Multi-product/multi-category knowledge bases", "Cross-category contamination in results"],
+          "examKeywords": ["retrieval returns wrong product", "improve retrieval precision", "restrict results"],
+          "whenNotToChoose": ["Single-category knowledge base", "When the problem is relevance ranking, not wrong-category results"],
+          "commonTraps": ["Increasing top-K to solve precision problems -- that increases recall, not precision"],
+          "questionIds": ["op-55"]
+        },
+        {
+          "name": "Contextual Grounding Checks (Guardrails)",
+          "whatItDoes": "Verifies that each claim in the model's response is supported by the provided reference context; flags or blocks ungrounded claims",
+          "whenToChoose": ["RAG applications where faithfulness to source material is critical", "Safety-critical content generation"],
+          "examKeywords": ["not supported by provided context", "adds information from training data", "RAG faithfulness"],
+          "whenNotToChoose": ["Non-RAG applications without reference context"],
+          "commonTraps": ["Confusing contextual grounding (factual faithfulness) with content filters (safety/harmful content)"],
+          "questionIds": ["op-37", "op-54"]
+        }
+      ]
+    },
+    {
+      "id": "guardrails",
+      "title": "Guardrails: Which Filter Type?",
+      "subtitle": "Content filters vs denied topics vs word filters vs PII filters vs grounding checks",
+      "icon": "Shield",
+      "color": "red",
+      "questionIds": ["op-07", "op-08", "op-14", "op-26", "op-43", "op-54"],
+      "decisionPatterns": [
+        {
+          "signal": "\"block harmful content\" (violence, hate speech, sexual content)",
+          "answer": "Content filters with severity thresholds",
+          "notAnswer": "Denied topics (those are for business-specific topics, not harmful content categories)"
+        },
+        {
+          "signal": "\"never discuss specific business topic\" regardless of phrasing",
+          "answer": "Denied topic policies (semantic understanding of prohibited topics)",
+          "notAnswer": "Word filters (too brittle, easily bypassed by rephrasing)"
+        },
+        {
+          "signal": "\"block specific words or phrases\" (profanity, competitor names)",
+          "answer": "Word filters (exact keyword matching)",
+          "notAnswer": "Content filters (too broad) or denied topics (too semantic for simple word blocking)"
+        },
+        {
+          "signal": "\"PII must never appear in outputs\" + \"without code changes\"",
+          "answer": "Sensitive information filters (auto-detect SSNs, emails, phone numbers)",
+          "notAnswer": "Lambda regex filtering (requires code changes per PII type)"
+        },
+        {
+          "signal": "\"which guardrail rule fired\" or \"trace guardrail decisions\"",
+          "answer": "Enable Guardrails trace/logging and check GuardrailPolicyType CloudWatch dimension",
+          "notAnswer": "GuardrailContentSource dimension (that shows input vs output, not which policy)"
+        },
+        {
+          "signal": "\"enforce guardrails across all API calls\" organization-wide",
+          "answer": "IAM condition key bedrock:GuardrailIdentifier on InvokeModel actions",
+          "notAnswer": "Adding guardrail to each prompt manually (not enforceable)"
+        }
+      ],
+      "services": [
+        {
+          "name": "Content Filters",
+          "whatItDoes": "Blocks harmful content categories (hate, violence, sexual, misconduct) with configurable severity thresholds for both input and output",
+          "whenToChoose": ["Need to block harmful content categories", "Regulatory safety requirements"],
+          "examKeywords": ["inappropriate language", "harmful content", "content moderation"],
+          "whenNotToChoose": ["Blocking business-specific topics (use denied topics)", "Blocking specific words (use word filters)"],
+          "commonTraps": ["Using content filters to block business topics like 'investment advice' -- that's a denied topic, not a harmful content category"],
+          "questionIds": ["op-07", "op-43"]
+        },
+        {
+          "name": "Denied Topics",
+          "whatItDoes": "Uses natural language descriptions to define prohibited business topics; understands semantic intent regardless of phrasing",
+          "whenToChoose": ["Legal/compliance topic restrictions", "Business-specific prohibitions (investment advice, medical diagnosis)", "Topics that users might rephrase creatively"],
+          "examKeywords": ["never provide advice on", "regardless of phrasing", "redirect to licensed advisor"],
+          "whenNotToChoose": ["General harmful content (use content filters)", "Exact word blocking (use word filters)"],
+          "commonTraps": ["Using word filters for topic blocking -- users will rephrase to bypass keywords"],
+          "questionIds": ["op-43"]
+        },
+        {
+          "name": "Sensitive Information Filters (PII)",
+          "whatItDoes": "Auto-detects and blocks/masks PII types (SSNs, emails, phone numbers, addresses) in inputs and outputs without custom code",
+          "whenToChoose": ["Healthcare/financial data compliance", "GDPR/HIPAA PII requirements", "Need configurable PII types without code changes"],
+          "examKeywords": ["PII", "personally identifiable information", "without code changes", "compliance"],
+          "whenNotToChoose": ["Custom data formats not covered by built-in PII types"],
+          "commonTraps": ["Building custom Lambda regex for PII when Guardrails provides this natively", "Relying on system prompt to prevent PII -- models can be jailbroken"],
+          "questionIds": ["op-26"]
+        },
+        {
+          "name": "Contextual Grounding Checks",
+          "whatItDoes": "Evaluates whether each claim in the response is supported by provided reference context; flags or blocks ungrounded claims",
+          "whenToChoose": ["RAG applications where source faithfulness is critical", "Model adds information beyond retrieved documents"],
+          "examKeywords": ["not supported by context", "adds claims beyond source", "RAG faithfulness", "grounding"],
+          "whenNotToChoose": ["Non-RAG applications without reference material"],
+          "commonTraps": ["Confusing grounding checks (factual verification) with content filters (safety moderation)"],
+          "questionIds": ["op-37", "op-54"]
+        }
+      ]
+    },
+    {
+      "id": "model-customization",
+      "title": "Model Customization Escalation Path",
+      "subtitle": "Right-sizing, prompting, fine-tuning, continued pre-training, and distillation",
+      "icon": "Layers",
+      "color": "purple",
+      "questionIds": ["op-22", "op-25", "op-34", "op-41", "op-44", "op-56"],
+      "decisionPatterns": [
+        {
+          "signal": "\"simple, repetitive queries\" + \"low latency\" + \"limited budget\"",
+          "answer": "Smallest adequate model (e.g., Haiku, Nova Micro) -- right-size to task",
+          "notAnswer": "Largest available FM (overkill, adds latency and cost for simple tasks)"
+        },
+        {
+          "signal": "\"struggles with edge cases\" + \"no fine-tuning\"",
+          "answer": "Few-shot prompting (provide examples of the edge cases with correct labels)",
+          "notAnswer": "Vague instructions like 'be more careful' (no concrete guidance for the model)"
+        },
+        {
+          "signal": "\"skipping intermediate reasoning steps\" on multi-step problems",
+          "answer": "Chain-of-thought prompting ('show your reasoning step by step')",
+          "notAnswer": "Increasing max tokens (more space doesn't change reasoning strategy)"
+        },
+        {
+          "signal": "\"prompt engineering at 70%\" + \"need 95%+ accuracy\" for structured extraction",
+          "answer": "Fine-tuning on labeled dataset of domain-specific examples",
+          "notAnswer": "More few-shot examples (diminishing returns, context window waste)"
+        },
+        {
+          "signal": "\"large unlabeled domain corpus\" + \"model lacks domain vocabulary\"",
+          "answer": "Continued pre-training (learns terminology from unlabeled text)",
+          "notAnswer": "Fine-tuning (requires labeled input-output pairs, which aren't available)"
+        },
+        {
+          "signal": "\"high volume\" + \"narrow, predictable task\" + \"cost-sensitive\"",
+          "answer": "Model distillation (create smaller task-optimized model from teacher)",
+          "notAnswer": "Using the most capable FM at scale (unnecessarily expensive)"
+        }
+      ],
+      "services": [
+        {
+          "name": "Few-Shot Prompting",
+          "whatItDoes": "Provides examples of desired input-output behavior in the prompt so the model learns the pattern in-context",
+          "whenToChoose": ["Model fails on specific edge cases", "No fine-tuning budget/data", "Quick iteration needed"],
+          "examKeywords": ["struggles with edge cases", "improve accuracy without fine-tuning", "misclassifying"],
+          "whenNotToChoose": ["Accuracy plateau (>10 examples with no improvement)", "Context window too small for examples + input"],
+          "commonTraps": ["Adding more examples indefinitely -- diminishing returns after ~5-10 examples"],
+          "questionIds": ["op-25"]
+        },
+        {
+          "name": "Chain-of-Thought Prompting",
+          "whatItDoes": "Instructs the model to break reasoning into explicit intermediate steps before giving a final answer",
+          "whenToChoose": ["Multi-step math/logic problems", "Complex reasoning tasks", "Model skips steps"],
+          "examKeywords": ["skipping intermediate steps", "multi-step reasoning", "show work"],
+          "whenNotToChoose": ["Simple classification or extraction tasks", "Latency-sensitive applications (CoT increases output tokens)"],
+          "commonTraps": ["Thinking temperature 0 fixes reasoning -- it makes errors consistent, not correct"],
+          "questionIds": ["op-44"]
+        },
+        {
+          "name": "Fine-Tuning (Amazon Bedrock)",
+          "whatItDoes": "Trains the FM on labeled input-output pairs to learn task-specific behavior and output formats",
+          "whenToChoose": ["Prompt engineering plateaus below required accuracy", "Need consistent structured output (JSON schema)", "Have labeled training data"],
+          "examKeywords": ["70% accuracy, need 95%+", "structured extraction", "consistent output format"],
+          "whenNotToChoose": ["No labeled data available (use continued pre-training)", "Quick iteration needed (use prompting first)"],
+          "commonTraps": ["Jumping to fine-tuning before trying prompt engineering (always try prompts first)", "Confusing with continued pre-training (fine-tuning = labeled, CPT = unlabeled)"],
+          "questionIds": ["op-34"]
+        },
+        {
+          "name": "Continued Pre-Training (Amazon Bedrock)",
+          "whatItDoes": "Exposes the FM to a large unlabeled domain corpus so it learns domain vocabulary, terminology, and concepts",
+          "whenToChoose": ["Model lacks domain knowledge", "Large unlabeled domain corpus available", "Specialized terminology the base model doesn't understand"],
+          "examKeywords": ["unlabeled", "domain-specific terminology", "domain vocabulary", "proprietary corpus"],
+          "whenNotToChoose": ["Have labeled data and need task-specific behavior (use fine-tuning)", "Problem is task format, not domain knowledge"],
+          "commonTraps": ["Confusing CPT (unlabeled, learns knowledge) with fine-tuning (labeled, learns behavior)"],
+          "questionIds": ["op-41"]
+        },
+        {
+          "name": "Model Distillation (Amazon Bedrock)",
+          "whatItDoes": "Creates a smaller, cheaper model optimized for a specific task by learning from a larger teacher model",
+          "whenToChoose": ["High-volume, narrow-scope tasks", "Predictable output patterns", "Cost is primary concern at scale"],
+          "examKeywords": ["2 million requests/month", "templated replies", "narrow task", "cost-sensitive"],
+          "whenNotToChoose": ["Complex reasoning tasks requiring full model capability", "Low volume where cost savings are minimal"],
+          "commonTraps": ["Using full-size FMs for narrow tasks at high volume -- massive cost waste"],
+          "questionIds": ["op-56"]
+        }
+      ]
+    },
+    {
+      "id": "throughput-cost",
+      "title": "Throughput & Cost Optimization",
+      "subtitle": "Cross-Region inference, Provisioned Throughput, batch inference, prompt caching",
+      "icon": "DollarSign",
+      "color": "emerald",
+      "questionIds": ["op-03", "op-48", "op-49", "op-56", "op-60"],
+      "decisionPatterns": [
+        {
+          "signal": "\"throttling errors during peak\" + \"same FM\" + \"no operational overhead\"",
+          "answer": "Cross-Region inference (auto-distributes to Regions with capacity)",
+          "notAnswer": "Provisioned Throughput (fixed cost, not cost-effective for peaks)"
+        },
+        {
+          "signal": "\"500,000 requests\" + \"not time-sensitive\" + \"minimize cost\"",
+          "answer": "Batch inference (discounted async processing)",
+          "notAnswer": "Parallel Lambda functions (same on-demand price, no discount)"
+        },
+        {
+          "signal": "\"same 5,000-token system prompt every call\" + \"reduce cost and latency\"",
+          "answer": "Prompt caching (caches static prompt components across requests)",
+          "notAnswer": "Reducing the prompt (loses content) or smaller model (same per-token processing)"
+        },
+        {
+          "signal": "\"GDPR\" + \"data must stay in EU\" + \"data residency\"",
+          "answer": "Deploy in EU Region only (e.g., eu-west-1)",
+          "notAnswer": "Cross-Region inference (may route to non-EU Regions, violating GDPR)"
+        }
+      ],
+      "services": [
+        {
+          "name": "Cross-Region Inference",
+          "whatItDoes": "Automatically routes Bedrock requests to Regions with available capacity, increasing throughput during peak periods",
+          "whenToChoose": ["Peak-period throttling", "Need same FM across Regions", "No operational overhead for routing"],
+          "examKeywords": ["ThrottlingException", "Too many requests", "peak periods", "same foundation model"],
+          "whenNotToChoose": ["Data residency requirements (GDPR, sovereignty)", "Need to control which Region processes data"],
+          "commonTraps": ["Enabling cross-Region inference when GDPR requires data to stay in a specific Region"],
+          "questionIds": ["op-03", "op-49"]
+        },
+        {
+          "name": "Batch Inference",
+          "whatItDoes": "Processes large volumes of FM requests asynchronously at a discounted per-request rate",
+          "whenToChoose": ["Large batch jobs (thousands+ of requests)", "Results not needed in real-time", "Cost is primary concern"],
+          "examKeywords": ["not time-sensitive", "large volume", "minimize cost", "24-hour turnaround"],
+          "whenNotToChoose": ["Real-time responses needed", "Interactive applications"],
+          "commonTraps": ["Thinking parallel Lambda reduces per-request cost -- it only reduces wall-clock time, same price"],
+          "questionIds": ["op-48"]
+        },
+        {
+          "name": "Prompt Caching",
+          "whatItDoes": "Caches static prompt components (system prompts, few-shot examples) across requests so cached tokens aren't reprocessed",
+          "whenToChoose": ["Large system prompts repeated on every call", "High request volume with shared context", "Reduce both latency and cost"],
+          "examKeywords": ["same system prompt every call", "repeated large context", "reduce latency and cost"],
+          "whenNotToChoose": ["Every prompt is unique with no shared components", "System prompt changes frequently"],
+          "commonTraps": ["Using RAG for static system prompt content (RAG is for dynamic retrieval, not static context)"],
+          "questionIds": ["op-60"]
+        },
+        {
+          "name": "Provisioned Throughput",
+          "whatItDoes": "Reserves dedicated model capacity for consistent throughput guarantees regardless of demand",
+          "whenToChoose": ["Consistent high-volume workloads", "Need guaranteed SLAs", "Predictable usage patterns"],
+          "examKeywords": ["guaranteed capacity", "consistent throughput", "SLA requirements"],
+          "whenNotToChoose": ["Spiky traffic (pay for capacity you don't use)", "Cost-effective peak handling (use cross-Region inference)"],
+          "commonTraps": ["Thinking Provisioned Throughput reduces per-request latency -- it guarantees capacity, not speed"],
+          "questionIds": ["op-03", "op-48"]
+        }
+      ]
+    },
+    {
+      "id": "agent-patterns",
+      "title": "Agent Architecture Patterns",
+      "subtitle": "Agents, Action Groups, ROC, multi-agent, Flows, Converse API tool use",
+      "icon": "Bot",
+      "color": "violet",
+      "questionIds": ["op-01", "op-24", "op-33", "op-42", "op-46", "op-52", "op-58"],
+      "decisionPatterns": [
+        {
+          "signal": "\"autonomous multi-step\" + \"call external API\"",
+          "answer": "Bedrock Agents with Action Groups (OpenAPI schema + Lambda execution)",
+          "notAnswer": "Embedding API URLs in system prompt (FMs can't make HTTP calls)"
+        },
+        {
+          "signal": "\"pause for user confirmation before executing action\"",
+          "answer": "Return of Control (ROC) -- pauses agent, returns proposed action to app",
+          "notAnswer": "Agent-generated confirmation message (no actual execution pause guarantee)"
+        },
+        {
+          "signal": "\"maintain conversation context across turns\"",
+          "answer": "Pass consistent sessionId across InvokeAgent calls (built-in)",
+          "notAnswer": "Custom DynamoDB session store (unnecessary when sessionId exists)"
+        },
+        {
+          "signal": "\"supervisor routes to specialized agents\"",
+          "answer": "Multi-agent collaboration (supervisor + specialized sub-agents)",
+          "notAnswer": "Single agent with many Action Groups (no separation of concerns)"
+        },
+        {
+          "signal": "\"visual, low-code workflow\" for multi-step pipeline",
+          "answer": "Bedrock Flows (drag-and-drop workflow builder)",
+          "notAnswer": "Bedrock Agents (autonomous conversational, not predefined pipelines)"
+        },
+        {
+          "signal": "\"tool use\" + \"Converse API\"",
+          "answer": "Converse API tool use (define tools, handle requests, return results)",
+          "notAnswer": "Bedrock Agents (separate managed service, different from Converse API)"
+        }
+      ],
+      "services": [
+        {
+          "name": "Amazon Bedrock Agents",
+          "whatItDoes": "Autonomous AI agents that use ReAct-style orchestration to decide which actions to take based on user intent, executing via Action Groups",
+          "whenToChoose": ["Autonomous multi-step task execution", "Need to call external APIs based on user intent", "Conversational AI with tool usage"],
+          "examKeywords": ["autonomous", "multi-step", "action groups", "OpenAPI schema", "orchestration"],
+          "whenNotToChoose": ["Predefined linear pipelines (use Flows)", "Simple tool use in Converse API conversations"],
+          "commonTraps": ["Thinking FMs can make HTTP calls directly -- they generate text, not network requests; Action Groups + Lambda bridge this gap"],
+          "questionIds": ["op-24", "op-33", "op-42", "op-52"]
+        },
+        {
+          "name": "Return of Control (ROC)",
+          "whatItDoes": "Pauses agent execution after determining the action but before executing it; returns proposed action to the calling application for user confirmation",
+          "whenToChoose": ["Human-in-the-loop confirmation workflows", "Sensitive actions (payments, transfers, deletions)", "Regulatory approval requirements"],
+          "examKeywords": ["pause execution", "user confirmation", "human approval", "before executing"],
+          "whenNotToChoose": ["Fully autonomous workflows with no confirmation needed"],
+          "commonTraps": ["Confusing guardrails (content filtering) with ROC (workflow control) -- different purposes entirely"],
+          "questionIds": ["op-33"]
+        },
+        {
+          "name": "Multi-Agent Collaboration",
+          "whatItDoes": "A supervisor agent dynamically routes to and coordinates multiple specialized sub-agents, each with independent instructions, tools, and knowledge bases",
+          "whenToChoose": ["Complex systems needing specialized agents", "Different tasks require different tools/knowledge", "Dynamic routing based on user intent"],
+          "examKeywords": ["supervisor agent", "specialized agents", "route requests", "combine results"],
+          "whenNotToChoose": ["Simple single-domain tasks", "When one agent with Action Groups suffices"],
+          "commonTraps": ["Using Step Functions for dynamic AI routing -- it's for predefined workflows, not intent-based routing"],
+          "questionIds": ["op-52"]
+        },
+        {
+          "name": "Amazon Bedrock Flows",
+          "whatItDoes": "Visual, low-code workflow builder for multi-step GenAI pipelines connecting prompts, models, knowledge bases, Lambda functions, and conditional logic",
+          "whenToChoose": ["Predefined processing pipelines", "Visual/low-code requirement", "Multi-step document processing"],
+          "examKeywords": ["visual", "low-code", "workflow", "pipeline", "multi-step processing"],
+          "whenNotToChoose": ["Autonomous conversational AI (use Agents)", "Simple single-model invocations"],
+          "commonTraps": ["Confusing Flows (predefined workflows) with Agents (autonomous AI) -- different paradigms"],
+          "questionIds": ["op-58"]
+        },
+        {
+          "name": "Converse API Tool Use",
+          "whatItDoes": "Function calling protocol in the Converse API: define tool specifications, model requests tool invocation, your code executes tools, results returned in next turn",
+          "whenToChoose": ["Developer-managed tool integration", "Building with Converse API directly", "Need fine-grained control over tool execution"],
+          "examKeywords": ["tool use", "function calling", "Converse API", "external data during conversation"],
+          "whenNotToChoose": ["Want fully managed agentic orchestration (use Bedrock Agents)"],
+          "commonTraps": ["Confusing Converse API tool use (developer-managed) with Bedrock Agents (managed agentic service)"],
+          "questionIds": ["op-46"]
+        },
+        {
+          "name": "AgentCore SDK + Starter Toolkit",
+          "whatItDoes": "SDK provides @app.entrypoint decorator for auto HTTP server setup; toolkit automates packaging, containerization, and deployment to AgentCore Runtime",
+          "whenToChoose": ["Deploying Python agents to Bedrock AgentCore", "Minimal operational overhead for agent hosting", "Need both JSON and streaming response support"],
+          "examKeywords": ["MINIMAL operational overhead", "AgentCore Runtime", "automated deployment"],
+          "whenNotToChoose": ["Custom container requirements", "Non-Python agent code"],
+          "commonTraps": ["Building FastAPI servers manually when AgentCore SDK auto-creates HTTP endpoints"],
+          "questionIds": ["op-01"]
+        }
+      ]
+    },
+    {
+      "id": "observability",
+      "title": "Observability & Logging: Which Tool When?",
+      "subtitle": "CloudWatch, invocation logging, CloudTrail, X-Ray, and model evaluation",
+      "icon": "Eye",
+      "color": "amber",
+      "questionIds": ["op-07", "op-11", "op-15", "op-39", "op-45", "op-53"],
+      "decisionPatterns": [
+        {
+          "signal": "\"monitor errors, latency, token usage\" + \"automated alerts\"",
+          "answer": "CloudWatch metrics + CloudWatch Alarms + SNS notifications",
+          "notAnswer": "Custom Lambda log parsing (unnecessary, native metrics exist)"
+        },
+        {
+          "signal": "\"full prompt and response content\" for audit/compliance",
+          "answer": "Bedrock model invocation logging to S3 (complete payloads, long-term retention)",
+          "notAnswer": "CloudTrail (API call metadata only -- who/when, NOT what was in the request)"
+        },
+        {
+          "signal": "\"who called which API and when\" for security audit",
+          "answer": "AWS CloudTrail (API call metadata, IP addresses, IAM principals)",
+          "notAnswer": "Invocation logging (captures content, not caller identity)"
+        },
+        {
+          "signal": "\"gradual quality decline\" + \"no code changes\" (performance drift)",
+          "answer": "Continuous evaluation against updated test datasets (detect concept drift)",
+          "notAnswer": "CloudWatch metrics (those show infrastructure health, not content quality)"
+        },
+        {
+          "signal": "\"which guardrail policy fired\" on a specific request",
+          "answer": "GuardrailPolicyType CloudWatch dimension + Guardrails trace logging",
+          "notAnswer": "GuardrailContentSource dimension (shows input vs output, not which policy)"
+        }
+      ],
+      "services": [
+        {
+          "name": "Amazon CloudWatch (Bedrock Metrics)",
+          "whatItDoes": "Bedrock publishes native metrics: InvocationCount, InvocationErrors, InvocationLatency, InputTokenCount, OutputTokenCount. Use Alarms for automated alerting via SNS.",
+          "whenToChoose": ["Operational monitoring (errors, latency, throughput)", "Automated alerting on thresholds", "Dashboard visualization"],
+          "examKeywords": ["monitor errors", "latency spikes", "token consumption", "automated alerts"],
+          "whenNotToChoose": ["Need full prompt/response content (use invocation logging)", "Need caller identity (use CloudTrail)"],
+          "commonTraps": ["Building custom Lambda log parsing when CloudWatch already has native Bedrock metrics"],
+          "questionIds": ["op-53"]
+        },
+        {
+          "name": "Bedrock Model Invocation Logging",
+          "whatItDoes": "Captures complete request and response payloads (prompts and model outputs) and delivers to S3 or CloudWatch Logs",
+          "whenToChoose": ["Compliance/audit requiring full content retention", "Debugging model responses", "Long-term prompt/response archival"],
+          "examKeywords": ["full prompts and responses", "audit", "7-year retention", "compliance logging"],
+          "whenNotToChoose": ["Only need operational metrics (use CloudWatch)", "Only need API call metadata (use CloudTrail)"],
+          "commonTraps": ["Thinking CloudTrail captures prompt/response content -- it only logs API metadata (who, when, what API)"],
+          "questionIds": ["op-45"]
+        },
+        {
+          "name": "AWS CloudTrail",
+          "whatItDoes": "Logs API call metadata: which IAM principal called which API, when, from which IP address. Does NOT capture request/response content.",
+          "whenToChoose": ["Security auditing (who accessed what)", "API call investigation", "Compliance tracking of access patterns"],
+          "examKeywords": ["who called", "API audit", "security investigation", "access tracking"],
+          "whenNotToChoose": ["Need actual prompt/response content (use invocation logging)", "Need performance metrics (use CloudWatch)"],
+          "commonTraps": ["Choosing CloudTrail for 'full request logging' -- it only has metadata, not content"],
+          "questionIds": ["op-45", "op-53"]
+        },
+        {
+          "name": "Continuous Model Evaluation",
+          "whatItDoes": "Periodically runs the model against updated test datasets that reflect current patterns, comparing results to baseline metrics to detect drift",
+          "whenToChoose": ["Quality declining over time", "No code changes but satisfaction dropping", "Need to detect concept/data drift"],
+          "examKeywords": ["gradual decline", "performance drift", "no changes made", "becoming less relevant"],
+          "whenNotToChoose": ["Infrastructure issues (use CloudWatch)", "One-time pre-deployment evaluation"],
+          "commonTraps": ["Looking at CloudWatch metrics (latency, errors) for content quality problems -- those are infrastructure metrics, not relevance"],
+          "questionIds": ["op-39"]
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security & Access Control",
+      "subtitle": "IAM conditions, SCPs, PrivateLink, KMS, authentication federation",
+      "icon": "Lock",
+      "color": "rose",
+      "questionIds": ["op-05", "op-14", "op-29", "op-32", "op-38", "op-49", "op-57"],
+      "decisionPatterns": [
+        {
+          "signal": "\"restrict which models specific teams can use\" in same account",
+          "answer": "IAM policies with bedrock:ModelId condition keys per role",
+          "notAnswer": "Bedrock model access management (account-level, can't differentiate teams)"
+        },
+        {
+          "signal": "\"organization-wide restriction\" that \"cannot be overridden by account admins\"",
+          "answer": "AWS Organizations Service Control Policies (SCPs)",
+          "notAnswer": "Per-account IAM policies (can be removed by account administrators)"
+        },
+        {
+          "signal": "\"API calls must not traverse public internet\" from private subnet",
+          "answer": "VPC interface endpoint (AWS PrivateLink) for Bedrock",
+          "notAnswer": "NAT Gateway (routes through internet gateway = public internet)"
+        },
+        {
+          "signal": "\"customer-managed encryption keys\" + \"rotate\" + \"audit\"",
+          "answer": "AWS KMS customer-managed key (CMK) for encryption at rest",
+          "notAnswer": "AWS-managed encryption (no customer control over key)"
+        },
+        {
+          "signal": "\"data must stay in EU\" or \"GDPR data residency\"",
+          "answer": "Deploy and invoke Bedrock in EU Region only",
+          "notAnswer": "Cross-Region inference (may route data outside EU)"
+        }
+      ],
+      "services": [
+        {
+          "name": "IAM Condition Keys (bedrock:ModelId)",
+          "whatItDoes": "Restricts which Bedrock models specific IAM roles can invoke, enabling per-team model access control within the same account",
+          "whenToChoose": ["Per-team model restrictions in same account", "Least privilege for model access", "Cost control by restricting expensive models"],
+          "examKeywords": ["granular access control", "restrict models per team", "same account"],
+          "whenNotToChoose": ["Account-wide model enabling/disabling (use Bedrock model access management)"],
+          "commonTraps": ["Confusing Bedrock model access management (account-level toggle) with IAM-based access control (role-level conditions)"],
+          "questionIds": ["op-29"]
+        },
+        {
+          "name": "Service Control Policies (SCPs)",
+          "whatItDoes": "Organization-level permission guardrails that apply to all principals in all member accounts and cannot be overridden at the account level",
+          "whenToChoose": ["Organization-wide restrictions", "Must be non-overridable by account admins", "Compliance mandates across all accounts"],
+          "examKeywords": ["all accounts", "cannot be overridden", "organization-wide", "preventive control"],
+          "whenNotToChoose": ["Single-account restrictions (use IAM policies)", "Detective controls (use AWS Config)"],
+          "commonTraps": ["Confusing Config rules (detective, after-the-fact) with SCPs (preventive, blocks before it happens)"],
+          "questionIds": ["op-57"]
+        },
+        {
+          "name": "VPC Interface Endpoints (PrivateLink)",
+          "whatItDoes": "Creates a private connection from VPC to AWS services without traversing the public internet",
+          "whenToChoose": ["Security policy requires no public internet traffic", "Private subnet → AWS service connectivity", "Regulatory network isolation requirements"],
+          "examKeywords": ["must not traverse public internet", "private connectivity", "network isolation"],
+          "whenNotToChoose": ["Public-facing applications where internet routing is acceptable"],
+          "commonTraps": ["Thinking NAT Gateway keeps traffic private -- it routes through the internet gateway (public internet)", "Confusing VPN (on-premises connectivity) with PrivateLink (AWS service connectivity)"],
+          "questionIds": ["op-38"]
+        },
+        {
+          "name": "AWS KMS Customer-Managed Keys",
+          "whatItDoes": "Customer-controlled encryption keys with key rotation scheduling, usage auditing via CloudTrail, and cross-account key sharing",
+          "whenToChoose": ["Customer must control encryption keys", "Key rotation and audit requirements", "Government/regulated workloads"],
+          "examKeywords": ["customer-managed", "key rotation", "audit key usage", "encryption at rest"],
+          "whenNotToChoose": ["Default encryption is acceptable (use AWS-managed keys for simplicity)"],
+          "commonTraps": ["Confusing AWS-managed keys (convenient, no customer control) with customer-managed keys (full control, rotation, audit)"],
+          "questionIds": ["op-32"]
+        }
+      ]
+    },
+    {
+      "id": "deployment-inference",
+      "title": "Deployment & Inference Patterns",
+      "subtitle": "Streaming, Converse API, inference profiles, SageMaker inference types",
+      "icon": "Rocket",
+      "color": "indigo",
+      "questionIds": ["op-01", "op-06", "op-12", "op-16", "op-31", "op-35", "op-40"],
+      "decisionPatterns": [
+        {
+          "signal": "\"text appear progressively\" or \"users see long wait\"",
+          "answer": "InvokeModelWithResponseStream (streaming API)",
+          "notAnswer": "Smaller model (faster overall but still synchronous without streaming)"
+        },
+        {
+          "signal": "\"multiple models\" + \"separate integration code\" + \"reduce maintenance\"",
+          "answer": "Converse API (unified request/response format across all models)",
+          "notAnswer": "Custom abstraction layer (rebuilds what Converse API provides natively)"
+        },
+        {
+          "signal": "\"gradually shift traffic\" + \"rollback\" between model versions",
+          "answer": "Bedrock inference profiles with traffic splitting",
+          "notAnswer": "ALB with weighted targets (unnecessary external infra for Bedrock models)"
+        },
+        {
+          "signal": "\"image + text input\" requiring both visual understanding and text output",
+          "answer": "Multimodal FM on Bedrock (single API call handles both)",
+          "notAnswer": "Rekognition + text FM chain (two services, loses visual nuance)"
+        },
+        {
+          "signal": "\"payload > 25MB\" or \"long-running inference\" on SageMaker",
+          "answer": "SageMaker Async Inference (handles large payloads, auto-scales to zero)",
+          "notAnswer": "SageMaker Real-Time (25MB limit, no scale-to-zero)"
+        }
+      ],
+      "services": [
+        {
+          "name": "InvokeModelWithResponseStream",
+          "whatItDoes": "Returns response tokens as a stream of chunks, allowing progressive text display as the model generates",
+          "whenToChoose": ["Chat/conversational UIs", "Users complain about long wait times", "Progressive text display needed"],
+          "examKeywords": ["progressively", "streaming", "word by word", "real-time display"],
+          "whenNotToChoose": ["Batch processing where full response is needed at once", "Backend-only processing with no UI"],
+          "commonTraps": ["Thinking a faster model solves progressive display -- without streaming, users still wait for the full response"],
+          "questionIds": ["op-31"]
+        },
+        {
+          "name": "Amazon Bedrock Converse API",
+          "whatItDoes": "Model-agnostic interface with unified request/response format across all Bedrock models; supports tool use, streaming, and multi-turn conversations",
+          "whenToChoose": ["Multi-model applications", "Reduce model-specific integration code", "Tool use / function calling", "Unified API across Claude, Nova, Llama"],
+          "examKeywords": ["unified API", "multi-model", "reduce maintenance", "model-agnostic"],
+          "whenNotToChoose": ["Single-model applications where InvokeModel is simpler"],
+          "commonTraps": ["Building custom model abstraction layers when Converse API already provides this", "Not knowing Converse API exists and using model-specific InvokeModel for each model"],
+          "questionIds": ["op-40", "op-46"]
+        },
+        {
+          "name": "Bedrock Inference Profiles",
+          "whatItDoes": "Configurable traffic routing between models with adjustable weights for canary/blue-green deployment patterns",
+          "whenToChoose": ["Gradual model migration", "A/B testing model versions", "Need instant rollback capability"],
+          "examKeywords": ["gradually shift traffic", "monitor quality", "quick rollback", "canary deployment"],
+          "whenNotToChoose": ["All-at-once deployment is acceptable"],
+          "commonTraps": ["Building ALB-based traffic splitting for Bedrock models when inference profiles provide this natively"],
+          "questionIds": ["op-35"]
+        },
+        {
+          "name": "Multimodal FMs",
+          "whatItDoes": "Foundation models that natively accept both images and text, processing them together in a single API call",
+          "whenToChoose": ["Image + text understanding needed", "Visual content analysis with text generation", "Minimize integration effort"],
+          "examKeywords": ["product image", "image and text", "visual content", "multimodal"],
+          "whenNotToChoose": ["Text-only tasks", "Pure image classification without text generation"],
+          "commonTraps": ["Chaining Rekognition + text FM when a single multimodal call does both with less effort and better quality"],
+          "questionIds": ["op-21"]
+        }
+      ]
+    },
+    {
+      "id": "evaluation-metrics",
+      "title": "Evaluation Metrics: Which Metric When?",
+      "subtitle": "ROUGE, BLEU, MMLU, human evaluation, and bias detection",
+      "icon": "BarChart2",
+      "color": "teal",
+      "questionIds": ["op-19", "op-27", "op-30", "op-39", "op-51", "op-59"],
+      "decisionPatterns": [
+        {
+          "signal": "\"summarization quality\" vs reference summaries",
+          "answer": "ROUGE (recall-oriented n-gram overlap with reference)",
+          "notAnswer": "BLEU (designed for translation, not summarization)"
+        },
+        {
+          "signal": "\"general reasoning\" + \"knowledge breadth\" comparison across models",
+          "answer": "MMLU, HellaSwag, ARC benchmarks",
+          "notAnswer": "BLEU/ROUGE (text similarity, not reasoning ability)"
+        },
+        {
+          "signal": "\"brand voice\" or \"creativity\" or \"emotional appeal\" -- stakeholders unsatisfied despite high automated scores",
+          "answer": "Human evaluation with domain experts rating on custom criteria",
+          "notAnswer": "Different automated metrics (no automated metric captures subjective quality)"
+        },
+        {
+          "signal": "\"bias in model outputs\" across demographic groups -- what to do FIRST?",
+          "answer": "Measure with SageMaker Clarify bias metrics (always measure before mitigate)",
+          "notAnswer": "Removing demographic data (mitigation step, not measurement step)"
+        },
+        {
+          "signal": "\"quality declining over time\" with no code changes",
+          "answer": "Continuous evaluation against updated test datasets (concept drift detection)",
+          "notAnswer": "CloudWatch metrics (infrastructure health, not content quality)"
+        }
+      ],
+      "services": [
+        {
+          "name": "ROUGE",
+          "whatItDoes": "Measures n-gram overlap, longest common subsequences, and word pairs between generated and reference text -- the standard metric for summarization",
+          "whenToChoose": ["Summarization evaluation", "Comparing generated summaries to reference"],
+          "examKeywords": ["summarization", "overlap with reference", "n-gram matching"],
+          "whenNotToChoose": ["Translation (use BLEU)", "Reasoning evaluation (use MMLU/ARC)", "Subjective quality (use human eval)"],
+          "commonTraps": ["Using ROUGE for translation tasks (that's BLEU)", "Expecting ROUGE to capture semantic quality (it measures surface overlap)"],
+          "questionIds": ["op-59"]
+        },
+        {
+          "name": "MMLU / HellaSwag / ARC",
+          "whatItDoes": "Standard FM benchmarks: MMLU tests knowledge across 57 subjects, HellaSwag tests common-sense reasoning, ARC tests science reasoning",
+          "whenToChoose": ["Comparing general reasoning across FMs", "Evaluating knowledge breadth", "Pre-deployment model selection"],
+          "examKeywords": ["general knowledge", "reasoning", "benchmark comparison", "model evaluation"],
+          "whenNotToChoose": ["Task-specific evaluation (use task-specific test sets)", "Text similarity (use ROUGE/BLEU)"],
+          "commonTraps": ["Confusing text similarity metrics (BLEU/ROUGE) with reasoning benchmarks (MMLU/ARC)"],
+          "questionIds": ["op-51"]
+        },
+        {
+          "name": "Human Evaluation (Bedrock Model Evaluation)",
+          "whatItDoes": "Domain experts rate model outputs on custom qualitative criteria (brand voice, creativity, tone, emotional appeal) using Bedrock's human evaluation workflow",
+          "whenToChoose": ["Automated metrics don't capture stakeholder concerns", "Subjective quality assessment needed", "Brand voice or creative quality"],
+          "examKeywords": ["brand voice", "emotional appeal", "creativity", "stakeholders unsatisfied", "automated metrics high but quality low"],
+          "whenNotToChoose": ["Objective, quantifiable metrics suffice", "Scale requires automated evaluation"],
+          "commonTraps": ["Trying to solve subjective quality problems with better automated metrics", "Optimizing model for metrics that don't align with business requirements"],
+          "questionIds": ["op-30"]
+        },
+        {
+          "name": "Amazon SageMaker Clarify",
+          "whatItDoes": "Detects and quantifies bias in model outputs across demographic groups using statistical fairness metrics",
+          "whenToChoose": ["Bias detected or suspected in outputs", "Regulatory fairness requirements", "Pre-deployment bias audit"],
+          "examKeywords": ["bias", "demographic groups", "fairness", "FIRST step for bias"],
+          "whenNotToChoose": ["Content quality evaluation (use ROUGE/human eval)", "Performance monitoring (use CloudWatch)"],
+          "commonTraps": ["Jumping to mitigation (removing data, switching models) before measuring the bias -- always measure FIRST"],
+          "questionIds": ["op-27"]
+        }
+      ]
+    },
+    {
+      "id": "responsible-ai",
+      "title": "Responsible AI Features",
+      "subtitle": "Watermarking, source lineage, bias detection, and AI transparency",
+      "icon": "HeartHandshake",
+      "color": "pink",
+      "questionIds": ["op-20", "op-27", "op-47"],
+      "decisionPatterns": [
+        {
+          "signal": "\"AI-generated content must be identifiable\" or \"verify if content is AI-produced\"",
+          "answer": "Bedrock watermarking (embedded, imperceptible, machine-verifiable markers)",
+          "notAnswer": "Text disclaimers (easily removed, not machine-verifiable)"
+        },
+        {
+          "signal": "\"trace outputs back to source documents\" for credibility",
+          "answer": "Output metadata tagging (source attribution) + AWS Glue Data Catalog (searchable source inventory)",
+          "notAnswer": "CloudTrail (tracks API calls, not content lineage)"
+        },
+        {
+          "signal": "\"bias in outputs\" -- what to do FIRST?",
+          "answer": "Measure with SageMaker Clarify (quantify before you fix)",
+          "notAnswer": "Switch to a 'less biased' model (no model is guaranteed unbiased)"
+        }
+      ],
+      "services": [
+        {
+          "name": "Bedrock Watermarking",
+          "whatItDoes": "Embeds imperceptible markers in AI-generated images that persist through modifications and can be detected by verification tools",
+          "whenToChoose": ["Content provenance requirements", "Trust and transparency initiatives", "Regulatory AI identification mandates"],
+          "examKeywords": ["identifiable as AI-generated", "verify AI origin", "content provenance", "watermark"],
+          "whenNotToChoose": ["Text-only content (watermarking currently for images)"],
+          "commonTraps": ["Thinking text disclaimers provide verifiable provenance -- they're easily removed and not machine-readable"],
+          "questionIds": ["op-47"]
+        },
+        {
+          "name": "Source Lineage (Metadata Tagging + Glue Data Catalog)",
+          "whatItDoes": "Tags model outputs with source document references and maintains a searchable inventory of all source datasets",
+          "whenToChoose": ["Need to trace outputs back to source data", "Credibility verification", "Regulatory lineage requirements"],
+          "examKeywords": ["source lineage", "trace outputs to sources", "credibility", "data provenance"],
+          "whenNotToChoose": ["Simple content generation without sourcing requirements"],
+          "commonTraps": ["Choosing CloudTrail for source lineage -- CloudTrail tracks API calls, not content-to-source relationships"],
+          "questionIds": ["op-20"]
+        }
+      ]
+    },
+    {
+      "id": "prompt-management",
+      "title": "Prompt Management & Engineering",
+      "subtitle": "Prompt versioning, Prompt Management service, and prompt lifecycle",
+      "icon": "FileText",
+      "color": "sky",
+      "questionIds": ["op-02", "op-12", "op-15", "op-50"],
+      "decisionPatterns": [
+        {
+          "signal": "\"manage prompt versions\" + \"rollback to previous\" + \"centralized\"",
+          "answer": "Amazon Bedrock Prompt Management (version, store, reference by ARN)",
+          "notAnswer": "Git + CI/CD for prompts (deployment overhead for prompt changes)"
+        },
+        {
+          "signal": "\"optimize developer productivity\" + \"accelerate development\" with Amazon Q",
+          "answer": "Proactive use: auto-generate code + integrate tests into CI/CD",
+          "notAnswer": "Reactive use: only at merge time or retrospective analysis"
+        }
+      ],
+      "services": [
+        {
+          "name": "Amazon Bedrock Prompt Management",
+          "whatItDoes": "Centralized service for creating, versioning, and managing prompts with ARN-based references and instant version switching",
+          "whenToChoose": ["Multiple applications sharing prompts", "Need prompt version control and rollback", "Centralized prompt governance"],
+          "examKeywords": ["prompt versioning", "rollback", "centralized management", "prompt lifecycle"],
+          "whenNotToChoose": ["Single application with rarely-changing prompts"],
+          "commonTraps": ["Storing prompts in environment variables (no versioning, requires redeployment)", "Using S3 versioning for prompts (generic storage, no prompt-specific features)"],
+          "questionIds": ["op-50"]
+        },
+        {
+          "name": "Amazon Q Developer",
+          "whatItDoes": "AI-powered IDE assistant for code generation, refactoring, test generation, security analysis, and performance optimization",
+          "whenToChoose": ["Accelerating development workflows", "Automated test generation in CI/CD", "Code refactoring and optimization"],
+          "examKeywords": ["developer productivity", "code generation", "automated testing", "CI/CD integration"],
+          "whenNotToChoose": ["Non-development tasks", "When manual review bottlenecks are required"],
+          "commonTraps": ["Using Q Developer only reactively (at merge time) instead of proactively (continuous code gen + testing)"],
+          "questionIds": ["op-02"]
+        }
+      ]
+    }
+  ]
+}
