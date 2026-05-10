@@ -198,10 +198,19 @@ export function getDifficultyStats(progress: Progress, allQuestions: Question[])
 
 export function getAccuracyTrend(progress: Progress): AccuracyDataPoint[] {
   const attempts = progress.questionAttempts ?? [];
-  if (attempts.length === 0) return [];
+
+  // Fall back to questionsCompleted if no questionAttempts exist
+  const dataSource = attempts.length > 0
+    ? attempts.map(a => ({ timestamp: a.timestamp, correct: a.correct }))
+    : Object.values(progress.questionsCompleted ?? {}).map(q => ({
+        timestamp: q.completedAt,
+        correct: q.correct,
+      }));
+
+  if (dataSource.length === 0) return [];
 
   const byDate = new Map<string, { correct: number; total: number }>();
-  for (const a of attempts) {
+  for (const a of dataSource) {
     const date = a.timestamp.slice(0, 10);
     const entry = byDate.get(date) || { correct: 0, total: 0 };
     entry.total++;

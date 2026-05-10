@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Question } from '@/types/review';
 import { isAnswerCorrect } from '@/lib/content';
-import { markQuestionCompleted, getQuestionCompletion } from '@/lib/progress';
+import { markQuestionCompleted, getQuestionCompletion, recordQuestionAttempt } from '@/lib/progress';
 import QuestionCard from '@/components/review/QuestionCard';
 
 const BOOKMARKS_KEY = 'aws-genai-bookmarked-questions';
@@ -115,6 +115,7 @@ export default function OfficialPracticePage() {
     setAnswers(prev => ({ ...prev, [currentQuestion.id]: selectedIds }));
     setShowResults(prev => ({ ...prev, [currentQuestion.id]: true }));
     markQuestionCompleted(currentQuestion.id, correct);
+    recordQuestionAttempt('official-practice', currentQuestion.id, correct);
   };
 
   const handleNext = () => {
