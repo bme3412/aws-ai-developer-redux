@@ -82,10 +82,10 @@ export default function ServiceGuidePage() {
       if (!term) return true;
       if (cat.title.toLowerCase().includes(term)) return true;
       if (cat.subtitle.toLowerCase().includes(term)) return true;
-      if (cat.decisionPatterns.some(p =>
-        p.signal.toLowerCase().includes(term) ||
-        p.answer.toLowerCase().includes(term) ||
-        p.notAnswer.toLowerCase().includes(term)
+      if (cat.decisionPatterns.some((p: Record<string, string>) =>
+        (p.scenario || p.signal || '').toLowerCase().includes(term) ||
+        (p.service || p.answer || '').toLowerCase().includes(term) ||
+        (p.why || '').toLowerCase().includes(term)
       )) return true;
       if (cat.services.some(s =>
         s.name.toLowerCase().includes(term) ||
@@ -203,20 +203,25 @@ export default function ServiceGuidePage() {
                   <div className="overflow-hidden">
                     <div className="border-t border-gray-100">
 
-                      {/* Quick Decision Patterns — clean table */}
+                      {/* Quick Decision Patterns — scenario-based */}
                       <div className="px-4 py-3 bg-gray-50/70">
-                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2.5">
-                          If you see this in a question...
+                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
+                          When you see a scenario like this...
                         </h3>
-                        <div className="rounded-lg border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
-                          {cat.decisionPatterns.map((pattern, i) => (
-                            <div key={i} className="px-3 py-2.5 flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3">
-                              <p className="text-xs text-gray-900 font-medium sm:w-2/5 leading-snug shrink-0">
-                                {pattern.signal}
+                        <div className="space-y-2.5">
+                          {cat.decisionPatterns.map((pattern: Record<string, string>, i: number) => (
+                            <div key={i} className="bg-white rounded-lg border border-gray-200 p-3">
+                              <p className="text-[13px] text-gray-700 leading-relaxed mb-2">
+                                {pattern.scenario || pattern.signal}
                               </p>
-                              <div className="flex items-baseline gap-1.5 sm:flex-1 min-w-0">
-                                <span className="text-green-500 text-sm leading-none shrink-0">&#10132;</span>
-                                <p className="text-xs text-green-800 font-medium leading-snug">{pattern.answer}</p>
+                              <div className="flex items-start gap-2 pl-1">
+                                <span className="text-green-500 text-base leading-none mt-0.5 shrink-0">&#10132;</span>
+                                <div>
+                                  <span className="text-sm font-semibold text-gray-900">{pattern.service || pattern.answer}</span>
+                                  {pattern.why && (
+                                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{pattern.why}</p>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           ))}
