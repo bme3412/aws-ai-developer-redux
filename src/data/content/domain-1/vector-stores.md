@@ -513,6 +513,40 @@ query = {
 results = client.search(index='documents', body=query)
 ```
 
+### OpenSearch Neural Plugin
+
+The exam guide calls out **OpenSearch Service with the Neural plugin** for Bedrock integration. The Neural plugin runs embeddings and hybrid ranking **inside OpenSearch** instead of you embedding in Lambda and stuffing k-NN queries by hand.
+
+What it gives you:
+- **Neural search** — OpenSearch calls a Bedrock embedding model (or a locally deployed model) at query time
+- **Hybrid search** — BM25 keyword + vector similarity with a single query
+- **Topic-based segmentation** — separate indexes or pipelines per domain, then search across them
+
+```json
+{
+  "query": {
+    "hybrid": {
+      "queries": [
+        { "match": { "content": "password reset" } },
+        {
+          "neural": {
+            "content_embedding": {
+              "query_text": "password reset",
+              "model_id": "bedrock.titan-embed-text-v2",
+              "k": 10
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+Use the Neural plugin when you **own the OpenSearch cluster** and want Bedrock embeddings without a separate embedding Lambda. Use Bedrock Knowledge Bases when you do not want to operate OpenSearch at all.
+
+---
+
 ### OpenSearch Serverless Collection Types
 
 OpenSearch Serverless removes cluster management but requires choosing the right collection type. This is an exam favorite because the wrong choice causes real problems.
@@ -625,6 +659,40 @@ For most new RAG projects, start with Bedrock Knowledge Bases. It handles the en
 Choose OpenSearch when you genuinely need its capabilities: hybrid search, complex filtering, custom scoring, or billion-vector scale. Don't choose it "just in case"—you're trading operational simplicity for features you might never use.
 
 Choose Aurora pgvector when PostgreSQL is already central to your architecture and you want vector search without adding another data store. The SQL integration can be valuable, but you're giving up some vector-specific features.
+
+### Amazon RDS + S3 Document Repositories
+
+Official 1.4.1 also lists **Amazon RDS with Amazon S3 document repositories**. The pattern is: S3 holds the source files (PDFs, HTML, wikis); RDS (often PostgreSQL with pgvector, sometimes Aurora) holds embeddings plus foreign keys back to the S3 object.
+
+```
+S3 object (document, version, metadata)
+        ↓ ingest
+RDS/Aurora row: embedding, s3_uri, title, acl, updated_at
+        ↓ query
+k-NN in RDS → fetch bytes or a signed URL from S3 only for the hits
+```
+
+Use this when documents must stay in S3 (lifecycle, versioning, Object Lock) but you want SQL joins on the vector results. Aurora pgvector is the managed flavor of the same idea; "RDS + S3" is the exam wording when the stem already has RDS.
+
+### DynamoDB with a Vector Database (Metadata + Embeddings)
+
+DynamoDB **does not** run k-NN. The official pairing is **DynamoDB for metadata and embedding pointers next to a real vector store**.
+
+| Store | Holds | Does not hold |
+|-------|-------|----------------|
+| OpenSearch / Aurora pgvector / Bedrock KB | Vectors, similarity search | Authoritative document bytes |
+| **DynamoDB** | Item metadata, ACLs, embedding IDs, conversation state | Vector similarity |
+
+```
+Query → vector DB (top-k IDs)
+      → DynamoDB BatchGetItem(ids) for title, owner, ACL, s3_uri
+      → filter/authorize
+      → send surviving chunks to the FM
+```
+
+This is the correct answer when the scenario needs **low-latency metadata lookups** or **per-item ACLs** alongside semantic search. It is the wrong answer when someone proposes DynamoDB as the similarity engine.
+
+---
 
 ---
 
@@ -1022,7 +1090,11 @@ Vector search performance depends on many factors. Systematic optimization makes
 |-----------------|----------|
 | "SIMPLEST" or "minimal operational overhead" | Bedrock Knowledge Bases |
 | "hybrid search" or "keyword + semantic" | OpenSearch or Bedrock KB with HYBRID mode |
+| "Neural plugin" or "embed inside OpenSearch" | OpenSearch Neural plugin + Bedrock embeddings |
 | "existing PostgreSQL infrastructure" | Aurora pgvector |
+| "RDS and S3 document repository" | RDS/Aurora pgvector + S3 source objects |
+| "DynamoDB" + "embeddings/metadata" | DynamoDB for metadata; vector DB for k-NN |
+| "enterprise search of files, not RAG generation" | Amazon Kendra |
 | "production RAG" or "complex documents" | Hierarchical chunking |
 | "cost-conscious" or "simple docs" | Fixed-size chunking |
 | "OpenSearch Serverless" + "semantic search" | **VECTORSEARCH** collection type |
@@ -1057,7 +1129,7 @@ Vector search performance depends on many factors. Systematic optimization makes
 | Mistake | Why It Matters |
 |---------|----------------|
 | **Choosing OpenSearch "just in case"** | You're paying for complexity you don't need. Bedrock KB handles most use cases with minimal operational overhead. |
-| **Using DynamoDB for vector similarity** | DynamoDB doesn't do vector math. It can store metadata alongside vector IDs, but the actual similarity search must happen in a proper vector store. |
+| **Using DynamoDB for vector similarity** | DynamoDB doesn't do k-NN. Pair it with OpenSearch/Aurora/KB: DynamoDB holds metadata and embedding IDs; the vector store does similarity. |
 | **Skipping metadata schema planning** | Adding filter fields after bulk ingestion means re-processing everything. Design the schema before you start loading data. |
 | **Using SEARCH collection for embeddings** | OpenSearch Serverless SEARCH collections aren't optimized for k-NN. Queries work but perform poorly. VECTORSEARCH is required for RAG. |
 | **Ignoring sync failures** | If syncs fail silently, your vectors drift from your documents. Users get outdated or deleted content. Build monitoring from day one. |

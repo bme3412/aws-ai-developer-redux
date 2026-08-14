@@ -718,6 +718,22 @@ GenAI applications require CI/CD pipelines that address challenges beyond tradit
 - Pass thresholds? → Deploy Staging → Manual Approval → Deploy Prod
 - Fail? → Alert & Stop
 
+### Infrastructure as Code for GenAI
+
+Prompts, guardrails, knowledge bases, and agents are infrastructure. Put them in **AWS CDK** or **CloudFormation** so a prompt change is a reviewed deploy, not a console click.
+
+| Artifact | IaC it |
+|----------|--------|
+| Guardrail policies | CloudFormation/CDK `AWS::Bedrock::Guardrail` |
+| Knowledge Base + data source | CDK + S3 bucket policy + IAM |
+| Prompt versions | Prompt Management + pipeline promotion |
+| Agent action groups | CDK Lambda + OpenAPI schema |
+| Observability | CloudWatch alarms, X-Ray tracing config |
+
+Exam trigger: "repeatable", "same guardrails in every account", "don't click in the console." IaC is the answer; a wiki of screenshots is not.
+
+---
+
 ### GenAI-Specific Testing
 
 Beyond traditional tests, GenAI applications need specialized validation:
@@ -922,6 +938,7 @@ GenAI outputs are **probabilistic**—quality degradation might not be immediate
 | "on-premises" or "data can't leave" | AWS Outposts |
 | "edge" or "ultra-low latency" | AWS Wavelength |
 | "CI/CD for GenAI" | CodePipeline + prompt regression + quality metrics |
+| "repeatable guardrails/KB across accounts" | CDK or CloudFormation (IaC) |
 | "data sync from SaaS" | AWS AppFlow |
 | "keep traffic off public internet" | VPC endpoints |
 | "loose coupling" or "decouple" | EventBridge async pattern |

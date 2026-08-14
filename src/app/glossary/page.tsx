@@ -26,7 +26,7 @@ export default function GlossaryPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Glossary</h1>
           <p className="text-gray-600 mt-1">
-            Key terms and concepts for the AWS Certified AI Practitioner exam.
+            Key terms and concepts for the AWS Certified Generative AI Developer - Professional exam.
           </p>
         </div>
 

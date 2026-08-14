@@ -2526,7 +2526,7 @@
       "domain": 1,
       "task": "1.1",
       "skills": [
-        "1.1.4"
+        "1.1.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -2580,7 +2580,7 @@
       "domain": 1,
       "task": "1.1",
       "skills": [
-        "1.1.5"
+        "1.1.1"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -2632,7 +2632,7 @@
       "domain": 1,
       "task": "1.1",
       "skills": [
-        "1.1.6"
+        "1.1.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -2684,7 +2684,7 @@
       "domain": 1,
       "task": "1.1",
       "skills": [
-        "1.1.7"
+        "1.1.3"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -2737,7 +2737,7 @@
       "domain": 1,
       "task": "1.1",
       "skills": [
-        "1.1.8"
+        "1.1.1"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -2789,7 +2789,8 @@
       "domain": 1,
       "task": "1.1",
       "skills": [
-        "1.1.9"
+        "1.1.1",
+        "1.2.3"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -2842,7 +2843,7 @@
       "domain": 1,
       "task": "1.1",
       "skills": [
-        "1.1.10"
+        "1.1.2"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -3625,7 +3626,7 @@
       "domain": 1,
       "task": "1.3",
       "skills": [
-        "1.3.5"
+        "1.3.2"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -3676,7 +3677,7 @@
       "domain": 1,
       "task": "1.3",
       "skills": [
-        "1.3.6"
+        "1.3.4"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -3728,7 +3729,7 @@
       "domain": 1,
       "task": "1.3",
       "skills": [
-        "1.3.7"
+        "1.3.1"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -3781,7 +3782,7 @@
       "domain": 1,
       "task": "1.3",
       "skills": [
-        "1.3.8"
+        "1.3.3"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -3833,7 +3834,7 @@
       "domain": 1,
       "task": "1.3",
       "skills": [
-        "1.3.9"
+        "1.3.2"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -3884,7 +3885,7 @@
       "domain": 1,
       "task": "1.3",
       "skills": [
-        "1.3.10"
+        "1.3.3"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -4197,7 +4198,7 @@
       "domain": 1,
       "task": "1.4",
       "skills": [
-        "1.4.6"
+        "1.4.3"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -4249,7 +4250,7 @@
       "domain": 1,
       "task": "1.4",
       "skills": [
-        "1.4.7"
+        "1.4.2"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -4301,7 +4302,7 @@
       "domain": 1,
       "task": "1.4",
       "skills": [
-        "1.4.8"
+        "1.4.1"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -4354,7 +4355,7 @@
       "domain": 1,
       "task": "1.4",
       "skills": [
-        "1.4.9"
+        "1.4.5"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -4406,7 +4407,7 @@
       "domain": 1,
       "task": "1.4",
       "skills": [
-        "1.4.10"
+        "1.4.1"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -4770,7 +4771,7 @@
       "domain": 1,
       "task": "1.5",
       "skills": [
-        "1.5.7"
+        "1.5.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -4822,7 +4823,7 @@
       "domain": 1,
       "task": "1.5",
       "skills": [
-        "1.5.8"
+        "1.5.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -4874,7 +4875,7 @@
       "domain": 1,
       "task": "1.5",
       "skills": [
-        "1.5.9"
+        "1.5.6"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -4926,7 +4927,7 @@
       "domain": 1,
       "task": "1.5",
       "skills": [
-        "1.5.10"
+        "1.5.4"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -5292,7 +5293,7 @@
       "domain": 1,
       "task": "1.6",
       "skills": [
-        "1.6.7"
+        "1.6.5"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -5344,7 +5345,7 @@
       "domain": 1,
       "task": "1.6",
       "skills": [
-        "1.6.8"
+        "1.6.6"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -5396,7 +5397,7 @@
       "domain": 1,
       "task": "1.6",
       "skills": [
-        "1.6.9"
+        "1.6.3"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -5449,7 +5450,7 @@
       "domain": 1,
       "task": "1.6",
       "skills": [
-        "1.6.10"
+        "1.6.5"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -6948,6 +6949,60 @@
         ],
         "timeManagementTip": "Changed embedding model + degraded quality = embedding space mismatch. Instant recognition if you know the concept."
       }
+    },
+    {
+      "id": "d1-vs-11",
+      "domain": 1,
+      "task": "1.4",
+      "skills": [
+        "1.4.1"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A records team already stores PDFs in Amazon S3 with Object Lock and lifecycle rules. Analysts also need SQL joins between retrieved chunks and a case-management schema that lives in Amazon RDS for PostgreSQL. They want vector search without moving the source files out of S3.",
+      "question": "Which vector architecture BEST matches this constraint?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Store both the PDF bytes and the embeddings as DynamoDB items and run k-NN in DynamoDB"
+        },
+        {
+          "id": "b",
+          "text": "Keep source documents in S3 and store embeddings plus s3_uri metadata in RDS/Aurora with pgvector"
+        },
+        {
+          "id": "c",
+          "text": "Upload the PDFs only to Amazon Kendra and abandon RDS"
+        },
+        {
+          "id": "d",
+          "text": "Copy every PDF into OpenSearch _source so S3 is no longer required"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Official 1.4.1 describes Amazon RDS with S3 document repositories: S3 remains the document system of record; RDS (or Aurora) pgvector holds embeddings and a pointer back to the object. That preserves Object Lock/lifecycle and still allows SQL joins on hits.",
+      "incorrectExplanations": {
+        "a": "DynamoDB does not provide k-NN. Use it for metadata beside a real vector store, not as the similarity engine.",
+        "c": "Kendra can search documents but does not keep the team's RDS relational schema in the retrieval path.",
+        "d": "Duplicating bytes into OpenSearch abandons S3 controls the scenario requires."
+      },
+      "parseStrategy": {
+        "keyPhrase": "RDS and S3 document repository",
+        "eliminationHints": [
+          "DynamoDB k-NN = trap",
+          "Kendra = search service, not the RDS+S3 pattern",
+          "Copy into OpenSearch = drops S3 as system of record"
+        ],
+        "decisionFramework": "Documents stay in S3; embeddings and keys live in RDS/Aurora pgvector."
+      },
+      "services": [
+        "Amazon RDS",
+        "Amazon S3",
+        "Amazon Aurora"
+      ],
+      "examTip": "If the stem already has RDS plus S3 documents, do not invent DynamoDB-as-vector-DB."
     }
   ]
 }

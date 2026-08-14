@@ -14,6 +14,8 @@ export interface Task {
   skills: Skill[];
   articleSlug: string;
   labSlug?: string;
+  /** Extra study article that is not an official AIP-C01 task ID. */
+  supplemental?: boolean;
 }
 
 export interface Skill {

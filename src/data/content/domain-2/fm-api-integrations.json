@@ -68,7 +68,7 @@
   "skillExplanations": [
     {
       "skillId": "2.4.1",
-      "explanation": "Synchronous foundation model calls can originate from any AWS compute environment. Lambda functions call Bedrock's InvokeModel API directly using the AWS SDK. EC2 instances and ECS containers do the same. Even client applications can make direct calls if they have appropriate AWS credentials, though this is less common in production due to credential management concerns.\n\nThe AWS SDK handles the mechanics of authentication, request serialization, and response parsing. Use the latest SDK version to benefit from recent improvements and bug fixes. Configure retry behavior appropriately—the defaults work for many cases, but you might need longer timeouts for complex prompts that require more processing time. Model inference can take 10-30 seconds for sophisticated reasoning tasks, which exceeds default timeout settings in many frameworks.\n\nAPI Gateway adds a managed layer between clients and your foundation model integration. It handles authentication through IAM, Cognito, or API keys. It enforces throttling to prevent capacity exhaustion. It can cache responses for repeated queries. It provides monitoring and logging. For production APIs, fronting Bedrock calls with API Gateway adds important controls and observability.",
+      "explanation": "Synchronous foundation model calls can originate from any AWS compute environment. Lambda functions call Bedrock's InvokeModel API directly using the AWS SDK. EC2 instances and ECS containers do the same. Even client applications can make direct calls if they have appropriate AWS credentials, though this is less common in production due to credential management concerns.\n\nThe AWS SDK handles the mechanics of authentication, request serialization, and response parsing. Use the latest SDK version to benefit from recent improvements and bug fixes. Configure retry behavior appropriately—the defaults work for many cases, but you might need longer timeouts for complex prompts that require more processing time. Model inference can take 10-30 seconds for sophisticated reasoning tasks, which exceeds default timeout settings in many frameworks.\n\nAPI Gateway adds a managed layer between clients and your foundation model integration. It handles authentication through IAM, Cognito, or API keys. It enforces throttling to prevent capacity exhaustion. It can cache responses for repeated queries. It provides monitoring and logging. For production APIs, fronting Bedrock calls with API Gateway adds important controls and observability.\n\nOfficial skill 2.4.1 also includes asynchronous processing. Amazon SQS buffers requests so producers do not wait on inference. Lambda consumers call InvokeModel; results go to an output queue, SNS, DynamoDB, or S3. SageMaker batch transform covers bulk offline jobs. Sync, SQS async, and batch are one skill on the exam—not three.",
       "awsServices": [
         {
           "serviceName": "Amazon Bedrock",
@@ -79,27 +79,16 @@
           "serviceName": "Amazon API Gateway",
           "whenToUse": "Front-end for Bedrock APIs. Validation, throttling, authentication.",
           "examKeywords": ["API", "throttling", "validation", "gateway"]
+        },
+        {
+          "serviceName": "Amazon SQS",
+          "whenToUse": "Queue-based async processing. Decouple submission from inference.",
+          "examKeywords": ["queue", "async", "decouple", "buffer"]
         }
       ]
     },
     {
       "skillId": "2.4.2",
-      "explanation": "Asynchronous processing patterns become necessary when you need to handle traffic that exceeds your synchronous processing capacity, when requests take too long for interactive response, or when you want to decouple request submission from processing for reliability.\n\nAmazon SQS provides the foundation for async patterns. Clients submit requests to a queue and immediately receive confirmation—no waiting for model inference. Lambda functions configured as SQS consumers pull messages and process them, calling Bedrock's InvokeModel for each. Results flow to an output queue, trigger SNS notifications, or write to DynamoDB or S3 for later retrieval.\n\nThis architecture handles traffic spikes naturally because SQS absorbs bursts that would overwhelm direct API calls. It provides reliability because messages persist until successfully processed. It enables retry logic because failed messages return to the queue for reprocessing.\n\nSageMaker batch transform extends this to bulk processing scenarios. You prepare input data in S3, configure a batch transform job specifying the model and instance type, and receive output in S3 when processing completes. This optimizes for throughput rather than latency, making it ideal for processing large datasets offline.",
-      "awsServices": [
-        {
-          "serviceName": "Amazon SQS",
-          "whenToUse": "Queue-based async processing. Decouple submission from inference.",
-          "examKeywords": ["queue", "async", "decouple", "buffer"]
-        },
-        {
-          "serviceName": "Amazon Bedrock",
-          "whenToUse": "Process queue messages with InvokeModel in Lambda consumers.",
-          "examKeywords": ["batch", "process", "consumer"]
-        }
-      ]
-    },
-    {
-      "skillId": "2.4.3",
       "explanation": "Streaming APIs fundamentally change the user experience by delivering tokens incrementally. InvokeModelWithResponseStream opens a connection that delivers chunks as the model generates them. Each chunk contains partial output—typically a few tokens—that your application processes immediately.\n\nProcessing streaming responses requires iterating through the event stream and handling different event types. Content deltas contain actual generated text. Message stop events indicate completion. Error events signal problems. Your code must handle each appropriately, accumulating content while displaying it to users.\n\nServer-Sent Events represents the standard transport for delivering streams to web clients. The client opens a single HTTP connection using the EventSource API. The server sends events as they become available. SSE works through proxies and load balancers because it uses standard HTTP. It's simpler than WebSockets because it's unidirectional—server to client only—which matches the foundation model use case where the server streams generated text to the client.\n\nWebSockets provide bidirectional streaming and might be appropriate when you need to send new input while streaming is in progress—for example, letting users interrupt or redirect generation mid-stream. For most foundation model applications, SSE provides the necessary functionality with less complexity.",
       "awsServices": [
         {
@@ -115,7 +104,7 @@
       ]
     },
     {
-      "skillId": "2.4.4",
+      "skillId": "2.4.3",
       "explanation": "Building resilient integrations requires multiple complementary strategies. The AWS SDK provides exponential backoff automatically for retriable errors—you don't need to implement it yourself, but you should understand that it's happening and configure appropriate retry counts and timeouts.\n\nAPI Gateway rate limiting prevents capacity exhaustion at the application level. Set usage plans that allocate capacity across clients. Return HTTP 429 responses with Retry-After headers when limits are exceeded. This provides clients with clear feedback about throttling rather than mysterious failures.\n\nCircuit breakers require explicit implementation in your code or through Step Functions. Track failure rates over recent requests. When failures exceed a threshold, stop making calls for a cooldown period. After cooldown, allow a test request through. If it succeeds, resume normal operation; if it fails, extend the cooldown. This prevents wasting resources on known-failing services and gives failing services time to recover.\n\nAWS X-Ray provides the observability foundation for understanding failures and performance. Instrument your Lambda functions and SDK calls. Trace maps visualize request flow and identify slow components. When something fails, trace data shows exactly what happened and where. For complex GenAI pipelines with multiple service calls, X-Ray is essential for debugging production issues.",
       "awsServices": [
         {
@@ -131,7 +120,7 @@
       ]
     },
     {
-      "skillId": "2.4.5",
+      "skillId": "2.4.4",
       "explanation": "Intelligent routing optimizes cost, performance, and reliability by directing requests to appropriate destinations. The simplest form uses API Gateway path-based routing or Lambda function logic with static rules. This requires manual configuration but provides predictable behavior.\n\nContent-based dynamic routing examines request characteristics to make routing decisions. A classification step—potentially using a small, fast model—determines query complexity, topic, or requirements. Step Functions orchestrates this cleanly: a classification Lambda feeds results to a choice state that branches to different model invocations. Simple queries route to fast, cheap models. Complex queries route to more capable models. Sensitive queries route to specialized endpoints.\n\nMetric-based routing responds to system state rather than request content. CloudWatch metrics track endpoint latency, error rates, and queue depths. When primary endpoints show degraded performance, routing shifts traffic to alternatives. This can be implemented through Step Functions checking metrics, Lambda functions updating routing configuration, or API Gateway integration with CloudWatch.\n\nAPI Gateway request transformations modify requests before routing. You might add system prompts that vary by route, inject user context from authentication, or format requests for specific model requirements. This centralizes transformation logic rather than implementing it in every client.",
       "awsServices": [
         {

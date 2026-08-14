@@ -139,9 +139,9 @@
       ],
       "explanation": "Lambda functions backing Action Groups can access session attributes containing user context. Each Lambda function verifies the user's authorization level before executing its operation. This provides proper authorization enforcement at the action level without relying on the FM to make security decisions.",
       "incorrectExplanations": {
-        "c": "Never rely on FM prompts for security decisions. Prompts can be manipulated, and FMs don't enforce security—they generate text.",
+        "c": "Never rely on FM prompts for security decisions. Prompts can be manipulated, and FMs don't enforce security\u2014they generate text.",
         "d": "Querying authorization separately adds latency and still requires enforcement logic. The Lambda approach combines lookup and enforcement.",
-        "a": "Multiple agents adds complexity and doesn't solve the authorization problem—you'd still need to verify permissions within each agent."
+        "a": "Multiple agents adds complexity and doesn't solve the authorization problem\u2014you'd still need to verify permissions within each agent."
       },
       "parseStrategy": {
         "keyPhrase": "different authorization levels",
@@ -427,11 +427,11 @@
       "domain": 2,
       "task": "2.4",
       "skills": [
-        "2.4.2"
+        "2.4.1"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
-      "scenario": "A legal tech company processes large contract documents (50+ pages) and needs to extract key terms, identify risks, and generate summaries. Document processing is not time-sensitive—users upload documents and expect results within a few hours. Cost optimization is the primary concern.",
+      "scenario": "A legal tech company processes large contract documents (50+ pages) and needs to extract key terms, identify risks, and generate summaries. Document processing is not time-sensitive\u2014users upload documents and expect results within a few hours. Cost optimization is the primary concern.",
       "question": "Which invocation pattern provides the MOST cost-effective processing for large documents?",
       "options": [
         {
@@ -456,7 +456,7 @@
       ],
       "explanation": "Batch inference provides the lowest per-token cost for non-time-sensitive workloads. Bedrock batch inference processes documents asynchronously, optimizing for throughput over latency. This matches the few-hours expectation while minimizing costs.",
       "incorrectExplanations": {
-        "c": "Streaming doesn't reduce cost—it reduces perceived latency. For non-time-sensitive batch processing, streaming adds unnecessary complexity.",
+        "c": "Streaming doesn't reduce cost\u2014it reduces perceived latency. For non-time-sensitive batch processing, streaming adds unnecessary complexity.",
         "b": "Synchronous Lambda processing is more expensive than batch for large volumes. It also risks timeouts for very long documents.",
         "d": "Parallel page processing increases costs (more invocations) and doesn't leverage batch pricing. It also loses document context across pages."
       },
@@ -479,7 +479,7 @@
       "domain": 2,
       "task": "2.4",
       "skills": [
-        "2.4.3"
+        "2.4.2"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -664,7 +664,7 @@
       ],
       "explanation": "Lambda functions calling FHIR APIs keep patient data within the organization's processing flow. API Gateway provides the integration layer with request/response logging. CloudTrail captures API activity for audit requirements. Data stays in the organization's account throughout.",
       "incorrectExplanations": {
-        "b": "Cross-account access doesn't address the data sovereignty concern—data would be accessed from another account. The requirement is data never leaves the organization's account.",
+        "b": "Cross-account access doesn't address the data sovereignty concern\u2014data would be accessed from another account. The requirement is data never leaves the organization's account.",
         "d": "Replicating patient data to S3 creates additional copies of sensitive data, increasing data governance complexity. It's better to access through APIs.",
         "c": "HealthLake doesn't convert FHIR to a 'proprietary format.' It's a FHIR-compliant service. This answer misrepresents the service and doesn't address the integration pattern."
       },
@@ -742,8 +742,7 @@
       "domain": 2,
       "task": "2.4",
       "skills": [
-        "2.4.1",
-        "2.4.2"
+        "2.4.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -877,7 +876,7 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "Agent tracing captures the full reasoning path—which tools were called, what data was retrieved, how the agent reached its conclusion. Human-in-the-loop action configuration requires explicit human approval before the trade execution action proceeds. This addresses both requirements within the agent architecture.",
+      "explanation": "Agent tracing captures the full reasoning path\u2014which tools were called, what data was retrieved, how the agent reached its conclusion. Human-in-the-loop action configuration requires explicit human approval before the trade execution action proceeds. This addresses both requirements within the agent architecture.",
       "incorrectExplanations": {
         "c": "Step Functions could work but requires rebuilding the agent workflow outside of Bedrock Agents. The question asks about Bedrock Agent configuration.",
         "d": "Guardrails are for content safety, not workflow approval. They filter content, not orchestrate human approvals.",
@@ -958,7 +957,7 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "A customer service platform uses an AI agent to handle inquiries. The agent frequently needs to look up order status, then check inventory, then calculate shipping times—a multi-step process where each step depends on the previous result.",
+      "scenario": "A customer service platform uses an AI agent to handle inquiries. The agent frequently needs to look up order status, then check inventory, then calculate shipping times\u2014a multi-step process where each step depends on the previous result.",
       "question": "Which reasoning pattern enables the agent to dynamically plan and execute this multi-step workflow?",
       "options": [
         {
@@ -1087,7 +1086,7 @@
       ],
       "explanation": "Maximum iteration limits prevent agents from running infinite loops of reasoning and acting. Execution timeouts ensure agents don't run indefinitely. Together, these stopping conditions prevent runaway behavior.",
       "incorrectExplanations": {
-        "c": "Logging provides visibility but doesn't prevent runaway behavior—it just records it.",
+        "c": "Logging provides visibility but doesn't prevent runaway behavior\u2014it just records it.",
         "d": "VPC isolation doesn't limit agent iterations or execution time.",
         "b": "Guardrails filter content but don't limit the number of actions an agent can take."
       },
@@ -1139,7 +1138,7 @@
       ],
       "explanation": "SageMaker allows custom inference containers where you control CUDA libraries and dependencies. The ml.p4d instances provide the multi-GPU capacity needed for 70B models. SageMaker manages the infrastructure while you control the container.",
       "incorrectExplanations": {
-        "a": "Bedrock Custom Model Import uses managed containers—you don't control the CUDA environment or specific libraries.",
+        "a": "Bedrock Custom Model Import uses managed containers\u2014you don't control the CUDA environment or specific libraries.",
         "c": "Lambda has memory limits (10GB) and execution time limits that can't support 70B model inference.",
         "d": "Fargate doesn't currently support GPU workloads. ECS with GPUs requires EC2 launch type."
       },
@@ -1209,66 +1208,65 @@
         "AWS CodeBuild",
         "Amazon Bedrock Model Evaluations"
       ],
-      "examTip": "GenAI CI/CD should include prompt testing, guardrail validation, and output quality checks—not just traditional unit tests."
+      "examTip": "GenAI CI/CD should include prompt testing, guardrail validation, and output quality checks\u2014not just traditional unit tests."
     },
     {
       "id": "d2-q24",
       "domain": 2,
       "task": "2.4",
       "skills": [
-        "2.4.4"
+        "2.4.3"
       ],
-      "type": "multiple-choice",
+      "type": "multiple-response",
       "difficulty": "easy",
       "scenario": "A GenAI application occasionally receives ThrottlingException errors from Amazon Bedrock during traffic spikes. The team wants to handle these errors gracefully without losing requests.",
-      "question": "What is the recommended approach for handling Bedrock throttling errors?",
+      "question": "Which TWO approaches should the team use together to handle Bedrock throttling without dropping requests? (Select TWO)",
       "options": [
         {
           "id": "a",
-          "text": "Cache all responses to avoid making API calls"
+          "text": "Cache every possible response so the application never calls Bedrock during a spike"
         },
         {
           "id": "b",
-          "text": "Increase the request rate until errors stop"
+          "text": "Implement exponential backoff with jitter on ThrottlingException retries"
         },
         {
           "id": "c",
-          "text": "Implement exponential backoff with jitter for retries"
+          "text": "Increase the request rate until the errors stop"
         },
         {
           "id": "d",
-          "text": "Switch to a different model when throttling occurs"
+          "text": "Buffer burst traffic (for example SQS) or use Provisioned Throughput / Cross-Region Inference to absorb spikes"
         }
       ],
       "correctAnswers": [
-        "c"
+        "b",
+        "d"
       ],
-      "explanation": "Exponential backoff with jitter is the standard approach for handling throttling. Each retry waits progressively longer with random variation, preventing thundering herd problems and allowing the service to recover.",
+      "explanation": "Resilient FM integrations combine client-side retry with capacity. Exponential backoff with jitter avoids a retry stampede. A queue, Provisioned Throughput, or Cross-Region Inference reduces the chance that spikes hit a hard on-demand limit. Caching everything and firing more requests both make the problem worse.",
       "incorrectExplanations": {
-        "c": "Switching models changes behavior and may not be appropriate. The original model might be required for the use case.",
-        "a": "Increasing request rate makes throttling worse, not better.",
-        "d": "Caching helps reduce requests but doesn't address how to handle throttling when it occurs. Many GenAI requests aren't cacheable."
+        "a": "Most GenAI requests are unique. Caching all responses does not handle throttling when a live invocation is required.",
+        "c": "Sending more requests into an already throttled API increases failures."
       },
       "parseStrategy": {
-        "keyPhrase": "handling throttling errors",
+        "keyPhrase": "handle Bedrock throttling",
         "eliminationHints": [
-          "Increase rate = makes it worse",
-          "Switch models = changes behavior",
-          "Cache all = not all requests cacheable"
+          "Increase rate = makes throttling worse",
+          "Cache all = not valid for unique prompts"
         ],
-        "decisionFramework": "Throttling handling = exponential backoff with jitter"
+        "decisionFramework": "Throttling = backoff with jitter + extra capacity or a buffer"
       },
       "services": [
         "Amazon Bedrock"
       ],
-      "examTip": "Exponential backoff with jitter is the standard pattern for any AWS API throttling, including Bedrock."
+      "examTip": "Select TWO throttling items usually pair retry/backoff with a capacity pattern (queue, PT, or CRI)."
     },
     {
       "id": "d2-q25",
       "domain": 2,
       "task": "2.4",
       "skills": [
-        "2.4.5"
+        "2.4.4"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -1427,10 +1425,10 @@
       "skills": [
         "2.5.6"
       ],
-      "type": "multiple-choice",
+      "type": "multiple-response",
       "difficulty": "medium",
       "scenario": "A development team is debugging a production issue where their Bedrock Agent occasionally returns incomplete responses. They need to understand what tools the agent called, what data it received, and how it formulated responses.",
-      "question": "Which observability approach provides end-to-end visibility into agent behavior?",
+      "question": "Which TWO observability approaches together provide end-to-end visibility into agent behavior? (Select TWO)",
       "options": [
         {
           "id": "a",
@@ -1438,40 +1436,39 @@
         },
         {
           "id": "b",
-          "text": "Check CloudWatch Logs for Lambda function errors"
+          "text": "Use CloudWatch Logs Insights to inspect Lambda action-group errors and payloads"
         },
         {
           "id": "c",
-          "text": "Use X-Ray tracing with agent trace enabled to see the full reasoning chain, tool calls, and responses"
+          "text": "Enable X-Ray tracing with agent trace to see the reasoning chain, tool calls, and responses"
         },
         {
           "id": "d",
-          "text": "Review API Gateway access logs for request patterns"
+          "text": "Review API Gateway access logs only"
         }
       ],
       "correctAnswers": [
+        "b",
         "c"
       ],
-      "explanation": "X-Ray with agent tracing provides complete visibility into the agent's reasoning process: which tools were called, what data was returned, how the agent reasoned about each step, and how it formulated the final response. This is essential for debugging complex agent behaviors.",
+      "explanation": "Agent debugging needs both the model's reasoning path and the tool runtime. X-Ray with agent trace shows orchestration, tool selection, and responses. CloudWatch Logs Insights shows what the Lambda action actually received and returned. Prompt print statements are not executed, and API Gateway logs stop at the HTTP edge.",
       "incorrectExplanations": {
-        "c": "Print statements in prompts don't work—agents don't execute code. The output is text generation, not code execution.",
-        "a": "Lambda logs show function-level errors but don't reveal the agent's reasoning process or tool call sequence.",
-        "d": "API Gateway logs show request/response metadata but not internal agent behavior."
+        "a": "Agents generate text; they do not execute print statements in the prompt.",
+        "d": "API Gateway logs show request metadata, not internal tool calls or reasoning."
       },
       "parseStrategy": {
         "keyPhrase": "end-to-end visibility into agent behavior",
         "eliminationHints": [
-          "Lambda logs = function-level only",
-          "Print statements = agents don't execute code",
-          "API Gateway = external only"
+          "Print statements = not executed",
+          "API Gateway = edge only"
         ],
-        "decisionFramework": "Agent debugging = X-Ray + agent tracing"
+        "decisionFramework": "Agent observability = X-Ray agent trace + CloudWatch Logs Insights"
       },
       "services": [
         "AWS X-Ray",
         "Amazon Bedrock Agents"
       ],
-      "examTip": "X-Ray tracing with agent trace enabled is essential for debugging agent behavior. It shows the full reasoning chain."
+      "examTip": "Official 2.5.6 pairs CloudWatch Logs Insights with X-Ray. Edge logs alone are not enough."
     },
     {
       "id": "d2-q29",
@@ -1508,8 +1505,8 @@
       "explanation": "Amplify provides pre-built UI components for AI applications, including chat interfaces that integrate with Bedrock. This significantly accelerates development without requiring deep frontend or GenAI integration expertise.",
       "incorrectExplanations": {
         "c": "CloudFront with Lambda@Edge is for edge computing, not frontend development acceleration.",
-        "d": "EC2 development servers don't provide pre-built components—you'd build everything manually.",
-        "a": "S3 static hosting requires building everything from scratch—no pre-built AI components."
+        "d": "EC2 development servers don't provide pre-built components\u2014you'd build everything manually.",
+        "a": "S3 static hosting requires building everything from scratch\u2014no pre-built AI components."
       },
       "parseStrategy": {
         "keyPhrase": "quickly create frontend for GenAI",
@@ -1558,7 +1555,7 @@
         "b",
         "d"
       ],
-      "explanation": "Cognito handles user authentication and assigns roles. IAM policies then control what each role can do—which Bedrock models they can invoke, which Knowledge Bases they can query, and which features they can access. Together, they implement complete RBAC.",
+      "explanation": "Cognito handles user authentication and assigns roles. IAM policies then control what each role can do\u2014which Bedrock models they can invoke, which Knowledge Bases they can query, and which features they can access. Together, they implement complete RBAC.",
       "incorrectExplanations": {
         "c": "Guardrails filter content but don't control role-based access to features or data sources.",
         "d": "CloudFront signed URLs are for content delivery authentication, not application-level RBAC."
@@ -1613,8 +1610,8 @@
       "explanation": "Persistent memory requires storing summarized conversations and key facts (like customer preferences) in a database. When the customer returns, the agent retrieves this context and includes it in the prompt, providing continuity across sessions.",
       "incorrectExplanations": {
         "a": "Full conversation history across multiple sessions would exceed context limits and increase costs dramatically.",
-        "d": "Larger context windows help within a session but don't persist memory across sessions—they're still ephemeral.",
-        "c": "Fine-tuning per customer is impractical—it's expensive, slow, and doesn't scale to many customers."
+        "d": "Larger context windows help within a session but don't persist memory across sessions\u2014they're still ephemeral.",
+        "c": "Fine-tuning per customer is impractical\u2014it's expensive, slow, and doesn't scale to many customers."
       },
       "parseStrategy": {
         "keyPhrase": "remember across sessions",
@@ -1667,7 +1664,7 @@
       "incorrectExplanations": {
         "c": "Manual review doesn't scale and can't provide real-time detection of anomalies.",
         "a": "Static thresholds can't detect subtle quality degradation or behavioral changes that stay within normal latency/error bounds.",
-        "d": "Many GenAI issues don't produce errors—they produce subtly wrong or degraded outputs that still 'succeed.'"
+        "d": "Many GenAI issues don't produce errors\u2014they produce subtly wrong or degraded outputs that still 'succeed.'"
       },
       "parseStrategy": {
         "keyPhrase": "detect anomalous GenAI behavior",
@@ -1740,7 +1737,7 @@
       "domain": 2,
       "task": "2.4",
       "skills": [
-        "2.4.3"
+        "2.4.2"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -1770,8 +1767,8 @@
       "explanation": "InvokeModelWithResponseStream returns response tokens as they're generated, enabling real-time display of partial responses. The client receives chunks immediately rather than waiting for the full response to complete.",
       "incorrectExplanations": {
         "d": "GetModelInvocationResult retrieves completed batch job results, not real-time streaming responses.",
-        "c": "Batch processing is asynchronous and returns results later—it's not designed for real-time streaming.",
-        "a": "InvokeModel returns the complete response only after generation finishes. Polling doesn't help—there's nothing partial to retrieve."
+        "c": "Batch processing is asynchronous and returns results later\u2014it's not designed for real-time streaming.",
+        "a": "InvokeModel returns the complete response only after generation finishes. Polling doesn't help\u2014there's nothing partial to retrieve."
       },
       "parseStrategy": {
         "keyPhrase": "partial responses in real-time",
@@ -1823,7 +1820,7 @@
       "incorrectExplanations": {
         "d": "Bedrock doesn't have built-in weather tools. External API integrations require custom Action Groups.",
         "c": "Knowledge Bases are for document retrieval, not real-time API data like current weather conditions.",
-        "a": "Bedrock Agents can't call external APIs directly—they invoke Action Groups, which call Lambda or APIs through defined schemas."
+        "a": "Bedrock Agents can't call external APIs directly\u2014they invoke Action Groups, which call Lambda or APIs through defined schemas."
       },
       "parseStrategy": {
         "keyPhrase": "external API with OAuth",
@@ -1926,7 +1923,7 @@
       ],
       "explanation": "Bedrock Data Automation provides intelligent document processing with pre-built extractors for common document types including invoices. It handles various formats and extracts structured data without custom ML model training.",
       "incorrectExplanations": {
-        "d": "Polly converts text to speech—it doesn't process or extract data from documents.",
+        "d": "Polly converts text to speech\u2014it doesn't process or extract data from documents.",
         "c": "Rekognition analyzes images but doesn't extract structured business data from documents.",
         "a": "Comprehend extracts entities from text but doesn't handle document layout understanding for invoices."
       },
@@ -2001,11 +1998,11 @@
       "domain": 2,
       "task": "2.4",
       "skills": [
-        "2.4.2"
+        "2.4.1"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
-      "scenario": "A research organization needs to process 10,000 academic papers through a summarization model. The results aren't needed immediately—researchers will access them over the next week. Cost efficiency is the primary concern.",
+      "scenario": "A research organization needs to process 10,000 academic papers through a summarization model. The results aren't needed immediately\u2014researchers will access them over the next week. Cost efficiency is the primary concern.",
       "question": "Which Bedrock invocation method is MOST cost-effective for this bulk processing workload?",
       "options": [
         {
@@ -2028,7 +2025,7 @@
       "correctAnswers": [
         "d"
       ],
-      "explanation": "Batch inference provides a significant cost discount (up to 50%) compared to on-demand invocations. Since results aren't needed immediately, batch processing is ideal—you submit the job and retrieve results when complete.",
+      "explanation": "Batch inference provides a significant cost discount (up to 50%) compared to on-demand invocations. Since results aren't needed immediately, batch processing is ideal\u2014you submit the job and retrieve results when complete.",
       "incorrectExplanations": {
         "d": "Provisioned Throughput guarantees capacity but doesn't reduce per-token costs. Batch inference is more cost-effective for non-urgent workloads.",
         "c": "Streaming reduces perceived latency but doesn't reduce cost. It's designed for real-time display, not bulk processing.",
@@ -2131,7 +2128,7 @@
       "correctAnswers": [
         "d"
       ],
-      "explanation": "EventBridge provides loose coupling—it captures events from various sources (including legacy systems) without modifying them. Lambda functions triggered by EventBridge can invoke Bedrock for GenAI processing, keeping the integration clean.",
+      "explanation": "EventBridge provides loose coupling\u2014it captures events from various sources (including legacy systems) without modifying them. Lambda functions triggered by EventBridge can invoke Bedrock for GenAI processing, keeping the integration clean.",
       "incorrectExplanations": {
         "a": "Modifying the legacy system violates the requirement to integrate without modifications.",
         "d": "Replacing legacy systems is expensive and risky. The question asks for integration, not replacement.",
@@ -2188,7 +2185,7 @@
       "explanation": "Separate Action Groups allow different Lambda functions with different execution roles. The PCI-sensitive Action Group's Lambda has enhanced security controls, VPC placement, and stricter IAM policies, while general actions have standard permissions.",
       "incorrectExplanations": {
         "a": "A single Action Group with one Lambda can't have different execution roles for different operations.",
-        "d": "Prompt instructions are not a security control—they can be bypassed. Security must be enforced in code and IAM.",
+        "d": "Prompt instructions are not a security control\u2014they can be bypassed. Security must be enforced in code and IAM.",
         "c": "Guardrails filter content but don't implement IAM-level access controls or compliance security boundaries."
       },
       "parseStrategy": {
@@ -2241,7 +2238,7 @@
       ],
       "explanation": "Bedrock Prompt Flows provides a visual interface for chaining AI operations. You connect nodes (prompts, classifiers, extractors) without code, creating complex workflows through drag-and-drop orchestration.",
       "incorrectExplanations": {
-        "c": "Step Functions requires code/JSON definitions—it's not visual no-code orchestration.",
+        "c": "Step Functions requires code/JSON definitions\u2014it's not visual no-code orchestration.",
         "d": "Lambda chaining through API Gateway requires writing code for each Lambda and configuring integrations.",
         "a": "Knowledge Bases are for RAG retrieval, not workflow orchestration between different AI operations."
       },
@@ -2291,11 +2288,11 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "On-demand inference has no upfront commitment—you pay only for what you use. This is ideal for uncertain traffic patterns and startups. If traffic grows, on-demand scales automatically without capacity planning.",
+      "explanation": "On-demand inference has no upfront commitment\u2014you pay only for what you use. This is ideal for uncertain traffic patterns and startups. If traffic grows, on-demand scales automatically without capacity planning.",
       "incorrectExplanations": {
-        "c": "SageMaker reserved capacity requires upfront commitment and capacity planning—wrong for uncertain traffic.",
+        "c": "SageMaker reserved capacity requires upfront commitment and capacity planning\u2014wrong for uncertain traffic.",
         "a": "Provisioned Throughput requires hourly commitment regardless of usage. It's expensive for low or uncertain traffic.",
-        "d": "EC2 instances require provisioning and maintenance—high operational overhead for a startup."
+        "d": "EC2 instances require provisioning and maintenance\u2014high operational overhead for a startup."
       },
       "parseStrategy": {
         "keyPhrase": "minimize upfront costs while ensuring scale",
@@ -2347,7 +2344,7 @@
       "incorrectExplanations": {
         "d": "Resource utilization doesn't correlate with output quality. A system can use normal resources while producing poor results.",
         "c": "User complaints are lagging indicators. By the time complaints accumulate, significant quality loss has already occurred.",
-        "a": "Error rates won't catch quality degradation—responses that are subtly wrong don't produce errors."
+        "a": "Error rates won't catch quality degradation\u2014responses that are subtly wrong don't produce errors."
       },
       "parseStrategy": {
         "keyPhrase": "gradual quality degradation",
@@ -2634,7 +2631,7 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "A fintech company is building an AI-powered financial advisor that must retrieve portfolio data, execute trades, and check regulatory compliance. The agent needs to autonomously chain these operations — for example, checking compliance before executing a trade. The team wants to use the AWS Strands Agents SDK for local development flexibility while still deploying to AWS.",
+      "scenario": "A fintech company is building an AI-powered financial advisor that must retrieve portfolio data, execute trades, and check regulatory compliance. The agent needs to autonomously chain these operations \u2014 for example, checking compliance before executing a trade. The team wants to use the AWS Strands Agents SDK for local development flexibility while still deploying to AWS.",
       "question": "Which approach BEST enables autonomous multi-step tool chaining with the Strands Agents SDK?",
       "options": [
         {
@@ -2676,7 +2673,7 @@
         "AWS Strands Agents SDK",
         "Amazon Bedrock"
       ],
-      "examTip": "Strands Agents SDK tools with typed schemas enable the agent's reasoning loop to autonomously chain operations — never hardcode sequences that the agent should decide dynamically."
+      "examTip": "Strands Agents SDK tools with typed schemas enable the agent's reasoning loop to autonomously chain operations \u2014 never hardcode sequences that the agent should decide dynamically."
     },
     {
       "id": "d2-q52",
@@ -2729,7 +2726,7 @@
         "Model Context Protocol",
         "Amazon Bedrock"
       ],
-      "examTip": "MCP servers enable runtime discovery of new data sources — when the question says 'without redeploying' or 'dynamic discovery,' think MCP."
+      "examTip": "MCP servers enable runtime discovery of new data sources \u2014 when the question says 'without redeploying' or 'dynamic discovery,' think MCP."
     },
     {
       "id": "d2-q53",
@@ -2765,7 +2762,7 @@
       ],
       "explanation": "Amazon Bedrock AgentCore is purpose-built for deploying and managing AI agents in production. It handles infrastructure provisioning, scaling, monitoring, and lifecycle management for agents built with frameworks like Strands, providing the fully managed experience the team requires.",
       "incorrectExplanations": {
-        "a": "EC2 with Auto Scaling requires the team to manage infrastructure, patching, and scaling configuration — it is not fully managed.",
+        "a": "EC2 with Auto Scaling requires the team to manage infrastructure, patching, and scaling configuration \u2014 it is not fully managed.",
         "c": "ECS with Fargate reduces infrastructure management but still requires container orchestration configuration and is not purpose-built for AI agents.",
         "d": "Lambda has execution time limits and cold start issues that make it unsuitable for long-running agent reasoning loops."
       },
@@ -2781,7 +2778,7 @@
       "services": [
         "Amazon Bedrock AgentCore"
       ],
-      "examTip": "AgentCore is the managed service specifically designed for deploying AI agents to production — it handles scaling, monitoring, and infrastructure automatically."
+      "examTip": "AgentCore is the managed service specifically designed for deploying AI agents to production \u2014 it handles scaling, monitoring, and infrastructure automatically."
     },
     {
       "id": "d2-q54",
@@ -2818,7 +2815,7 @@
       "explanation": "MCP supports configuration-driven server selection where a config file specifies which servers to connect to. Consultants can swap config files per project to activate different server sets without touching the assistant code. This is the standard MCP pattern for dynamic server management.",
       "incorrectExplanations": {
         "a": "Hardcoding all servers and using feature flags still requires code-level changes for new tools and doesn't follow MCP's configuration-driven design.",
-        "c": "Building separate binaries is wasteful and unmaintainable — it creates a combinatorial explosion as new tools are added.",
+        "c": "Building separate binaries is wasteful and unmaintainable \u2014 it creates a combinatorial explosion as new tools are added.",
         "d": "A proxy server adds latency and a single point of failure, and it still requires proxy code changes when new backends are added."
       },
       "parseStrategy": {
@@ -2833,7 +2830,7 @@
       "services": [
         "Model Context Protocol"
       ],
-      "examTip": "MCP uses configuration files (like mcp.json) to define which servers a client connects to — this is the standard pattern for dynamic server management."
+      "examTip": "MCP uses configuration files (like mcp.json) to define which servers a client connects to \u2014 this is the standard pattern for dynamic server management."
     },
     {
       "id": "d2-q55",
@@ -2868,7 +2865,7 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "AgentCore is framework-agnostic — it can deploy and manage agents built with Strands, LangChain, Bedrock Agents, or any other framework. Its unified management plane provides consistent monitoring, scaling, and lifecycle management across heterogeneous agent implementations.",
+      "explanation": "AgentCore is framework-agnostic \u2014 it can deploy and manage agents built with Strands, LangChain, Bedrock Agents, or any other framework. Its unified management plane provides consistent monitoring, scaling, and lifecycle management across heterogeneous agent implementations.",
       "incorrectExplanations": {
         "a": "Rewriting working agents is expensive, risky, and unnecessary when AgentCore supports multiple frameworks natively.",
         "b": "Building custom monitoring on ECS duplicates functionality that AgentCore provides out of the box, increasing operational burden.",
@@ -2887,7 +2884,7 @@
         "Amazon Bedrock AgentCore",
         "Amazon Bedrock Agents"
       ],
-      "examTip": "AgentCore is framework-agnostic — it manages agents built with any framework. When you see heterogeneous agent deployments, think AgentCore."
+      "examTip": "AgentCore is framework-agnostic \u2014 it manages agents built with any framework. When you see heterogeneous agent deployments, think AgentCore."
     },
     {
       "id": "d2-q56",
@@ -2992,7 +2989,7 @@
         "Amazon Bedrock",
         "Amazon SageMaker"
       ],
-      "examTip": "Model cascading routes to the cheapest capable model first and only escalates when needed — ideal when most traffic is simple."
+      "examTip": "Model cascading routes to the cheapest capable model first and only escalates when needed \u2014 ideal when most traffic is simple."
     },
     {
       "id": "d2-q58",
@@ -3029,7 +3026,7 @@
       "explanation": "Bedrock provisioned throughput guarantees consistent latency for baseline capacity during business hours while on-demand handles unpredictable spikes. This avoids paying for peak capacity 24/7 and eliminates cold start risks for the baseline workload.",
       "incorrectExplanations": {
         "a": "Lambda cold starts combined with on-demand Bedrock latency variability may exceed the 5-second requirement during traffic spikes.",
-        "b": "Provisioning for peak traffic wastes cost during the near-zero overnight periods and moderate hours — paying for unused capacity.",
+        "b": "Provisioning for peak traffic wastes cost during the near-zero overnight periods and moderate hours \u2014 paying for unused capacity.",
         "d": "Scheduled scaling based on historical patterns cannot handle the unpredictable litigation bundle uploads, which don't follow a pattern."
       },
       "parseStrategy": {
@@ -3081,7 +3078,7 @@
       "explanation": "Bedrock Custom Model Import allows importing fine-tuned models (including Llama) directly into Bedrock. The model is then accessible via the standard InvokeModel API with zero infrastructure management. Since the team already uses Bedrock, this is the simplest path.",
       "incorrectExplanations": {
         "b": "Building a custom Docker container and managing SageMaker endpoints adds significant complexity compared to Bedrock Custom Model Import.",
-        "c": "EC2 deployment requires managing GPU instances, scaling, patching, and building an API layer — far from the simplest approach.",
+        "c": "EC2 deployment requires managing GPU instances, scaling, patching, and building an API layer \u2014 far from the simplest approach.",
         "d": "Lambda has memory and timeout constraints that make it unsuitable for large language model inference, and ONNX conversion adds unnecessary complexity."
       },
       "parseStrategy": {
@@ -3096,7 +3093,7 @@
       "services": [
         "Amazon Bedrock"
       ],
-      "examTip": "Bedrock Custom Model Import is the fastest path to deploy fine-tuned open-source models — no infrastructure management required."
+      "examTip": "Bedrock Custom Model Import is the fastest path to deploy fine-tuned open-source models \u2014 no infrastructure management required."
     },
     {
       "id": "d2-q60",
@@ -3134,7 +3131,7 @@
       "incorrectExplanations": {
         "a": "Provisioning for 50x peak traffic wastes enormous cost during normal operations when only 1/50th of the capacity is used.",
         "c": "Switching to Bedrock on-demand may not be feasible if the company uses a custom model on SageMaker, and migration introduces risk during an already critical architecture change.",
-        "d": "A second regional endpoint doubles cost but doesn't solve the burst scaling problem — both regions would need to scale for a 50x increase."
+        "d": "A second regional endpoint doubles cost but doesn't solve the burst scaling problem \u2014 both regions would need to scale for a 50x increase."
       },
       "parseStrategy": {
         "keyPhrase": "extreme burst traffic while controlling steady-state costs",
@@ -3240,7 +3237,7 @@
       "incorrectExplanations": {
         "a": "CloudFront reduces latency but the underlying Bedrock invocations still happen in us-east-1, sending EU customer data to the US region.",
         "c": "Routing US traffic to the EU adds unnecessary latency for US users and concentrates all load in one region.",
-        "d": "Encryption in transit does not satisfy data residency requirements — the data still physically leaves the EU region and is processed in the US."
+        "d": "Encryption in transit does not satisfy data residency requirements \u2014 the data still physically leaves the EU region and is processed in the US."
       },
       "parseStrategy": {
         "keyPhrase": "no customer data leaves the EU region",
@@ -3255,7 +3252,7 @@
         "Amazon Bedrock",
         "AWS CloudFormation"
       ],
-      "examTip": "Data residency requires processing data in the mandated region. Encryption in transit does NOT satisfy residency — the data must stay in-region."
+      "examTip": "Data residency requires processing data in the mandated region. Encryption in transit does NOT satisfy residency \u2014 the data must stay in-region."
     },
     {
       "id": "d2-q63",
@@ -3291,7 +3288,7 @@
       ],
       "explanation": "API Gateway natively supports usage plans (rate limits and quotas per customer), API keys for authentication, and built-in CloudWatch metrics for usage tracking. Lambda authorizers can enforce model-specific permissions. This is the purpose-built solution for multi-tenant API management.",
       "incorrectExplanations": {
-        "b": "A custom gateway requires building and maintaining rate limiting, quota enforcement, API key management, and usage tracking — all of which API Gateway provides natively.",
+        "b": "A custom gateway requires building and maintaining rate limiting, quota enforcement, API key management, and usage tracking \u2014 all of which API Gateway provides natively.",
         "c": "WAF is a security layer for web exploits, not an API management tool. It lacks usage plans, quotas, and per-customer rate limiting capabilities.",
         "d": "Separate Lambda functions per customer doesn't scale and creates enormous operational overhead as the customer base grows."
       },
@@ -3309,7 +3306,7 @@
         "Amazon Bedrock",
         "AWS Lambda"
       ],
-      "examTip": "API Gateway usage plans are purpose-built for multi-tenant rate limiting and quota management — don't build custom when native features exist."
+      "examTip": "API Gateway usage plans are purpose-built for multi-tenant rate limiting and quota management \u2014 don't build custom when native features exist."
     },
     {
       "id": "d2-q64",
@@ -3368,7 +3365,7 @@
       "domain": 2,
       "task": "2.4",
       "skills": [
-        "2.4.2"
+        "2.4.1"
       ],
       "type": "multiple-response",
       "difficulty": "medium",
@@ -3396,7 +3393,7 @@
         "a",
         "b"
       ],
-      "explanation": "The routing layer (B) handles the intelligent decision-making — selecting models based on claim type, language, and region. Cross-region inference (A) handles availability — automatically routing to another region when a model endpoint is unavailable. Together they provide intelligent routing with resilience.",
+      "explanation": "The routing layer (B) handles the intelligent decision-making \u2014 selecting models based on claim type, language, and region. Cross-region inference (A) handles availability \u2014 automatically routing to another region when a model endpoint is unavailable. Together they provide intelligent routing with resilience.",
       "incorrectExplanations": {
         "c": "Caching model responses is inappropriate for claims processing where each claim is unique and requires fresh analysis.",
         "d": "Direct Connect provides dedicated network connections to AWS, not between regions. Inter-region traffic uses AWS's backbone automatically."
@@ -3420,7 +3417,7 @@
       "domain": 2,
       "task": "2.4",
       "skills": [
-        "2.4.3"
+        "2.4.2"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -3501,7 +3498,7 @@
       ],
       "explanation": "Amazon Q Business is purpose-built for enterprise knowledge search with pre-built connectors for SharePoint, Confluence, and web crawlers. It provides a ready-to-use chat interface with built-in access controls, requiring minimal development effort. It is the turnkey solution for this use case.",
       "incorrectExplanations": {
-        "a": "Bedrock Knowledge Bases require building a custom application frontend and managing the RAG pipeline — more development effort than Q Business.",
+        "a": "Bedrock Knowledge Bases require building a custom application frontend and managing the RAG pipeline \u2014 more development effort than Q Business.",
         "c": "OpenSearch with a custom UI requires significant development effort for indexing, search relevance tuning, and UI building.",
         "d": "Kendra provides search but not a complete chat experience. Building a custom chat interface adds development effort that Q Business eliminates."
       },
@@ -3517,7 +3514,7 @@
       "services": [
         "Amazon Q Business"
       ],
-      "examTip": "Amazon Q Business is the turnkey enterprise knowledge assistant — it includes connectors, chat UI, and access controls out of the box."
+      "examTip": "Amazon Q Business is the turnkey enterprise knowledge assistant \u2014 it includes connectors, chat UI, and access controls out of the box."
     },
     {
       "id": "d2-q68",
@@ -3554,7 +3551,7 @@
       "explanation": "Q Developer customizations allow connecting the tool to internal code repositories. Q Developer then learns team-specific patterns, coding conventions, and internal library usage, generating suggestions that align with the team's actual codebase. This is the native and most effective approach.",
       "incorrectExplanations": {
         "b": "Bedrock Guardrails operate on Bedrock model invocations, not on Q Developer's code completion engine. They cannot filter code suggestions.",
-        "c": "Q Developer's code completion doesn't accept system prompts in the traditional sense — customizations via repository connection are the supported mechanism.",
+        "c": "Q Developer's code completion doesn't accept system prompts in the traditional sense \u2014 customizations via repository connection are the supported mechanism.",
         "d": "Post-processing code suggestions would break the real-time inline completion experience and add unacceptable latency to the developer workflow."
       },
       "parseStrategy": {
@@ -3569,7 +3566,7 @@
       "services": [
         "Amazon Q Developer"
       ],
-      "examTip": "Q Developer customizations use your internal code repositories to learn team-specific patterns — this is the supported way to tailor code suggestions."
+      "examTip": "Q Developer customizations use your internal code repositories to learn team-specific patterns \u2014 this is the supported way to tailor code suggestions."
     },
     {
       "id": "d2-q69",
@@ -3606,7 +3603,7 @@
       "explanation": "Bedrock Data Automation provides intelligent document processing that understands diverse document types and extracts specified structured fields without custom parsing rules. It handles the variety of document formats (handwritten, medical, invoices) with pre-trained understanding, offering the most effective automation.",
       "incorrectExplanations": {
         "a": "Textract extracts raw text but custom parsing rules for each document type are fragile, expensive to maintain, and don't handle the diversity of formats well.",
-        "c": "Building a custom SageMaker pipeline requires labeled training data, ML expertise, and months of development — far more effort than using Bedrock Data Automation.",
+        "c": "Building a custom SageMaker pipeline requires labeled training data, ML expertise, and months of development \u2014 far more effort than using Bedrock Data Automation.",
         "d": "Comprehend is designed for NLP tasks on text, not for structured field extraction from scanned documents with diverse layouts."
       },
       "parseStrategy": {
@@ -3621,7 +3618,7 @@
       "services": [
         "Amazon Bedrock Data Automation"
       ],
-      "examTip": "Bedrock Data Automation understands document structure and extracts fields intelligently — no custom parsing rules needed for diverse document types."
+      "examTip": "Bedrock Data Automation understands document structure and extracts fields intelligently \u2014 no custom parsing rules needed for diverse document types."
     },
     {
       "id": "d2-q70",
@@ -3658,7 +3655,7 @@
       "explanation": "AWS Amplify provides pre-built UI components for authentication, API integration libraries, and hosting with CI/CD out of the box. It dramatically reduces development time by providing scaffolding for all the common web app concerns, letting the team focus on the chatbot logic.",
       "incorrectExplanations": {
         "a": "Building a custom React app from scratch with EC2 deployment requires weeks of boilerplate work for auth, hosting, and CI/CD that Amplify provides immediately.",
-        "c": "S3 static sites with Lambda@Edge require manual setup of authentication, API routing, and deployment pipelines — more infrastructure work.",
+        "c": "S3 static sites with Lambda@Edge require manual setup of authentication, API routing, and deployment pipelines \u2014 more infrastructure work.",
         "d": "WordPress with plugins is inappropriate for a real-time chat application and doesn't integrate well with Bedrock APIs."
       },
       "parseStrategy": {
@@ -3675,7 +3672,7 @@
         "Amazon Cognito",
         "Amazon Bedrock"
       ],
-      "examTip": "Amplify provides authentication, API integration, and hosting with CI/CD out of the box — it's the fastest path for full-stack web apps on AWS."
+      "examTip": "Amplify provides authentication, API integration, and hosting with CI/CD out of the box \u2014 it's the fastest path for full-stack web apps on AWS."
     },
     {
       "id": "d2-q71",
@@ -3727,7 +3724,7 @@
       "services": [
         "Amazon Bedrock Data Automation"
       ],
-      "examTip": "Bedrock Data Automation handles video, image, and document processing in unified pipelines — ideal for consolidating multiple separate ML workflows."
+      "examTip": "Bedrock Data Automation handles video, image, and document processing in unified pipelines \u2014 ideal for consolidating multiple separate ML workflows."
     },
     {
       "id": "d2-q72",
@@ -3738,7 +3735,7 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "A wealth management firm is building a portfolio advisory system with three specialized agents: a market research agent, a risk assessment agent, and a portfolio optimization agent. When a client asks for investment advice, the system needs to coordinate all three agents — market research informs risk assessment, which constrains portfolio optimization. The firm wants a managed orchestration solution.",
+      "scenario": "A wealth management firm is building a portfolio advisory system with three specialized agents: a market research agent, a risk assessment agent, and a portfolio optimization agent. When a client asks for investment advice, the system needs to coordinate all three agents \u2014 market research informs risk assessment, which constrains portfolio optimization. The firm wants a managed orchestration solution.",
       "question": "Which multi-agent pattern BEST supports this sequential dependency chain?",
       "options": [
         {
@@ -3832,7 +3829,7 @@
         "AWS Agent Squad",
         "Amazon Bedrock"
       ],
-      "examTip": "Agent Squad's custom orchestrator supports parallel agent execution, conditional branching, and iterative loops — use it for complex workflows beyond simple sequential or round-robin patterns."
+      "examTip": "Agent Squad's custom orchestrator supports parallel agent execution, conditional branching, and iterative loops \u2014 use it for complex workflows beyond simple sequential or round-robin patterns."
     },
     {
       "id": "d2-q74",
@@ -3884,7 +3881,7 @@
       "services": [
         "Amazon Bedrock Agents"
       ],
-      "examTip": "Supervisor agents use FM reasoning to classify and route — much more robust than keyword-based routing for natural language queries."
+      "examTip": "Supervisor agents use FM reasoning to classify and route \u2014 much more robust than keyword-based routing for natural language queries."
     },
     {
       "id": "d2-q75",
@@ -3919,7 +3916,7 @@
         "a",
         "b"
       ],
-      "explanation": "The supervisor agent (A) provides conflict resolution authority — it can weigh competing recommendations against business rules and make final decisions. The shared memory store (B) ensures all agents operate on the same system state, preventing conflicts caused by stale data. Together they address both conflict resolution and conflict prevention.",
+      "explanation": "The supervisor agent (A) provides conflict resolution authority \u2014 it can weigh competing recommendations against business rules and make final decisions. The shared memory store (B) ensures all agents operate on the same system state, preventing conflicts caused by stale data. Together they address both conflict resolution and conflict prevention.",
       "incorrectExplanations": {
         "c": "Separate queues isolate agent outputs but provide no mechanism for resolving conflicts between competing recommendations.",
         "d": "CloudWatch alarms detect conflicts after they happen but don't provide resolution mechanisms. By the time an alarm fires, decisions may have already been acted upon."
@@ -3952,7 +3949,7 @@
       "options": [
         {
           "id": "a",
-          "text": "Use majority voting — if two out of three agents classify an event as a threat, treat it as a threat"
+          "text": "Use majority voting \u2014 if two out of three agents classify an event as a threat, treat it as a threat"
         },
         {
           "id": "b",
@@ -3970,7 +3967,7 @@
       "correctAnswers": [
         "b"
       ],
-      "explanation": "A supervisor agent with weighted reasoning can evaluate each agent's assessment in context — for example, weighting network analysis higher for traffic anomalies but threat intelligence higher for known attack signatures. Confidence scores enable nuanced synthesis rather than simple voting, and the rationale provides explainability.",
+      "explanation": "A supervisor agent with weighted reasoning can evaluate each agent's assessment in context \u2014 for example, weighting network analysis higher for traffic anomalies but threat intelligence higher for known attack signatures. Confidence scores enable nuanced synthesis rather than simple voting, and the rationale provides explainability.",
       "incorrectExplanations": {
         "a": "Majority voting ignores confidence levels and domain relevance. Two low-confidence assessments shouldn't override one high-confidence assessment from the most relevant agent.",
         "c": "Always deferring to one agent wastes the other agents' insights. Network anomalies might be invisible to threat intelligence, and log patterns might reveal threats the network agent misses.",
@@ -4078,8 +4075,8 @@
       ],
       "explanation": "Intermediate validation checks (gates) between chain steps catch errors early, preventing them from propagating downstream. If the fact extraction step produces incorrect output, the validation gate catches it before the summary step receives bad input.",
       "incorrectExplanations": {
-        "a": "Running in parallel breaks the dependency chain — the summary needs facts from step 1, and action items need the summary from step 2.",
-        "c": "A single mega-prompt is harder to debug, test, and maintain. It doesn't prevent errors — it just makes them harder to isolate.",
+        "a": "Running in parallel breaks the dependency chain \u2014 the summary needs facts from step 1, and action items need the summary from step 2.",
+        "c": "A single mega-prompt is harder to debug, test, and maintain. It doesn't prevent errors \u2014 it just makes them harder to isolate.",
         "d": "Retrying the entire chain is wasteful and may reproduce the same error since the root cause isn't addressed."
       },
       "parseStrategy": {
@@ -4129,10 +4126,10 @@
         "a",
         "b"
       ],
-      "explanation": "Load testing (A) validates the 10,000 concurrent user requirement and sub-3-second response time under realistic conditions — without this, the system may fail at launch. Immutable audit logging (B) is a regulatory requirement for financial services and must be in place before production. Both are non-negotiable for production readiness.",
+      "explanation": "Load testing (A) validates the 10,000 concurrent user requirement and sub-3-second response time under realistic conditions \u2014 without this, the system may fail at launch. Immutable audit logging (B) is a regulatory requirement for financial services and must be in place before production. Both are non-negotiable for production readiness.",
       "incorrectExplanations": {
-        "c": "A feedback button is useful for long-term improvement but is not a production readiness requirement — it doesn't address the stated launch criteria.",
-        "d": "Architecture documentation helps operations but doesn't validate performance, verify recovery, or ensure compliance — it's documentation, not a readiness measure."
+        "c": "A feedback button is useful for long-term improvement but is not a production readiness requirement \u2014 it doesn't address the stated launch criteria.",
+        "d": "Architecture documentation helps operations but doesn't validate performance, verify recovery, or ensure compliance \u2014 it's documentation, not a readiness measure."
       },
       "parseStrategy": {
         "keyPhrase": "10,000 concurrent users and financial audit requirements",
@@ -4235,7 +4232,7 @@
       "correctAnswers": [
         "b"
       ],
-      "explanation": "The agent selects tools based purely on text descriptions in the system prompt. Detailed, unambiguous tool descriptions give the model clear signals about when to use each tool, what inputs are required, and what outputs to expect. This is the highest-leverage fix because it addresses the root cause — the model lacks sufficient information to make correct tool selections.",
+      "explanation": "The agent selects tools based purely on text descriptions in the system prompt. Detailed, unambiguous tool descriptions give the model clear signals about when to use each tool, what inputs are required, and what outputs to expect. This is the highest-leverage fix because it addresses the root cause \u2014 the model lacks sufficient information to make correct tool selections.",
       "incorrectExplanations": {
         "a": "More reasoning turns allow more retries but don't fix the root cause of incorrect tool selection. The agent will keep making the same mistakes with the same inadequate tool descriptions.",
         "c": "Post-processing validation adds complexity and latency. It treats the symptom (failed invocations) rather than the cause (unclear tool descriptions). The agent should select the right tool on the first attempt.",
@@ -4254,7 +4251,7 @@
       "services": [
         "Amazon Bedrock Agents"
       ],
-      "examTip": "Tool descriptions are the 'prompt engineering' of agentic AI. The model chooses tools based on descriptions alone — make them precise, detailed, and unambiguous.",
+      "examTip": "Tool descriptions are the 'prompt engineering' of agentic AI. The model chooses tools based on descriptions alone \u2014 make them precise, detailed, and unambiguous.",
       "strategicBreakdown": {
         "whatIsBeingAsked": "How to fix a Bedrock Agent that frequently invokes the wrong tools or provides incorrect parameters.",
         "testedConcepts": [
@@ -4267,7 +4264,7 @@
         "servicesInPlay": [
           {
             "service": "Amazon Bedrock Agents",
-            "role": "Agent runtime — tool descriptions drive tool selection behavior",
+            "role": "Agent runtime \u2014 tool descriptions drive tool selection behavior",
             "isCorrectAnswer": true
           }
         ],
@@ -4277,7 +4274,7 @@
           "Adding retry logic instead of fixing the root cause",
           "Not realizing that tool descriptions are the primary input for tool selection decisions"
         ],
-        "timeManagementTip": "Wrong tool selection → look for 'tool descriptions' in the answer options. 15 seconds."
+        "timeManagementTip": "Wrong tool selection \u2192 look for 'tool descriptions' in the answer options. 15 seconds."
       }
     },
     {
@@ -4315,7 +4312,7 @@
       "explanation": "The circuit breaker pattern is specifically designed to prevent cascading failures. When the error rate exceeds a threshold, the circuit 'opens' and stops sending requests, returning cached or fallback responses instead. This gives the downstream service time to recover without being overwhelmed by retries. After a cooldown period, the circuit 'half-opens' to test if the service has recovered. This pattern directly addresses the described cascade.",
       "incorrectExplanations": {
         "b": "An SQS queue buffers requests but introduces significant latency for a real-time customer service application. Users expect immediate responses, not queued processing. This pattern is better suited for asynchronous workloads.",
-        "c": "Provisioned Throughput reserves dedicated capacity but involves a commitment and cost regardless of usage. It doesn't address the cascading failure pattern itself — if provisioned capacity is also exhausted, the same cascade would occur.",
+        "c": "Provisioned Throughput reserves dedicated capacity but involves a commitment and cost regardless of usage. It doesn't address the cascading failure pattern itself \u2014 if provisioned capacity is also exhausted, the same cascade would occur.",
         "d": "Fixed-delay retries still contribute to the cascade. During throttling, all instances retry at the same 1-second interval, creating synchronized retry storms. Exponential backoff with jitter would be better than fixed delay, but neither addresses cascading failures as effectively as a circuit breaker."
       },
       "parseStrategy": {
@@ -4326,7 +4323,7 @@
           "Fixed-delay retries = creates synchronized retry storms = worsens cascading failures",
           "Circuit breaker = designed specifically for preventing cascading failures"
         ],
-        "decisionFramework": "Cascading failures from retries → circuit breaker pattern. This is the textbook solution. Circuit breakers stop the cascade by halting requests when errors exceed a threshold."
+        "decisionFramework": "Cascading failures from retries \u2192 circuit breaker pattern. This is the textbook solution. Circuit breakers stop the cascade by halting requests when errors exceed a threshold."
       },
       "services": [
         "Amazon Bedrock"
@@ -4354,7 +4351,7 @@
           },
           {
             "service": "Amazon SQS",
-            "role": "Distractor — message queue adds latency for real-time use case",
+            "role": "Distractor \u2014 message queue adds latency for real-time use case",
             "isCorrectAnswer": false
           }
         ],
@@ -4401,7 +4398,7 @@
       ],
       "explanation": "The InvokeModelWithResponseStream API returns tokens incrementally as they are generated, allowing the frontend to render them in real-time. Users see the first tokens within 1-2 seconds (time-to-first-token) instead of waiting 8-10 seconds for the complete response. The total generation time is the same, but perceived latency drops dramatically because users can start reading immediately.",
       "incorrectExplanations": {
-        "b": "Client-side polling against the synchronous InvokeModel API doesn't help — the API only returns the complete response, not partial results. Polling every 500ms would just get repeated 'not ready' responses until the full response is available.",
+        "b": "Client-side polling against the synchronous InvokeModel API doesn't help \u2014 the API only returns the complete response, not partial results. Polling every 500ms would just get repeated 'not ready' responses until the full response is available.",
         "c": "A loading animation improves the experience marginally but doesn't address the fundamental issue. Users still wait 8-10 seconds with no useful content. Streaming provides actual content within seconds.",
         "d": "Pre-generating and caching responses only works for predictable queries. A chatbot handles diverse, unpredictable user inputs. This approach cannot cover the long tail of possible queries and doesn't improve the experience for uncached queries."
       },
@@ -4435,13 +4432,13 @@
           },
           {
             "service": "Amazon DynamoDB",
-            "role": "Distractor — caching only works for predictable queries",
+            "role": "Distractor \u2014 caching only works for predictable queries",
             "isCorrectAnswer": false
           }
         ],
         "approachStrategy": "The problem is perceived latency (waiting with no output), not actual latency. Streaming addresses perceived latency by showing tokens as they generate. All other options either don't solve the problem or only partially address it.",
         "commonMistakes": [
-          "Thinking streaming reduces total generation time (it doesn't — same total time, but first token appears much sooner)",
+          "Thinking streaming reduces total generation time (it doesn't \u2014 same total time, but first token appears much sooner)",
           "Choosing caching as a universal solution (only works for predictable/common queries)",
           "Not knowing the difference between InvokeModel and InvokeModelWithResponseStream"
         ],
@@ -4487,7 +4484,7 @@
       ],
       "explanation": "Both options implement multi-agent architectures where each capability is an independent agent. Option B uses a supervisor pattern where a central agent delegates to specialized sub-agents, enabling independent development and testing of each sub-agent. Option D uses Bedrock's multi-agent collaboration feature where each agent is independently deployed with its own configuration. Both approaches allow teams to develop, test, and scale each capability independently.",
       "incorrectExplanations": {
-        "a": "A single agent with multiple action groups couples all capabilities together. Changes to one action group risk affecting others. Testing requires the full agent, and scaling applies uniformly — you can't scale the data gathering component independently of report generation.",
+        "a": "A single agent with multiple action groups couples all capabilities together. Changes to one action group risk affecting others. Testing requires the full agent, and scaling applies uniformly \u2014 you can't scale the data gathering component independently of report generation.",
         "c": "Step Functions with Lambda eliminates the agentic reasoning capabilities needed for complex tasks like analyzing market trends and generating research reports. This approach is suitable for deterministic workflows, not tasks requiring LLM reasoning.",
         "e": "A monolithic Lambda function is the opposite of independent development and scaling. All capabilities are tightly coupled, changes require full redeployment, and the function cannot be scaled per-capability."
       },
@@ -4528,13 +4525,13 @@
           },
           {
             "service": "AWS Step Functions",
-            "role": "Distractor — orchestration without agentic reasoning",
+            "role": "Distractor \u2014 orchestration without agentic reasoning",
             "isCorrectAnswer": false
           }
         ],
         "approachStrategy": "The key requirement is independence. Eliminate any option that couples capabilities together (A, E). Then eliminate the option that removes agentic reasoning (C). Both remaining options (B, D) provide multi-agent independence.",
         "commonMistakes": [
-          "Thinking a single agent with multiple action groups provides independence (it doesn't — they share the same system prompt and model)",
+          "Thinking a single agent with multiple action groups provides independence (it doesn't \u2014 they share the same system prompt and model)",
           "Choosing Step Functions when the task requires LLM reasoning",
           "Not distinguishing between supervisor pattern and multi-agent collaboration (both are valid)"
         ],
@@ -4612,12 +4609,12 @@
           },
           {
             "service": "Microsoft Entra ID",
-            "role": "Enterprise identity provider — federated via OIDC",
+            "role": "Enterprise identity provider \u2014 federated via OIDC",
             "isCorrectAnswer": false
           },
           {
             "service": "AWS IAM",
-            "role": "Role-based access control — roles assumed via Cognito group mapping",
+            "role": "Role-based access control \u2014 roles assumed via Cognito group mapping",
             "isCorrectAnswer": false
           }
         ],
@@ -4629,6 +4626,269 @@
         ],
         "timeManagementTip": "Temporary credentials requirement eliminates B instantly. 'Least overhead' points to managed service (Cognito). Two-step elimination: 20 seconds."
       }
+    },
+    {
+      "id": "d2-q81",
+      "domain": 2,
+      "task": "2.5",
+      "skills": [
+        "2.5.4"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A platform team wants developers to stay in VS Code for inline completions and AWS SDK help. A second squad wants a spec-driven environment that can plan and implement changes across many files without the developer driving every edit. Both tools must stay in the AWS developer-tool family.",
+      "question": "Which pairing matches those two jobs?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Amazon Q Business for VS Code completions; Amazon Bedrock Agents for the spec-driven IDE"
+        },
+        {
+          "id": "b",
+          "text": "Amazon Q Developer in the existing IDE; Kiro as the agentic, spec-driven IDE"
+        },
+        {
+          "id": "c",
+          "text": "SageMaker Unified Studio for both IDE assistance and multi-file coding agents"
+        },
+        {
+          "id": "d",
+          "text": "Amazon Q Developer Apps to generate the spec; Cloud9 for multi-file edits"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Q Developer is the assistant inside VS Code/JetBrains. Kiro is the AWS agentic IDE for spec-driven, multi-file implementation. Unified Studio is the SageMaker web IDE. Q Business and Bedrock Agents are not coding IDEs.",
+      "incorrectExplanations": {
+        "a": "Q Business is enterprise Q&A, not an IDE plugin. Bedrock Agents run application tools, not a developer IDE.",
+        "c": "Unified Studio is for SageMaker notebooks, data prep, and model work\u2014not app-developer coding assistance.",
+        "d": "Q Developer Apps is not a product. Cloud9 is not the agentic spec-driven IDE on the exam."
+      },
+      "parseStrategy": {
+        "keyPhrase": "existing IDE vs spec-driven agentic IDE",
+        "eliminationHints": [
+          "Q Business = enterprise knowledge",
+          "Unified Studio = SageMaker web IDE",
+          "Bedrock Agents = production app agents"
+        ],
+        "decisionFramework": "Q Developer assists in the current IDE. Kiro is the agentic IDE."
+      },
+      "services": [
+        "Amazon Q Developer",
+        "Kiro"
+      ],
+      "examTip": "Do not pick Bedrock Agents when the user is a developer in an IDE."
+    },
+    {
+      "id": "d2-q82",
+      "domain": 2,
+      "task": "2.5",
+      "skills": [
+        "2.5.3"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A company wants employees to chat with connected enterprise systems and take actions (create a ticket, update a record) from that workspace. A BI team separately needs pixel-perfect dashboards of FM evaluation metrics. A third group only needs Q&A over indexed company documents with existing ACLs.",
+      "question": "Which service mapping is correct?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Amazon Quick Sight for the action workspace; Amazon Quick for dashboards; Amazon Kendra for document Q&A"
+        },
+        {
+          "id": "b",
+          "text": "Amazon Quick for the agentic workspace; Amazon Quick Sight for dashboards; Amazon Q Business for enterprise document Q&A"
+        },
+        {
+          "id": "c",
+          "text": "Amazon Q Business for dashboards; Amazon Quick Sight for actions; Amazon Quick for document Q&A"
+        },
+        {
+          "id": "d",
+          "text": "Amazon Bedrock Agents for all three because they all involve generative AI"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Amazon Quick is the agentic workspace (chat, research, actions). Quick Sight is BI dashboards. Q Business remains the managed enterprise Q&A service over connected sources and ACLs. The exam lists them separately\u2014do not collapse Quick and Quick Sight.",
+      "incorrectExplanations": {
+        "a": "Reverses Quick and Quick Sight and substitutes Kendra for Q Business.",
+        "c": "Q Business is not a dashboard service.",
+        "d": "Bedrock Agents can take actions in custom apps but are not the BI layer or the turnkey enterprise Q&A product."
+      },
+      "parseStrategy": {
+        "keyPhrase": "AI workspace vs dashboards vs enterprise Q&A",
+        "eliminationHints": [
+          "Quick Sight = dashboards",
+          "Quick = agentic workspace / actions from chat",
+          "Q Business = indexed enterprise Q&A"
+        ],
+        "decisionFramework": "Quick \u2260 Quick Sight \u2260 Q Business."
+      },
+      "services": [
+        "Amazon Quick",
+        "Amazon Quick Sight",
+        "Amazon Q Business"
+      ],
+      "examTip": "Dashboards = Quick Sight. Take actions from chat = Amazon Quick. Company-doc Q&A = Q Business."
+    },
+    {
+      "id": "d2-q83",
+      "domain": 2,
+      "task": "2.5",
+      "skills": [
+        "2.5.3"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "An operations team already has Amazon Q Business connected to SharePoint and a ticketing system with ACLs. Business analysts want to ship an internal intake-and-approval helper on that same index without writing a RAG pipeline or managing Bedrock Agents.",
+      "question": "Which service should they use?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Amazon Q Business Apps to build a no-code app on the existing Q Business index"
+        },
+        {
+          "id": "b",
+          "text": "Amazon OpenSearch Service as a replacement vector database"
+        },
+        {
+          "id": "c",
+          "text": "Amazon Bedrock Agents with a new Action Group for every analyst"
+        },
+        {
+          "id": "d",
+          "text": "SageMaker Unified Studio to host the intake form"
+        }
+      ],
+      "correctAnswers": [
+        "a"
+      ],
+      "explanation": "Q Business Apps is the no-code layer on a Q Business index. Analysts package intake/approval/knowledge apps against the same connectors and ACLs. It is not a vector database and not a substitute for production Bedrock Agents.",
+      "incorrectExplanations": {
+        "b": "OpenSearch does not give a no-code business app on the Q Business index.",
+        "c": "Bedrock Agents require developer-owned action schemas\u2014the opposite of the no-code requirement.",
+        "d": "Unified Studio is the SageMaker web IDE, not a business-user app builder."
+      },
+      "parseStrategy": {
+        "keyPhrase": "no-code app on enterprise knowledge",
+        "eliminationHints": [
+          "OpenSearch = vector/search engine",
+          "Bedrock Agents = developer-built tools",
+          "Unified Studio = SageMaker IDE"
+        ],
+        "decisionFramework": "Q Business Apps = no-code on the Q Business index."
+      },
+      "services": [
+        "Amazon Q Business Apps",
+        "Amazon Q Business"
+      ],
+      "examTip": "If they already have Q Business and want a packaged internal app, pick Q Business Apps."
+    },
+    {
+      "id": "d2-q84",
+      "domain": 2,
+      "task": "2.5",
+      "skills": [
+        "2.5.4"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A data-science team needs one web interface for SageMaker notebooks, experiments, data prep, and deploying a fine-tuned model. Application developers on the same account already use Amazon Q Developer in JetBrains and do not want a second coding assistant.",
+      "question": "Which service provides the unified SageMaker interface?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Amazon Q Developer, because it can also train models"
+        },
+        {
+          "id": "b",
+          "text": "Kiro, because agentic IDEs replace SageMaker"
+        },
+        {
+          "id": "c",
+          "text": "Amazon SageMaker Unified Studio"
+        },
+        {
+          "id": "d",
+          "text": "Amazon Bedrock Prompt Management"
+        }
+      ],
+      "correctAnswers": [
+        "c"
+      ],
+      "explanation": "SageMaker Unified Studio is the web IDE that consolidates SageMaker notebooks, data prep, experiments, and deployment. Q Developer and Kiro are application-developer tools. Prompt Management versions prompts, not SageMaker experiments.",
+      "incorrectExplanations": {
+        "a": "Q Developer does not replace the SageMaker training/evaluation console.",
+        "b": "Kiro is an agentic coding IDE, not the SageMaker studio.",
+        "d": "Prompt Management is for prompts and templates, not model training workflows."
+      },
+      "parseStrategy": {
+        "keyPhrase": "unified SageMaker IDE",
+        "eliminationHints": [
+          "Q Developer / Kiro = app developers",
+          "Prompt Management = prompts"
+        ],
+        "decisionFramework": "Customize or evaluate in SageMaker \u2192 Unified Studio."
+      },
+      "services": [
+        "Amazon SageMaker Unified Studio"
+      ],
+      "examTip": "Unified Studio is not Q Developer and not Prompt Management."
+    },
+    {
+      "id": "d2-q85",
+      "domain": 2,
+      "task": "2.5",
+      "skills": [
+        "2.5.4"
+      ],
+      "type": "multiple-response",
+      "difficulty": "medium",
+      "scenario": "A hiring plan must cover two developer-productivity needs: inline AWS help inside VS Code, and an AWS-native agentic environment for spec-driven multi-file implementation. The team must not buy a BI tool or an enterprise document chatbot for this.",
+      "question": "Which TWO services meet those developer-productivity needs? (Select TWO)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Amazon Q Developer"
+        },
+        {
+          "id": "b",
+          "text": "Amazon Quick Sight"
+        },
+        {
+          "id": "c",
+          "text": "Kiro"
+        },
+        {
+          "id": "d",
+          "text": "Amazon Q Business"
+        }
+      ],
+      "correctAnswers": [
+        "a",
+        "c"
+      ],
+      "explanation": "Developer productivity on this exam is Q Developer (IDE assistant) and Kiro (agentic IDE). Quick Sight is dashboards. Q Business is enterprise Q&A.",
+      "incorrectExplanations": {
+        "b": "Quick Sight is BI, not a coding environment.",
+        "d": "Q Business is for employees asking questions over company data, not writing application code."
+      },
+      "parseStrategy": {
+        "keyPhrase": "developer productivity tools",
+        "eliminationHints": [
+          "Quick Sight = dashboards",
+          "Q Business = enterprise Q&A"
+        ],
+        "decisionFramework": "2.5.4 = Q Developer + Kiro (+ Unified Studio for SageMaker)."
+      },
+      "services": [
+        "Amazon Q Developer",
+        "Kiro"
+      ],
+      "examTip": "If the user is writing code, do not pick Q Business or Quick Sight."
     }
   ]
 }

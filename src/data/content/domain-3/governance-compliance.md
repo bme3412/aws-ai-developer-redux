@@ -764,6 +764,31 @@ const anomalyAlarm = new cloudwatch.Alarm(this, 'UsageAnomalyAlarm', {
 });
 ```
 
+### Token-Level Redaction and Output Policy Filters
+
+Official 3.3.4 goes beyond "alert on drift." Production governance also needs **token-level redaction** and **AI output policy filters** so sensitive spans never land in logs, tickets, or downstream systems.
+
+| Control | What it does | Typical AWS pieces |
+|---------|--------------|--------------------|
+| **Token-level redaction** | Strip or mask PII/secrets **inside** prompts, completions, and invocation logs before storage | Guardrails PII ANONYMIZE, Comprehend detect_pii_entities, Lambda post-process |
+| **Response logging policy** | Decide what is retained: metadata only vs full prompt/completion, with CMK and retention | Bedrock invocation logging to S3/CloudWatch, S3 Lifecycle |
+| **AI output policy filters** | Block or rewrite outputs that violate org policy even if the model produced them | Guardrails denied topics + word filters, Lambda policy checks, API Gateway response filter |
+
+```typescript
+// Log redacted completions only — required when invocation logs may contain PII
+function redactForAudit(text: string, piiOffsets: { begin: number; end: number }[]) {
+  let redacted = text;
+  for (const span of [...piiOffsets].sort((a, b) => b.begin - a.begin)) {
+    redacted = redacted.slice(0, span.begin) + '[REDACTED]' + redacted.slice(span.end);
+  }
+  return redacted;
+}
+```
+
+If auditors need "what the model said" without storing SSNs, redaction is the answer—not "disable logging" and not "rely on the prompt to avoid PII."
+
+---
+
 ---
 
 ## Key Services Summary
@@ -791,6 +816,8 @@ const anomalyAlarm = new cloudwatch.Alarm(this, 'UsageAnomalyAlarm', {
 | "audit logging" | CloudTrail for API calls, CloudWatch Logs for application events |
 | "organizational governance" | AWS Organizations with SCPs |
 | "continuous compliance" | AWS Config with rules and auto-remediation |
+| "token-level redaction" or "PII in invocation logs" | Guardrails ANONYMIZE + redact before CloudWatch/S3 |
+| "output policy filter" | Guardrails denied topics + Lambda/API Gateway response filter |
 | "model approval workflow" | SageMaker Model Registry with PendingManualApproval status |
 | "trace AI-generated content back to source" | Attribution metadata embedded in FM outputs |
 

@@ -6,7 +6,7 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.1"
+        "5.1.2"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -58,7 +58,7 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.4"
+        "5.1.5"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -110,7 +110,8 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.2"
+        "5.1.5",
+        "5.1.6"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -162,7 +163,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.1"
+        "5.2.2"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -266,60 +267,60 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.3"
+        "5.2.4"
       ],
-      "type": "multiple-choice",
+      "type": "multiple-response",
       "difficulty": "medium",
       "scenario": "A RAG application's retrieval is returning documents that don't seem relevant to user queries. The Knowledge Base uses Amazon OpenSearch Service for vector search. The team needs to understand why retrieval is failing.",
-      "question": "Which approach helps diagnose vector search retrieval issues?",
+      "question": "Which TWO diagnostic steps should the team take FIRST to diagnose vector search retrieval issues? (Select TWO)",
       "options": [
         {
           "id": "a",
-          "text": "Increase the number of shards for better performance"
+          "text": "Increase the number of OpenSearch shards before measuring relevance"
         },
         {
           "id": "b",
-          "text": "Switch to a different embedding model"
+          "text": "Test with known queries and compare expected documents to what retrieval actually returns"
         },
         {
           "id": "c",
-          "text": "Test with known queries, examine returned documents, and verify embedding similarity scores"
+          "text": "Immediately switch embedding models without recording baseline scores"
         },
         {
           "id": "d",
-          "text": "Check OpenSearch cluster health and index status"
+          "text": "Inspect embedding similarity scores and metadata filters for those known queries"
         }
       ],
       "correctAnswers": [
-        "c"
+        "b",
+        "d"
       ],
-      "explanation": "Testing with known queries and examining results reveals the failure mode. Are relevant documents being indexed? Are embeddings similar? Are similarity thresholds too strict? This diagnostic approach identifies whether the issue is in indexing, embedding, or search configuration.",
+      "explanation": "Retrieval debugging starts with a known-good query set. Compare expected vs actual hits, then look at similarity scores and filters to see whether the miss is indexing, embedding space, or a filter that dropped the right chunk. Shard count and a blind model swap are changes, not diagnosis.",
       "incorrectExplanations": {
-        "a": "Cluster health might show infrastructure issues but doesn't explain semantic relevance problems.",
-        "c": "More shards affects performance but doesn't address semantic search relevance.",
-        "d": "Switching models is a fix, not a diagnosis. You need to understand the current failure first."
+        "a": "Shard count affects performance and scale, not semantic relevance.",
+        "c": "Changing the embedding model without a baseline hides whether the original index, filters, or the model was at fault."
       },
       "parseStrategy": {
         "keyPhrase": "diagnose vector search retrieval issues",
         "eliminationHints": [
-          "Cluster health = infrastructure, not relevance",
           "More shards = performance, not relevance",
-          "Switch models = fix, not diagnosis"
+          "Switch models = a fix, not a diagnosis"
         ],
-        "decisionFramework": "Retrieval diagnosis = test with known queries, examine results and scores"
+        "decisionFramework": "Retrieval diagnosis = known queries + inspect scores/filters"
       },
       "services": [
         "Amazon OpenSearch Service",
         "Amazon Bedrock Knowledge Bases"
       ],
-      "examTip": "Debug retrieval by testing with known queries. Compare expected vs. actual results to identify the failure point."
+      "examTip": "Debug retrieval before you re-embed. Known queries and scores tell you which layer failed."
     },
     {
       "id": "d5-q07",
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.3"
+        "5.1.3",
+        "5.1.5"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -371,7 +372,7 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.2"
+        "5.1.6"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -423,7 +424,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.1"
+        "5.2.2"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -450,7 +451,7 @@
       "correctAnswers": [
         "d"
       ],
-      "explanation": "X-Ray traces show timing for each component in a request. Comparing fast vs slow traces reveals which component causes the variation—is it retrieval, model inference, or post-processing? This pinpoints where optimization efforts should focus.",
+      "explanation": "X-Ray traces show timing for each component in a request. Comparing fast vs slow traces reveals which component causes the variation\u2014is it retrieval, model inference, or post-processing? This pinpoints where optimization efforts should focus.",
       "incorrectExplanations": {
         "c": "Logs might show errors but don't show timing breakdowns for successful but slow requests.",
         "a": "Average latency hides variation. You need to see individual request timing to understand what makes some slow.",
@@ -554,7 +555,7 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "Invocation logging captures the full request/response for every call. Setting up alerts for empty responses notifies you when they occur and provides the context needed for diagnosis—what prompt, what parameters, what went wrong.",
+      "explanation": "Invocation logging captures the full request/response for every call. Setting up alerts for empty responses notifies you when they occur and provides the context needed for diagnosis\u2014what prompt, what parameters, what went wrong.",
       "incorrectExplanations": {
         "c": "Temperature affects creativity, not whether responses are empty. This doesn't address the issue.",
         "d": "Switching models is a workaround, not a diagnosis. You should understand the failure first.",
@@ -580,7 +581,7 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.1"
+        "5.1.2"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -632,7 +633,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.3"
+        "5.2.4"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -684,7 +685,7 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.2"
+        "5.1.6"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -736,7 +737,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.1"
+        "5.2.2"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -789,7 +790,7 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.3"
+        "5.1.5"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -841,7 +842,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.2"
+        "5.2.4"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -893,7 +894,8 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.4"
+        "5.1.4",
+        "5.1.9"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -945,7 +947,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.1"
+        "5.2.2"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -1024,7 +1026,7 @@
       "correctAnswers": [
         "a"
       ],
-      "explanation": "Code correctness requires execution testing. Generated code that looks different from reference code may still be correct. Running against test cases measures functional correctness—does the code actually work?",
+      "explanation": "Code correctness requires execution testing. Generated code that looks different from reference code may still be correct. Running against test cases measures functional correctness\u2014does the code actually work?",
       "incorrectExplanations": {
         "d": "Edit distance measures text similarity, not functional correctness.",
         "a": "BLEU measures textual similarity. Correct code with different variable names would score poorly.",
@@ -1049,7 +1051,8 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.3"
+        "5.2.3",
+        "5.1.9"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -1102,7 +1105,7 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.2"
+        "5.1.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -1207,7 +1210,7 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.3"
+        "5.1.1"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -1259,7 +1262,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.1"
+        "5.2.2"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -1311,7 +1314,8 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.4"
+        "5.1.4",
+        "5.1.9"
       ],
       "type": "multiple-response",
       "difficulty": "hard",
@@ -1339,10 +1343,10 @@
         "a",
         "c"
       ],
-      "explanation": "Periodic evaluation against golden datasets catches drift proactively. Alerts on metric drops notify you of regressions immediately. Together, these provide continuous quality assurance—detecting issues before users complain.",
+      "explanation": "Periodic evaluation against golden datasets catches drift proactively. Alerts on metric drops notify you of regressions immediately. Together, these provide continuous quality assurance\u2014detecting issues before users complain.",
       "incorrectExplanations": {
         "d": "Model behavior can change due to data drift even without code changes. Continuous monitoring is needed.",
-        "b": "User complaints are reactive and delayed. Many users don't report issues—they just leave."
+        "b": "User complaints are reactive and delayed. Many users don't report issues\u2014they just leave."
       },
       "parseStrategy": {
         "keyPhrase": "continuous quality monitoring",
@@ -1356,14 +1360,14 @@
         "Amazon Bedrock Model Evaluations",
         "Amazon CloudWatch"
       ],
-      "examTip": "Continuous evaluation catches drift. Don't wait for user complaints or deployments—monitor proactively."
+      "examTip": "Continuous evaluation catches drift. Don't wait for user complaints or deployments\u2014monitor proactively."
     },
     {
       "id": "d5-q27",
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.3"
+        "5.2.4"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -1415,7 +1419,8 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.1"
+        "5.1.1",
+        "5.1.8"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -1494,7 +1499,7 @@
       "correctAnswers": [
         "b"
       ],
-      "explanation": "Agent trace logging shows each reasoning step, tool call, and result. Examining traces for looping requests reveals what triggers the loop—unclear results, ambiguous instructions, or failure to recognize completion. This informs how to fix the issue.",
+      "explanation": "Agent trace logging shows each reasoning step, tool call, and result. Examining traces for looping requests reveals what triggers the loop\u2014unclear results, ambiguous instructions, or failure to recognize completion. This informs how to fix the issue.",
       "incorrectExplanations": {
         "c": "Zero temperature makes outputs deterministic but doesn't prevent faulty reasoning patterns.",
         "a": "More steps allows longer loops, making the problem worse.",
@@ -1625,7 +1630,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.3"
+        "5.2.4"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -1677,7 +1682,7 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.1"
+        "5.1.2"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -1729,7 +1734,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.2"
+        "5.2.5"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -1781,7 +1786,8 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.3"
+        "5.1.3",
+        "5.1.5"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -1833,7 +1839,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.1"
+        "5.2.2"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -1886,7 +1892,8 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.2"
+        "5.1.5",
+        "5.1.6"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -1939,7 +1946,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.3"
+        "5.2.4"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -1991,7 +1998,7 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.4"
+        "5.1.9"
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
@@ -2044,7 +2051,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.1"
+        "5.2.2"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -2075,7 +2082,7 @@
       "incorrectExplanations": {
         "b": "Memory allocation affects execution speed but doesn't prevent cold starts.",
         "c": "X-Ray helps diagnose latency but doesn't reduce it.",
-        "d": "Asynchronous invocation doesn't reduce latency—it just changes the response pattern."
+        "d": "Asynchronous invocation doesn't reduce latency\u2014it just changes the response pattern."
       },
       "parseStrategy": {
         "keyPhrase": "cold start latency",
@@ -2098,7 +2105,7 @@
       "task": "5.1",
       "skills": [
         "5.1.1",
-        "5.1.4"
+        "5.1.8"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -2150,7 +2157,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.2"
+        "5.2.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -2202,11 +2209,11 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.3"
+        "5.1.5"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
-      "scenario": "A team is implementing LLM-as-Judge evaluation but finds that the judge model has biases—it prefers longer responses and certain writing styles regardless of actual quality.",
+      "scenario": "A team is implementing LLM-as-Judge evaluation but finds that the judge model has biases\u2014it prefers longer responses and certain writing styles regardless of actual quality.",
       "question": "How should the team address judge model biases?",
       "options": [
         {
@@ -2254,60 +2261,59 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.1"
+        "5.2.2"
       ],
-      "type": "multiple-choice",
+      "type": "multiple-response",
       "difficulty": "easy",
       "scenario": "A team needs to set up monitoring for their GenAI application. They want to track key health metrics and create alerts for anomalies.",
-      "question": "Which metrics are MOST important to monitor for GenAI application health?",
+      "question": "Which TWO metric groups are MOST important to monitor for GenAI application health? (Select TWO)",
       "options": [
         {
           "id": "a",
-          "text": "Only track user feedback scores"
+          "text": "Error rates and latency percentiles (p50, p95, p99)"
         },
         {
           "id": "b",
-          "text": "Only track model version being used"
+          "text": "Only the model version string currently deployed"
         },
         {
           "id": "c",
-          "text": "Only track total request count per day"
+          "text": "Throughput (invocations) and token usage"
         },
         {
           "id": "d",
-          "text": "Error rates, latency percentiles (p50, p95, p99), throughput, and token usage"
+          "text": "Only weekly user-feedback scores"
         }
       ],
       "correctAnswers": [
-        "d"
+        "a",
+        "c"
       ],
-      "explanation": "Comprehensive monitoring includes error rates (reliability), latency percentiles (performance), throughput (capacity), and token usage (cost). Percentiles reveal tail latency issues that averages hide. These metrics together give a complete health picture.",
+      "explanation": "Operational health for FM apps is reliability, latency, capacity, and cost. Error rates and tail latency catch user-visible failures. Throughput and tokens catch saturation and spend. Model version is metadata. Feedback is useful but too delayed to page on.",
       "incorrectExplanations": {
-        "c": "Model version is metadata, not a health metric.",
-        "d": "User feedback is valuable but delayed. Operational metrics provide real-time health visibility.",
-        "a": "Request count alone doesn't show errors, performance, or cost."
+        "b": "Model version is configuration metadata, not a health signal.",
+        "d": "User feedback lags incidents. Use it for quality review, not real-time health alerts."
       },
       "parseStrategy": {
         "keyPhrase": "GenAI application health metrics",
         "eliminationHints": [
-          "Request count alone = incomplete",
           "Model version = metadata",
-          "User feedback = delayed"
+          "Feedback only = delayed"
         ],
-        "decisionFramework": "Health monitoring = errors + latency + throughput + tokens"
+        "decisionFramework": "Health = errors + latency percentiles + throughput + tokens"
       },
       "services": [
         "Amazon CloudWatch",
         "Amazon Bedrock"
       ],
-      "examTip": "Monitor errors, latency percentiles, throughput, and tokens. Use p95/p99 to catch tail latency issues."
+      "examTip": "Watch p95/p99, errors, invocations, and tokens. Feedback is a quality signal, not an SLO."
     },
     {
       "id": "d5-q45",
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.2"
+        "5.1.1"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -2334,7 +2340,7 @@
       "correctAnswers": [
         "c"
       ],
-      "explanation": "Completeness ensures all relevant information is present. Conciseness ensures no irrelevant padding. Together they capture the quality of including exactly what's needed—no more, no less. A perfect answer is both complete and concise.",
+      "explanation": "Completeness ensures all relevant information is present. Conciseness ensures no irrelevant padding. Together they capture the quality of including exactly what's needed\u2014no more, no less. A perfect answer is both complete and concise.",
       "incorrectExplanations": {
         "d": "Faithfulness measures grounding but not completeness or conciseness.",
         "c": "Context precision measures retrieval, not answer quality.",
@@ -2515,7 +2521,7 @@
       "domain": 5,
       "task": "5.1",
       "skills": [
-        "5.1.1"
+        "5.1.5"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -2544,7 +2550,7 @@
       ],
       "explanation": "The LLM-as-a-Judge pattern uses a foundation model to evaluate other model outputs against scoring criteria. It scales to thousands of evaluations per day (automated), captures semantic quality beyond word overlap (the judge model understands meaning), and doesn't require human reviewers for every evaluation. This approach provides consistent, rubric-based quality assessment at scale.",
       "incorrectExplanations": {
-        "a": "ROUGE scores measure word overlap between generated and reference text. They miss semantic equivalence — two summaries can convey the same meaning using completely different words, and ROUGE would score them low. ROUGE also requires reference summaries, which may not exist for all source documents.",
+        "a": "ROUGE scores measure word overlap between generated and reference text. They miss semantic equivalence \u2014 two summaries can convey the same meaning using completely different words, and ROUGE would score them low. ROUGE also requires reference summaries, which may not exist for all source documents.",
         "c": "Human domain expert evaluation provides the highest quality scores but does not scale to thousands of summaries per day. The question explicitly requires scaling without human reviewers for every evaluation.",
         "d": "Compression ratio measures summary length relative to source length but says nothing about whether the summary accurately captures key points. A very short summary could miss critical information while having an excellent compression ratio."
       },
@@ -2578,7 +2584,7 @@
             "isCorrectAnswer": true
           }
         ],
-        "approachStrategy": "Map each requirement to options. Scales to thousands → eliminates C (human). Semantic quality → eliminates A (ROUGE) and D (compression). No human reviewers → confirms elimination of C. LLM-as-Judge meets all three.",
+        "approachStrategy": "Map each requirement to options. Scales to thousands \u2192 eliminates C (human). Semantic quality \u2192 eliminates A (ROUGE) and D (compression). No human reviewers \u2192 confirms elimination of C. LLM-as-Judge meets all three.",
         "commonMistakes": [
           "Thinking ROUGE captures semantic quality (it only measures word overlap)",
           "Not knowing that LLM-as-a-Judge exists as an evaluation pattern",
@@ -2592,7 +2598,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.1"
+        "5.2.4"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -2621,15 +2627,15 @@
       ],
       "explanation": "The most likely cause is that the updated documents were not included in the sync job scope. If the old documents were deleted and new versions uploaded with different file names or paths, the sync job may have indexed the new documents without removing the old vectors. Or if the sync job only processed a subset of documents, the outdated policy documents' vectors remain in OpenSearch. The sync job 'completed successfully' but may not have processed the specific files that changed.",
       "incorrectExplanations": {
-        "a": "Foundation models do not cache information from previous queries in their weights. Each inference is independent — the model only uses the current prompt and retrieved context. There is no query-to-query memory in the model weights.",
+        "a": "Foundation models do not cache information from previous queries in their weights. Each inference is independent \u2014 the model only uses the current prompt and retrieved context. There is no query-to-query memory in the model weights.",
         "c": "OpenSearch Serverless does not have a 48-hour propagation delay. Index updates are available for search within seconds to minutes, not hours or days.",
-        "d": "While different embedding models produce different vectors, the same model produces consistent vectors for similar content. The issue is not embedding inconsistency — it's that old vectors still exist in the index."
+        "d": "While different embedding models produce different vectors, the same model produces consistent vectors for similar content. The issue is not embedding inconsistency \u2014 it's that old vectors still exist in the index."
       },
       "parseStrategy": {
         "keyPhrase": "MOST likely root cause",
         "eliminationHints": [
-          "Models don't cache between queries — no cross-query memory in weights (eliminates A)",
-          "OpenSearch doesn't have 48-hour delays — near-real-time indexing (eliminates C)",
+          "Models don't cache between queries \u2014 no cross-query memory in weights (eliminates A)",
+          "OpenSearch doesn't have 48-hour delays \u2014 near-real-time indexing (eliminates C)",
           "Same embedding model = consistent vectors for similar content (eliminates D)",
           "Sync job scope is the common culprit for stale data in RAG"
         ],
@@ -2672,7 +2678,7 @@
           "Assuming OpenSearch has long propagation delays (it's near-real-time)",
           "Not questioning what 'successful sync' actually means in terms of scope"
         ],
-        "timeManagementTip": "Stale RAG data after 'successful' sync → sync scope issue. Eliminate model-level explanations (A) and infrastructure myths (C, D) immediately."
+        "timeManagementTip": "Stale RAG data after 'successful' sync \u2192 sync scope issue. Eliminate model-level explanations (A) and infrastructure myths (C, D) immediately."
       }
     },
     {
@@ -2680,7 +2686,7 @@
       "domain": 5,
       "task": "5.2",
       "skills": [
-        "5.2.1"
+        "5.2.2"
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
@@ -2710,15 +2716,15 @@
       "explanation": "The Orchestration trace's rationale field shows the model's step-by-step reasoning at each turn, including why it decided to call a specific tool, what it plans to do next, and crucially, why it decided to stop and return a final response. If the agent stopped after the order lookup without checking inventory, the rationale will show whether the model decided the task was complete (reasoning error), didn't know about the inventory tool (tool description issue), or had another reason for stopping. This is the diagnostic that explains 'why did the agent stop?'",
       "incorrectExplanations": {
         "a": "PreProcessing shows how the input was parsed and classified, but the scenario says the agent correctly understood the request and performed the first step (order lookup). Input understanding is not the issue.",
-        "c": "PostProcessing applies to the final response (formatting, citations) after the agent has decided to respond. It doesn't explain why the agent decided to stop early — the decision to stop happened during orchestration.",
-        "d": "FailureTrace captures errors and exceptions. The scenario describes the agent completing successfully (it returned a response) — it just didn't complete all steps. There is no failure, only a premature stop."
+        "c": "PostProcessing applies to the final response (formatting, citations) after the agent has decided to respond. It doesn't explain why the agent decided to stop early \u2014 the decision to stop happened during orchestration.",
+        "d": "FailureTrace captures errors and exceptions. The scenario describes the agent completing successfully (it returned a response) \u2014 it just didn't complete all steps. There is no failure, only a premature stop."
       },
       "parseStrategy": {
         "keyPhrase": "why the agent stopped before completing the full task",
         "eliminationHints": [
-          "PreProcessing = input understanding (not the issue — first step worked fine)",
+          "PreProcessing = input understanding (not the issue \u2014 first step worked fine)",
           "PostProcessing = response formatting (happens after the stop decision)",
-          "FailureTrace = errors (no error occurred — agent returned successfully)",
+          "FailureTrace = errors (no error occurred \u2014 agent returned successfully)",
           "Orchestration rationale = model's reasoning about what to do next and when to stop"
         ],
         "decisionFramework": "To understand why an agent stopped early, examine the Orchestration trace rationale. This shows the model's reasoning about whether additional steps are needed. PreProcessing is for input issues, PostProcessing is for output formatting, FailureTrace is for errors."
@@ -2748,8 +2754,325 @@
           "Checking PreProcessing when the first step worked correctly",
           "Not knowing that the Orchestration trace contains the model's reasoning rationale"
         ],
-        "timeManagementTip": "Agent stopped early → look at Orchestration rationale. No error → not FailureTrace. First step worked → not PreProcessing. 15 seconds."
+        "timeManagementTip": "Agent stopped early \u2192 look at Orchestration rationale. No error \u2192 not FailureTrace. First step worked \u2192 not PreProcessing. 15 seconds."
       }
+    },
+    {
+      "id": "d5-q49",
+      "domain": 5,
+      "task": "5.2",
+      "skills": [
+        "5.2.1"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A chatbot prepends a long system prompt, then the last 40 conversation turns, then retrieved chunks. Invocations now fail with input-too-long / validation errors on busy threads. Shorter threads still work. The model itself is healthy.",
+      "question": "Which diagnosis and remediation BEST fit this failure?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The embedding index is corrupted; rebuild the Knowledge Base"
+        },
+        {
+          "id": "b",
+          "text": "Context-window overflow: truncate or summarize older turns, dynamically chunk retrieved context, and log prompt token counts"
+        },
+        {
+          "id": "c",
+          "text": "Increase temperature so the model compresses the prompt internally"
+        },
+        {
+          "id": "d",
+          "text": "Switch from on-demand to Provisioned Throughput to enlarge the context window"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Failures only on long threads plus input-too-long point to context-window overflow, not a dead index. Remediate with token accounting, truncating/summarizing history, and dynamic chunking. Temperature and Provisioned Throughput do not grow the model's context window.",
+      "incorrectExplanations": {
+        "a": "An index issue would affect short threads too and would not throw input-too-long.",
+        "c": "Temperature does not compress prompts.",
+        "d": "Provisioned Throughput reserves capacity; it does not change max tokens."
+      },
+      "parseStrategy": {
+        "keyPhrase": "input too long / long conversation threads",
+        "eliminationHints": [
+          "PT \u2260 bigger context",
+          "Temperature \u2260 compression",
+          "KB rebuild = wrong failure mode"
+        ],
+        "decisionFramework": "Overflow = count tokens, then truncate/summarize/chunk. Distinct from lost-in-the-middle."
+      },
+      "services": [
+        "Amazon Bedrock",
+        "Amazon CloudWatch"
+      ],
+      "examTip": "Lost-in-the-middle ignores instructions; overflow rejects or truncates the request."
+    },
+    {
+      "id": "d5-q50",
+      "domain": 5,
+      "task": "5.2",
+      "skills": [
+        "5.2.3"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A production prompt in Amazon Bedrock Prompt Management was published last night. Overnight, golden-set exact-match on JSON fields dropped from 94% to 61%. Application code, the model ID, and the Knowledge Base did not change.",
+      "question": "Which troubleshooting step should the team take FIRST?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Retrain a custom model before inspecting the prompt"
+        },
+        {
+          "id": "b",
+          "text": "Compare the newly published prompt version to the previous version and replay the golden set against both"
+        },
+        {
+          "id": "c",
+          "text": "Delete CloudWatch log groups to reset metrics"
+        },
+        {
+          "id": "d",
+          "text": "Switch embedding models in the Knowledge Base"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "When only the prompt changed, prompt-engineering troubleshooting is version comparison plus a controlled replay. Prompt Management makes that diff explicit. Retraining or changing embeddings invents a different root cause.",
+      "incorrectExplanations": {
+        "a": "Fine-tuning is expensive and unrelated if the prompt version is the only change.",
+        "c": "Deleting logs destroys evidence.",
+        "d": "The Knowledge Base did not change."
+      },
+      "parseStrategy": {
+        "keyPhrase": "prompt version comparison",
+        "eliminationHints": [
+          "KB/embedding = not in the change set",
+          "Retrain = last resort",
+          "Delete logs = never"
+        ],
+        "decisionFramework": "Prompt regression \u2192 diff versions, then replay a golden set."
+      },
+      "services": [
+        "Amazon Bedrock Prompt Management"
+      ],
+      "examTip": "5.2.3 is systematic prompt testing, not a model swap."
+    },
+    {
+      "id": "d5-q51",
+      "domain": 5,
+      "task": "5.2",
+      "skills": [
+        "5.2.5"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "Operators see CloudWatch metrics labeled prompt-confusion: the model asks the user to restate a field that the request body already included. Traces show the Lambda still sends an older template that omits that field, while Prompt Management lists a newer schema. Failures are intermittent across two task definitions.",
+      "question": "Which prompt-maintenance approach addresses this?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Turn off X-Ray because traces add latency"
+        },
+        {
+          "id": "b",
+          "text": "Validate prompt templates against the expected input schema, pin invocations to a specific Prompt Management version, and use X-Ray/CloudWatch to confirm which template was actually used"
+        },
+        {
+          "id": "c",
+          "text": "Increase max tokens so missing fields can be guessed"
+        },
+        {
+          "id": "d",
+          "text": "Move all prompts into the application binary and never version them"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Prompt maintenance (5.2.5) is schema validation, version pinning, and observability so you can see which template ran. Prompt-confusion in CloudWatch plus a version skew is a maintenance bug, not a creativity problem. Guessing with more tokens hides the missing field.",
+      "incorrectExplanations": {
+        "a": "X-Ray is how you prove which template was invoked.",
+        "c": "More tokens do not restore a field the template never passed.",
+        "d": "Inlining prompts removes the version control the exam wants."
+      },
+      "parseStrategy": {
+        "keyPhrase": "prompt-confusion / schema validation",
+        "eliminationHints": [
+          "Disable X-Ray = lose evidence",
+          "Max tokens = not a schema fix",
+          "No versioning = opposite of 5.2.5"
+        ],
+        "decisionFramework": "5.2.5 = test templates, validate schema, observe which version ran."
+      },
+      "services": [
+        "Amazon Bedrock Prompt Management",
+        "Amazon CloudWatch",
+        "AWS X-Ray"
+      ],
+      "examTip": "If two prompt versions might be live, pin and trace. Do not raise max tokens."
+    },
+    {
+      "id": "d5-q52",
+      "domain": 5,
+      "task": "5.1",
+      "skills": [
+        "5.1.7"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A Bedrock Agent books travel by calling search, reserve, and payment tools. Leadership wants an evaluation that is about agent behavior, not just final-answer BLEU. They care whether the agent finishes the booking, whether it called the right tools, and whether its intermediate reasoning was coherent.",
+      "question": "Which evaluation focus is MOST appropriate?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Task completion rate, tool-usage effectiveness, and reasoning-quality traces from Bedrock Agent evaluations"
+        },
+        {
+          "id": "b",
+          "text": "Only ROUGE-L against a sample itinerary paragraph"
+        },
+        {
+          "id": "c",
+          "text": "Only OpenSearch cluster CPU"
+        },
+        {
+          "id": "d",
+          "text": "Only the number of tokens in the system prompt"
+        }
+      ],
+      "correctAnswers": [
+        "a"
+      ],
+      "explanation": "Official 5.1.7 is agent performance: task completion, tool-usage effectiveness, Bedrock Agent evaluations, and reasoning quality. N-gram overlap and infrastructure CPU do not measure whether the agent finished the job.",
+      "incorrectExplanations": {
+        "b": "ROUGE scores text overlap, not tool correctness or task completion.",
+        "c": "Cluster CPU is an ops metric, not an agent eval.",
+        "d": "Prompt length is not a success metric."
+      },
+      "parseStrategy": {
+        "keyPhrase": "agent performance evaluation",
+        "eliminationHints": [
+          "ROUGE = generation overlap",
+          "CPU = infrastructure",
+          "Token count = not quality"
+        ],
+        "decisionFramework": "Agents are scored on completion, tools, and reasoning\u2014not BLEU alone."
+      },
+      "services": [
+        "Amazon Bedrock Agents",
+        "Amazon CloudWatch"
+      ],
+      "examTip": "If the system is an agent, look for task completion and tool metrics."
+    },
+    {
+      "id": "d5-q53",
+      "domain": 5,
+      "task": "5.1",
+      "skills": [
+        "5.1.8"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "easy",
+      "scenario": "After Bedrock Model Evaluations jobs finish, stakeholders want charts that compare helpfulness and faithfulness across three model IDs over time. They do not need an employee action workspace or a coding assistant.",
+      "question": "Which service is the BEST fit for those model-comparison visualizations?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Amazon Quick Sight dashboards fed by evaluation results"
+        },
+        {
+          "id": "b",
+          "text": "Amazon Quick as the agentic workspace for every chart"
+        },
+        {
+          "id": "c",
+          "text": "Kiro, because IDEs can plot CSV files"
+        },
+        {
+          "id": "d",
+          "text": "Amazon Q Developer inline completions"
+        }
+      ],
+      "correctAnswers": [
+        "a"
+      ],
+      "explanation": "5.1.8 reporting is visualization of evaluation results. Quick Sight is the BI/dashboard service. Amazon Quick is an agentic workspace, not the exam's dashboard answer. Developer tools do not replace evaluation reporting.",
+      "incorrectExplanations": {
+        "b": "Amazon Quick is not the dashboard/BI service (that is Quick Sight).",
+        "c": "Kiro is an agentic IDE.",
+        "d": "Q Developer does not produce stakeholder evaluation dashboards."
+      },
+      "parseStrategy": {
+        "keyPhrase": "model comparison visualizations",
+        "eliminationHints": [
+          "Quick \u2260 Quick Sight",
+          "Kiro / Q Developer = coding, not reporting"
+        ],
+        "decisionFramework": "Evaluation charts = Quick Sight. Action workspace = Amazon Quick."
+      },
+      "services": [
+        "Amazon QuickSight",
+        "Amazon Bedrock Model Evaluations"
+      ],
+      "examTip": "Do not pick Amazon Quick when the stem is dashboards."
+    },
+    {
+      "id": "d5-q54",
+      "domain": 5,
+      "task": "5.2",
+      "skills": [
+        "5.2.3",
+        "5.2.5"
+      ],
+      "type": "multiple-response",
+      "difficulty": "medium",
+      "scenario": "A prompt template is refined weekly. Last week's change improved tone but broke a required JSON schema on 12% of cases. The team wants a repeatable way to refine prompts without shipping silent schema breaks.",
+      "question": "Which TWO practices should they implement? (Select TWO)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Run a prompt-testing framework that diffs versions and scores a golden set before publish"
+        },
+        {
+          "id": "b",
+          "text": "Publish every draft prompt straight to production to collect live user reactions"
+        },
+        {
+          "id": "c",
+          "text": "Add schema validation on the template output and alert in CloudWatch when parse failures spike"
+        },
+        {
+          "id": "d",
+          "text": "Disable Prompt Management so engineers paste prompts from chat history"
+        }
+      ],
+      "correctAnswers": [
+        "a",
+        "c"
+      ],
+      "explanation": "5.2.3 is systematic prompt testing and version comparison. 5.2.5 is template testing plus schema validation and observability. Shipping untested drafts and abandoning version control are how regressions land in production.",
+      "incorrectExplanations": {
+        "b": "Live traffic is not a prompt unit test. Schema breaks will hit users first.",
+        "d": "Prompt Management exists so prompts are versioned and comparable."
+      },
+      "parseStrategy": {
+        "keyPhrase": "systematic prompt refinement without schema breaks",
+        "eliminationHints": [
+          "Ship drafts = no safety net",
+          "Disable Prompt Management = lose versions"
+        ],
+        "decisionFramework": "Refine prompts with a golden set and a schema check, then publish."
+      },
+      "services": [
+        "Amazon Bedrock Prompt Management",
+        "Amazon CloudWatch"
+      ],
+      "examTip": "Prompt work on this exam is versioned, tested, and observed\u2014not pasted from chat."
     }
   ]
 }

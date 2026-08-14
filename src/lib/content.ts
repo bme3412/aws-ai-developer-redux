@@ -107,8 +107,8 @@ const EXAM_WEIGHTS = {
   5: 11, // 11% - ~7 questions
 };
 
-// Generate a weighted practice exam (65 questions by default)
-export async function generatePracticeExam(totalQuestions: number = 65): Promise<{
+// Generate a weighted practice exam (75 questions by default — matches AIP-C01)
+export async function generatePracticeExam(totalQuestions: number = 75): Promise<{
   questions: Question[];
   breakdown: { domainId: number; count: number; weight: number }[];
 }> {

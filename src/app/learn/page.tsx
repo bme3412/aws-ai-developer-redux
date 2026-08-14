@@ -177,6 +177,9 @@ export default function LearnPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-medium text-gray-500">Task {task.id}</span>
+                            {task.supplemental && (
+                              <span className="text-[10px] uppercase tracking-wide text-gray-400">Supplement</span>
+                            )}
                           </div>
                           <h3 className={`text-sm font-medium truncate ${
                             isCompleted ? 'text-gray-500' : 'text-gray-800'

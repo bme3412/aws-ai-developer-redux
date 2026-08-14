@@ -434,6 +434,23 @@ const response = await bedrockRuntime.converse({
 
 This approach is particularly powerful when combined with enums. If the category must be one of four options, the model can't hallucinate a fifth. If in_stock must be boolean, it can't generate "maybe" or "check back later."
 
+### Text-to-SQL for Deterministic Results
+
+Official 3.1.2 calls out **text-to-SQL** as the way to get **deterministic** answers from a GenAI app. Free-form generation can invent a refund amount. Generating SQL (or an API call) and executing it against a real database returns the amount that is actually in the table.
+
+```
+User: "What's Alice's outstanding balance?"
+  → FM produces: SELECT balance_cents FROM invoices WHERE customer = 'Alice'
+  → Lambda runs the query (read-only IAM, allowlisted tables)
+  → Response is the query result, not model arithmetic
+```
+
+Guardrails still filter the **natural-language** side. Determinism comes from **not letting the model compute the business fact**. Combine with JSON Schema / tool use so the model can only emit a SQL (or tool) payload, then validate it before execution.
+
+Exam trap: "Add a better prompt" does not make arithmetic deterministic. Text-to-SQL (or tool use against a system of record) does.
+
+---
+
 ### Citation Requirements: Trust but Verify
 
 Requiring the model to cite its sources creates accountability for claims. If the model can't point to where information came from, that information might be hallucinated.
@@ -743,6 +760,7 @@ This architecture catches issues at multiple points. An attack that bypasses pre
 - **"Reduce hallucinations"** → Knowledge Base grounding + contextual grounding checks
 - **"Defense-in-depth"** → Comprehend (pre-processing) + Guardrails (model layer) + Lambda (post-processing)
 - **"Handle PII in inputs/outputs"** → Guardrails PII filters with BLOCK or ANONYMIZE actions
+- **"Deterministic results" / "don't let the model invent numbers"** → text-to-SQL or tool use against a system of record
 - **"Prevent prompt injection"** → Input sanitization + guardrails + clear content separation
 
 ---

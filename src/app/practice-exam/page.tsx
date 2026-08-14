@@ -24,7 +24,9 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
-const EXAM_TIME_MINUTES = 75;
+const EXAM_TIME_MINUTES = 180;
+const EXAM_QUESTION_COUNT = 75;
+const PASS_THRESHOLD = 0.75; // study heuristic; the real exam uses a 750/1000 scaled score
 
 interface ExamState {
   status: 'intro' | 'running' | 'paused' | 'completed' | 'coverage';
@@ -103,7 +105,7 @@ export default function PracticeExamPage() {
   const startExam = async () => {
     setIsLoading(true);
     try {
-      const { questions, breakdown } = await generatePracticeExam(65);
+      const { questions, breakdown } = await generatePracticeExam(EXAM_QUESTION_COUNT);
       const sid = startPracticeSession('exam', questions.map(q => q.id));
       setExamState({
         status: 'running',
@@ -222,7 +224,7 @@ export default function PracticeExamPage() {
       totalCorrect,
       totalQuestions: questions.length,
       overallPercent: Math.round((totalCorrect / questions.length) * 100),
-      passed: (totalCorrect / questions.length) >= 0.72, // 72% passing score
+      passed: (totalCorrect / questions.length) >= PASS_THRESHOLD,
     };
   };
 
@@ -244,14 +246,14 @@ export default function PracticeExamPage() {
               </div>
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">Full Practice Exam</h2>
-                <p className="text-sm text-gray-500">65 questions, 75 minutes</p>
+                <p className="text-sm text-gray-500">75 questions, 180 minutes</p>
               </div>
             </div>
 
             <div className="space-y-3 mb-6 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                <span>Timed: 75 minutes (same as real exam)</span>
+                <span>Timed: 180 minutes (same as the real AIP-C01 exam)</span>
               </div>
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" />
@@ -263,7 +265,7 @@ export default function PracticeExamPage() {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
-                <span>Passing score: 72%</span>
+                <span>Passing score: 750 / 1000 scaled (use 75% as a study target)</span>
               </div>
             </div>
 
@@ -517,7 +519,7 @@ export default function PracticeExamPage() {
             You scored {results.totalCorrect}/{results.totalQuestions} ({results.overallPercent}%)
           </p>
           <p className={`text-sm mt-1 ${results.passed ? 'text-green-600' : 'text-red-600'}`}>
-            {results.passed ? 'You passed! (72% required)' : `You need 72% to pass (${Math.ceil(results.totalQuestions * 0.72)} correct answers)`}
+            {results.passed ? 'You passed! (75% study target; real exam is 750/1000 scaled)' : `You need 75% on this simulator (${Math.ceil(results.totalQuestions * PASS_THRESHOLD)} correct answers). The real exam passing score is 750/1000 scaled.`}
           </p>
         </div>
 

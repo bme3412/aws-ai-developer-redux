@@ -7,7 +7,7 @@ export default function ExamTipsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Exam Tips & Strategies</h1>
           <p className="text-gray-600 mt-1">
-            Practical strategies for the AWS Certified AI Practitioner (AIP-C01) exam.
+            Practical strategies for the AWS Certified Generative AI Developer - Professional (AIP-C01) exam.
           </p>
         </div>
 
@@ -17,21 +17,27 @@ export default function ExamTipsPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <span className="text-blue-600 font-medium">Questions</span>
-              <p className="text-blue-900 font-bold text-lg">65</p>
+              <p className="text-blue-900 font-bold text-lg">75</p>
+              <p className="text-blue-700 text-xs mt-0.5">65 scored + 10 unscored</p>
             </div>
             <div>
               <span className="text-blue-600 font-medium">Time</span>
-              <p className="text-blue-900 font-bold text-lg">90 minutes</p>
+              <p className="text-blue-900 font-bold text-lg">180 minutes</p>
             </div>
             <div>
               <span className="text-blue-600 font-medium">Passing Score</span>
-              <p className="text-blue-900 font-bold text-lg">~70%</p>
+              <p className="text-blue-900 font-bold text-lg">750</p>
+              <p className="text-blue-700 text-xs mt-0.5">scaled, 100–1000</p>
             </div>
             <div>
               <span className="text-blue-600 font-medium">Format</span>
-              <p className="text-blue-900 font-bold text-lg">Multiple Choice</p>
+              <p className="text-blue-900 font-bold text-lg">MC + multi-select</p>
             </div>
           </div>
+          <p className="text-sm text-blue-800 mt-4">
+            Scoring is compensatory: you pass on the overall scaled score, not per domain.
+            Multiple-response items require every correct option. Unscored questions are not identified.
+          </p>
         </div>
 
         {/* Question Types */}
@@ -91,15 +97,15 @@ export default function ExamTipsPage() {
               <div className="flex items-start gap-3">
                 <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">1</span>
                 <div>
-                  <strong className="text-gray-900">~80 seconds per question</strong>
-                  <p className="text-gray-600">With 65 questions in 90 minutes, budget about 1:20 per question. This leaves buffer time for review.</p>
+                  <strong className="text-gray-900">~2 minutes per question</strong>
+                  <p className="text-gray-600">With 75 questions in 180 minutes, budget about 2:20 per question. This leaves buffer time for review. Unscored items are not marked, so treat every question as scored.</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">2</span>
                 <div>
                   <strong className="text-gray-900">Flag and move on</strong>
-                  <p className="text-gray-600">If you&apos;re stuck after 90 seconds, make your best guess, flag it, and move on. Return during review time.</p>
+                  <p className="text-gray-600">If you&apos;re stuck after about 2 minutes, make your best guess, flag it, and move on. Return during review time.</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">

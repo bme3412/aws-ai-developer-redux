@@ -144,6 +144,9 @@ export default function DomainPage() {
                 <div>
                   <h3 className={`font-medium group-hover:text-gray-900 ${isCompleted ? 'text-gray-600' : 'text-gray-800'}`}>
                     {task.name}
+                    {task.supplemental && (
+                      <span className="ml-2 text-xs font-normal text-gray-400">supplement — not an official exam task</span>
+                    )}
                   </h3>
                 </div>
               </div>

@@ -951,7 +951,15 @@ results = manager.get_results(output_uri)
 
 ## Container-Based Deployment: Maximum Control
 
-For workloads requiring complete control over infrastructure, **ECS** or **EKS** deployments host custom model serving.
+For workloads requiring complete control over infrastructure, **ECS**, **EKS**, or **AWS App Runner** host custom model serving.
+
+**App Runner** is the in-scope option when you have a container and want AWS to run it without cluster management. Use it for HTTP model-wrapper APIs (tokenize, call Bedrock, stream SSE) — not for multi-GPU self-hosted 70B models.
+
+| Need | Choose |
+|------|--------|
+| HTTP service from a container, no cluster ops | **App Runner** |
+| GPU, custom schedulers, sidecars | **ECS on EC2** or **EKS** |
+| Bursting, no servers | **Lambda + Bedrock** |
 
 ### Memory and GPU Considerations
 
@@ -1178,6 +1186,7 @@ The crossover point depends on your utilization. At approximately **40-50% utili
 | "cost optimization" with variable query complexity | Model cascading |
 | "predictable production traffic" + cost savings | Provisioned Throughput |
 | "GPU utilization" or "container optimization" | Batch requests, scale on tokens/second |
+| "container, no cluster to manage" | AWS App Runner |
 | "A/B testing" model versions | SageMaker production variants |
 | "multi-model" shared infrastructure | SageMaker multi-model endpoints |
 

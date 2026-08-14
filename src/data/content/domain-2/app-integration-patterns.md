@@ -575,6 +575,33 @@ GenAI adds intelligence to business processes across the enterprise. The key is 
 - Complex re-ranking logic
 - Structured output extraction
 
+### Amazon Q Business Apps
+
+**Q Business Apps** is the no-code layer on top of Q Business. Business users build internal AI apps—intake forms, approval helpers, knowledge assistants—against the same connected data sources and ACLs, without a developer writing a RAG pipeline.
+
+| Need | Choose |
+|------|--------|
+| Employees asking questions over SharePoint/Confluence/S3 | **Q Business** |
+| A business team shipping a packaged app on that same index | **Q Business Apps** |
+| Custom retrieval, chunking, or structured extraction | **Custom RAG** (Bedrock Knowledge Bases) |
+
+Exam trap: Q Business Apps is not a vector database and not a replacement for Bedrock Agents. It is the no-code app builder on enterprise knowledge that Q Business already indexed.
+
+### Amazon Quick vs Q Business vs Quick Sight
+
+The exam lists **Amazon Quick** separately from **Amazon Quick Sight**. Treat them as related, not identical.
+
+| Service | What it is | Exam trigger |
+|---------|------------|--------------|
+| **Amazon Quick** | Agentic AI workspace: chat, research, automation, and actions against connected enterprise data | "AI workspace", "employees take actions from chat", successor positioning to Q Business-style work |
+| **Amazon Quick Sight** | BI dashboards, pixel-perfect reports, embedded analytics (the BI capability inside Quick) | "dashboards", "visualize FM evaluation results", "business metrics" |
+| **Amazon Q Business** | Managed enterprise knowledge Q&A with source ACLs | "internal docs", "40+ connectors", "don't build a RAG pipeline" |
+| **Amazon Q Developer** | IDE/CLI coding assistant | "code generation", "refactor", "IAM policy help" |
+
+Keep Q Business in your decision tree—the exam guide still lists it. When the scenario is **generative BI / agentic workspace / take actions across apps**, think Amazon Quick. When the scenario is **charts and dashboards**, think Quick Sight.
+
+---
+
 ### Bedrock Data Automation
 
 **Bedrock Data Automation** addresses document-heavy workflows, transforming manual document processing into automated pipelines.
@@ -925,6 +952,31 @@ because no identity-based policy allows the bedrock:InvokeModel action
 # Alternatively, use the managed policy: AmazonBedrockFullAccess
 # (Note: For production, use more restrictive custom policies)"
 ```
+
+### Kiro: Agentic IDE for AWS Development
+
+**Kiro** is AWS's agentic IDE (in-scope under Developer Tools). Where Q Developer sits inside VS Code/JetBrains as an assistant, Kiro is a spec-driven environment that can plan, edit, and implement across files.
+
+| Factor | Amazon Q Developer | Kiro |
+|--------|--------------------|------|
+| **What it is** | Coding assistant in existing IDEs and CLI | Agentic IDE / developer environment |
+| **Best for** | Inline complete, explain, refactor, AWS SDK/IAM help | Multi-file implementation from a spec or task |
+| **Exam trigger** | "code suggestions", "security scan while coding" | "agentic IDE", "implement a feature from a spec" |
+
+Use Q Developer when the developer stays in their current IDE. Use Kiro when the scenario wants an AWS-native agentic coding environment. They complement each other; Kiro does not replace Bedrock Agents in production applications.
+
+### SageMaker Unified Studio
+
+**SageMaker Unified Studio** is the web IDE that brings SageMaker notebooks, experiments, data prep, and deployment into one place. For this exam, know it as the **unified interface** when a team needs to customize or evaluate models in SageMaker without jumping across consoles—not as a substitute for Bedrock Prompt Management or Q Developer.
+
+| Need | Service |
+|------|---------|
+| Chat over company docs | Q Business or Amazon Quick |
+| Write application code | Q Developer / Kiro |
+| Train, fine-tune, or evaluate in SageMaker | **SageMaker Unified Studio** |
+| Version prompts for Bedrock apps | Bedrock Prompt Management |
+
+---
 
 ### Security Scanning in CI/CD
 
@@ -1336,9 +1388,14 @@ graph TD
 | When you see... | Think... |
 |-----------------|----------|
 | "enterprise knowledge assistant" | Amazon Q Business |
+| "no-code app on enterprise knowledge" | Amazon Q Business Apps |
+| "AI workspace" or "employees take actions from chat" | Amazon Quick |
+| "dashboards" or "visualize metrics" | Amazon Quick Sight |
 | "employee questions about internal docs" | Amazon Q Business |
 | "40+ data source connectors" | Amazon Q Business |
 | "developer productivity" or "code assistance" | Amazon Q Developer |
+| "agentic IDE" or "spec-driven coding" | Kiro |
+| "unified SageMaker IDE" | SageMaker Unified Studio |
 | "security scanning during development" | Amazon Q Developer |
 | "no-code AI workflow" | Bedrock Prompt Flows |
 | "business users building AI workflows" | Bedrock Prompt Flows |
@@ -1358,16 +1415,19 @@ graph TD
 > **2. Q Business is the managed enterprise knowledge assistant with minimal setup.**
 > 40+ data source connectors, enterprise access controls, no RAG pipeline to build. Choose Q Business when standard enterprise knowledge access meets your needs.
 
-> **3. Q Developer assists developers with code generation, debugging, and security.**
-> Context-aware suggestions based on your codebase. AWS SDK assistance and security scanning included. Integrates with CI/CD pipelines.
+> **3. Q Developer assists in existing IDEs; Kiro is the agentic IDE.**
+> Q Developer for inline complete, explain, and AWS SDK help. Kiro when the scenario wants spec-driven, multi-file implementation. SageMaker Unified Studio is the SageMaker web IDE—not a coding assistant for app developers.
 
-> **4. Prompt Flows enables no-code AI workflow building for non-developers.**
+> **4. Amazon Quick is the agentic workspace; Quick Sight is the BI layer.**
+> Q Business remains the managed enterprise-knowledge Q&A option. Quick Sight is dashboards. Don't collapse all three into "Q".
+
+> **5. Prompt Flows enables no-code AI workflow building for non-developers.**
 > Accelerate experimentation without developer bottleneck. Use for prototyping, then migrate to Step Functions for production complexity.
 
-> **5. CloudWatch Logs Insights + X-Ray = GenAI observability and debugging.**
+> **6. CloudWatch Logs Insights + X-Ray = GenAI observability and debugging.**
 > Query logs for patterns. Trace requests to identify bottlenecks. Build dashboards for operational visibility.
 
-> **6. Business system integration follows event-driven patterns.**
+> **7. Business system integration follows event-driven patterns.**
 > Use EventBridge to connect CRM events to Lambda functions that call Bedrock. AI enhances existing workflows without disrupting them.
 
 ---
@@ -1381,5 +1441,6 @@ graph TD
 | **Manual debugging instead of X-Ray and Logs Insights** | Can't trace issues across distributed services. Instrument from day one. |
 | **Over-engineering simple workflows** | Prompt Flows handles many use cases without code. Start simple, add complexity only when needed. |
 | **Ignoring Q Developer for AWS coding** | Missing context-aware AWS SDK assistance and security scanning. Productivity multiplier for AWS development. |
+| **Treating Amazon Quick, Q Business, and Quick Sight as the same service** | Quick is the agentic workspace, Q Business is managed enterprise Q&A, Quick Sight is dashboards. |
 | **Skipping OpenAPI contract definition** | Frontend-backend mismatches, manual SDK maintenance. Define contracts first for type-safe integration. |
 | **Not tracing token usage** | Cost spirals undetected. Monitor and alert on token consumption per user and per request. |

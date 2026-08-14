@@ -120,6 +120,13 @@
       "relatedTasks": ["2.2"]
     },
     {
+      "name": "AWS App Runner",
+      "category": "Compute",
+      "description": "Fully managed container service that runs HTTP apps from a container image without cluster management.",
+      "examRelevance": "In-scope compute. Choose App Runner for a containerized FM wrapper with no ECS/EKS ops; use ECS/EKS when you need GPUs or custom scheduling.",
+      "relatedTasks": ["2.2"]
+    },
+    {
       "name": "AWS Step Functions",
       "category": "App Integration",
       "description": "Workflow orchestration for multi-step processes.",
@@ -428,6 +435,20 @@
       "relatedTasks": ["2.1", "2.7"]
     },
     {
+      "name": "Kiro",
+      "category": "Developer Tools",
+      "description": "AWS agentic IDE for spec-driven, multi-file software development. Complements Amazon Q Developer, which assists inside existing IDEs.",
+      "examRelevance": "In-scope developer tool. Choose Kiro for an agentic IDE; Q Developer for inline assistance in VS Code/JetBrains/CLI.",
+      "relatedTasks": ["2.5"]
+    },
+    {
+      "name": "Amazon Quick",
+      "category": "AI/ML",
+      "description": "Agentic AI workspace for chat, research, automation, and actions against connected enterprise data. Quick Sight is the BI capability inside Quick.",
+      "examRelevance": "Listed separately from Amazon Quick Sight and Amazon Q Business. Use for agentic workspace / take-action scenarios; Quick Sight for dashboards.",
+      "relatedTasks": ["2.5", "5.1"]
+    },
+    {
       "name": "Amazon Q Business Apps",
       "category": "AI/ML",
       "description": "No-code enterprise AI applications built on Amazon Q Business data sources and permissions.",
@@ -439,7 +460,7 @@
       "category": "AI/ML",
       "description": "Unified web-based IDE for ML development combining notebooks, experiments, model training, and deployment.",
       "examRelevance": "In-scope service. Know as the unified interface for SageMaker capabilities.",
-      "relatedTasks": ["1.2"]
+      "relatedTasks": ["1.2", "2.2", "2.5"]
     },
     {
       "name": "Amazon SageMaker Clarify",

@@ -198,6 +198,7 @@
           "id": "1.7",
           "name": "Deep Dive: Amazon Bedrock",
           "articleSlug": "bedrock-deep-dive",
+          "supplemental": true,
           "skills": [
             {
               "id": "1.7.1",
@@ -210,6 +211,7 @@
           "id": "1.8",
           "name": "Deep Dive: RAG Architecture Patterns",
           "articleSlug": "rag-patterns",
+          "supplemental": true,
           "skills": [
             {
               "id": "1.8.1",
@@ -332,26 +334,21 @@
           "skills": [
             {
               "id": "2.4.1",
-              "description": "Synchronous: Bedrock APIs from various compute, AWS SDKs, API Gateway validation",
-              "services": ["Amazon Bedrock", "Amazon API Gateway"]
+              "description": "Flexible model interaction: Bedrock APIs from various compute, AWS SDKs, SQS async processing, API Gateway validation",
+              "services": ["Amazon Bedrock", "Amazon API Gateway", "Amazon SQS"]
             },
             {
               "id": "2.4.2",
-              "description": "Asynchronous: SQS processing, batch inference",
-              "services": ["Amazon SQS", "Amazon Bedrock"]
-            },
-            {
-              "id": "2.4.3",
-              "description": "Streaming: Bedrock streaming APIs, WebSockets/SSE, chunked transfer encoding",
+              "description": "Real-time interaction: Bedrock streaming APIs, WebSockets/SSE, chunked transfer encoding",
               "services": ["Amazon Bedrock", "Amazon API Gateway"]
             },
             {
-              "id": "2.4.4",
-              "description": "Resilient: exponential backoff, rate limiting, fallback/degradation, X-Ray",
+              "id": "2.4.3",
+              "description": "Resilient FM systems: exponential backoff, rate limiting, fallback/degradation, X-Ray",
               "services": ["AWS X-Ray", "Amazon Bedrock"]
             },
             {
-              "id": "2.4.5",
+              "id": "2.4.4",
               "description": "Intelligent routing: static routing, dynamic content-based routing, metric-based",
               "services": ["AWS Step Functions", "Amazon Bedrock"]
             }
@@ -374,13 +371,13 @@
             },
             {
               "id": "2.5.3",
-              "description": "Business systems: CRM enhancements, document processing, Q Business, Bedrock Data Automation",
-              "services": ["AWS Lambda", "AWS Step Functions", "Amazon Q Business", "Amazon Bedrock Data Automation"]
+              "description": "Business systems: CRM enhancements, document processing, Q Business, Q Business Apps, Amazon Quick, Bedrock Data Automation",
+              "services": ["AWS Lambda", "AWS Step Functions", "Amazon Q Business", "Amazon Q Business Apps", "Amazon Quick", "Amazon Bedrock Data Automation"]
             },
             {
               "id": "2.5.4",
-              "description": "Developer productivity: Q Developer for code generation/refactoring, API assistance",
-              "services": ["Amazon Q Developer"]
+              "description": "Developer productivity: Q Developer, Kiro, SageMaker Unified Studio",
+              "services": ["Amazon Q Developer", "Kiro", "Amazon SageMaker Unified Studio"]
             },
             {
               "id": "2.5.5",
@@ -398,6 +395,7 @@
           "id": "2.6",
           "name": "Deep Dive: Agent Design Patterns",
           "articleSlug": "agent-patterns",
+          "supplemental": true,
           "skills": [
             {
               "id": "2.6.1",
@@ -410,6 +408,7 @@
           "id": "2.7",
           "name": "Deep Dive: Production GenAI Patterns",
           "articleSlug": "production-patterns",
+          "supplemental": true,
           "skills": [
             {
               "id": "2.7.1",
@@ -441,7 +440,7 @@
             },
             {
               "id": "3.1.2",
-              "description": "Output safety: response filtering, toxicity detection, deterministic results",
+              "description": "Output safety: response filtering, toxicity detection, text-to-SQL for deterministic results",
               "services": ["Amazon Bedrock Guardrails"]
             },
             {
@@ -505,7 +504,7 @@
             },
             {
               "id": "3.3.4",
-              "description": "Continuous monitoring: misuse/drift/policy violation detection, bias monitoring, alerting",
+              "description": "Continuous monitoring: misuse/drift/policy violation detection, token-level redaction, AI output policy filters",
               "services": ["Amazon CloudWatch", "Amazon Bedrock"]
             }
           ]
@@ -712,28 +711,28 @@
           "skills": [
             {
               "id": "5.2.1",
-              "description": "Content handling: context window overflow diagnostics, dynamic chunking, prompt optimization",
+              "description": "Content handling: context window overflow diagnostics, dynamic chunking, prompt optimization, truncation analysis",
               "services": ["Amazon Bedrock", "Amazon CloudWatch"]
             },
             {
               "id": "5.2.2",
-              "description": "Retrieval issues: embedding quality analysis, indexing validation, search relevance tuning",
-              "services": ["Amazon OpenSearch Service", "Amazon Bedrock Knowledge Bases"]
+              "description": "FM integration issues: error logging, request validation, response analysis, API timeouts and throttling",
+              "services": ["Amazon Bedrock", "Amazon CloudWatch", "AWS X-Ray"]
             },
             {
               "id": "5.2.3",
-              "description": "API troubleshooting: token limit management, rate limit handling, timeout resolution",
-              "services": ["Amazon Bedrock", "Amazon CloudWatch"]
+              "description": "Prompt engineering troubleshooting: prompt testing frameworks, version comparison, systematic refinement",
+              "services": ["Amazon Bedrock Prompt Management", "Amazon CloudWatch"]
             },
             {
               "id": "5.2.4",
-              "description": "Tool/agent debugging: tool call analysis, agent decision path tracing, parameter validation",
-              "services": ["Amazon Bedrock Agents", "AWS X-Ray"]
+              "description": "Retrieval issues: embedding quality diagnostics, indexing validation, search relevance, chunking remediation, drift monitoring",
+              "services": ["Amazon OpenSearch Service", "Amazon Bedrock Knowledge Bases"]
             },
             {
               "id": "5.2.5",
-              "description": "Performance diagnosis: latency profiling, throughput analysis, bottleneck identification",
-              "services": ["AWS X-Ray", "Amazon CloudWatch"]
+              "description": "Prompt maintenance: template testing, CloudWatch prompt-confusion diagnosis, X-Ray prompt observability, schema validation",
+              "services": ["Amazon Bedrock Prompt Management", "Amazon CloudWatch", "AWS X-Ray"]
             }
           ]
         }

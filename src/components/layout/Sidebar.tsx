@@ -161,6 +161,9 @@ function DomainSection({
               >
                 <BookOpen className="w-3.5 h-3.5" />
                 <span className="flex-1 truncate">{task.name}</span>
+                {task.supplemental && (
+                  <span className="text-[10px] uppercase tracking-wide text-gray-400">Extra</span>
+                )}
               </Link>
             );
           })}

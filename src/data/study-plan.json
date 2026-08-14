@@ -143,13 +143,13 @@
         {
           "day": "1-2",
           "activity": "Domain 5: Evaluation & Troubleshooting",
-          "details": "Learn Model Evaluations, LLM-as-a-Judge, golden datasets, and debugging techniques.",
+          "details": "Learn Model Evaluations, LLM-as-a-Judge, golden datasets, and the official 5.2 skills: content handling, FM integration, prompt troubleshooting, retrieval, and prompt maintenance.",
           "timeMinutes": 120
         },
         {
           "day": "3-4",
           "activity": "Full Practice Exam",
-          "details": "Take a timed practice exam covering all domains. Target 75+ minutes, 65 questions.",
+          "details": "Take a timed practice exam covering all domains. Target 180 minutes, 75 questions (same as the real AIP-C01 exam).",
           "timeMinutes": 180
         },
         {

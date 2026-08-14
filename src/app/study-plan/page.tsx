@@ -13,7 +13,7 @@ export default function StudyPlanPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">4-Week Study Plan</h1>
           <p className="text-gray-600 mt-1">
-            Structured preparation for the AWS Certified AI Practitioner (AIP-C01) exam.
+            Structured preparation for the AWS Certified Generative AI Developer - Professional (AIP-C01) exam.
           </p>
         </div>
 

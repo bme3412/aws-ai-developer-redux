@@ -633,7 +633,7 @@
       "domain": 3,
       "task": "3.2",
       "skills": [
-        "3.2.4"
+        "3.2.2"
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
@@ -3756,6 +3756,112 @@
         ],
         "timeManagementTip": "Hallucination detection = contextual grounding. Direct mapping: 10 seconds."
       }
+    },
+    {
+      "id": "d3-q66",
+      "domain": 3,
+      "task": "3.1",
+      "skills": [
+        "3.1.2"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "hard",
+      "scenario": "A support copilot must tell customers the exact refund amount on file. The model currently writes a number in free-form text and sometimes invents a balance that is not in the billing database. Guardrails already block toxicity. The finance team requires deterministic amounts from the system of record.",
+      "question": "Which approach produces deterministic numeric answers?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Lower temperature to 0 so the model cannot invent numbers"
+        },
+        {
+          "id": "b",
+          "text": "Add a longer system prompt that says 'never hallucinate refund amounts'"
+        },
+        {
+          "id": "c",
+          "text": "Have the model generate text-to-SQL (or a tool call), execute it read-only against the billing database, and return the query result"
+        },
+        {
+          "id": "d",
+          "text": "Enable Bedrock Provisioned Throughput so latency is stable"
+        }
+      ],
+      "correctAnswers": [
+        "c"
+      ],
+      "explanation": "Official 3.1.2 uses text-to-SQL (or equivalent tool use) for deterministic results. The model must not compute the business fact. Generate a constrained query or API call, execute it against the database, and answer with the record. Temperature 0 and a better prompt still allow invented arithmetic.",
+      "incorrectExplanations": {
+        "a": "Temperature 0 reduces randomness; it does not bind the answer to a table.",
+        "b": "Prompt instructions are not a system of record.",
+        "d": "Provisioned Throughput is a capacity/latency control, not an accuracy control."
+      },
+      "parseStrategy": {
+        "keyPhrase": "deterministic results / don't invent numbers",
+        "eliminationHints": [
+          "Temperature 0 ≠ deterministic business facts",
+          "Prompt-only = still generation",
+          "PT = capacity, not truth"
+        ],
+        "decisionFramework": "Deterministic numbers = query the database, do not let the model do the math."
+      },
+      "services": [
+        "Amazon Bedrock",
+        "AWS Lambda"
+      ],
+      "examTip": "When the stem says deterministic amounts, pick text-to-SQL or tool use—not a better prompt."
+    },
+    {
+      "id": "d3-q67",
+      "domain": 3,
+      "task": "3.3",
+      "skills": [
+        "3.3.4"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "Security requires Bedrock invocation logging for audit, but prompts and completions sometimes contain SSNs. Auditors must see that a response occurred without storing the raw SSN in CloudWatch or S3. Disabling logging is not allowed.",
+      "question": "Which control BEST meets the requirement?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Disable invocation logging so PII never lands in logs"
+        },
+        {
+          "id": "b",
+          "text": "Rely on the system prompt telling the model not to mention SSNs"
+        },
+        {
+          "id": "c",
+          "text": "Apply token-level redaction (Guardrails PII ANONYMIZE or equivalent) before prompts/completions are written to logs, plus output policy filters"
+        },
+        {
+          "id": "d",
+          "text": "Move the application to a larger context window so PII is less likely to appear"
+        }
+      ],
+      "correctAnswers": [
+        "c"
+      ],
+      "explanation": "Official 3.3.4 calls out token-level redaction and AI output policy filters. Redact sensitive spans before storage. Keep logging on for audit. Prompt-only controls and bigger context windows do not scrub logs.",
+      "incorrectExplanations": {
+        "a": "Turning logging off violates the audit requirement.",
+        "b": "A prompt cannot guarantee PII never appears in user input or model output.",
+        "d": "Context window size is unrelated to log redaction."
+      },
+      "parseStrategy": {
+        "keyPhrase": "PII in invocation logs",
+        "eliminationHints": [
+          "Disable logging = fails audit",
+          "Prompt-only = not a control",
+          "Context window = wrong lever"
+        ],
+        "decisionFramework": "Log, but redact. Guardrails ANONYMIZE + policy filters."
+      },
+      "services": [
+        "Amazon Bedrock Guardrails",
+        "Amazon CloudWatch"
+      ],
+      "examTip": "Token-level redaction is the 3.3.4 answer when logs must exist but SSNs must not."
     }
   ]
 }
