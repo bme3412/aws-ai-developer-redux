@@ -37,16 +37,31 @@ export function getDefaultProgress(): Progress {
     reviewScores: {},
     weakAreas: [],
     questionsCompleted: {},
+    skillsCompleted: {},
   };
 }
 
-export function markArticleRead(articleSlug: string, timeSpentMinutes: number): void {
+export function markArticleRead(articleSlug: string, timeSpentMinutes: number): string {
   const progress = getProgress();
+  const completedAt = new Date().toISOString();
   progress.articlesRead[articleSlug] = {
-    completedAt: new Date().toISOString(),
+    completedAt,
     timeSpentMinutes,
   };
   saveProgress(progress);
+  return completedAt;
+}
+
+export function getArticleCompletion(articleKey: string): { completedAt: string; timeSpentMinutes: number } | null {
+  return getProgress().articlesRead[articleKey] ?? null;
+}
+
+export function getArticleCompletionMap(): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const [key, value] of Object.entries(getProgress().articlesRead)) {
+    map[key] = value.completedAt;
+  }
+  return map;
 }
 
 export function isArticleRead(articleSlug: string): boolean {
@@ -243,4 +258,55 @@ export function getCompletedQuestionsCount(): { total: number; correct: number }
     total: questions.length,
     correct: questions.filter(q => q.correct).length,
   };
+}
+
+export function markSkillComplete(skillId: string): string {
+  const progress = getProgress();
+  if (!progress.skillsCompleted) progress.skillsCompleted = {};
+  const completedAt = new Date().toISOString();
+  progress.skillsCompleted[skillId] = { completedAt };
+  saveProgress(progress);
+  return completedAt;
+}
+
+export function unmarkSkillComplete(skillId: string): void {
+  const progress = getProgress();
+  if (!progress.skillsCompleted) return;
+  delete progress.skillsCompleted[skillId];
+  saveProgress(progress);
+}
+
+export function getSkillCompletion(skillId: string): { completedAt: string } | null {
+  const progress = getProgress();
+  return progress.skillsCompleted?.[skillId] ?? null;
+}
+
+export function isSkillComplete(skillId: string): boolean {
+  return getSkillCompletion(skillId) !== null;
+}
+
+export function getSkillCompletionMap(): Record<string, string> {
+  const progress = getProgress();
+  const map: Record<string, string> = {};
+  for (const [id, value] of Object.entries(progress.skillsCompleted ?? {})) {
+    map[id] = value.completedAt;
+  }
+  return map;
+}
+
+export function countCompletedSkills(skillIds: string[]): number {
+  const progress = getProgress();
+  return skillIds.filter((id) => progress.skillsCompleted?.[id]).length;
+}
+
+export function formatSkillCompletedAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }

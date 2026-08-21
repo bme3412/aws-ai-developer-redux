@@ -10,48 +10,51 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "A logistics company is building an AI assistant that needs to check inventory levels, update shipping status, and calculate delivery estimates. The assistant must autonomously decide which operations to perform based on user requests. All data sources are internal APIs with existing REST endpoints.",
-      "question": "Which approach provides the MOST flexible architecture for enabling the AI assistant to autonomously execute multiple operations?",
+      "scenario": "A logistics company is building an internal operations assistant on AWS. The assistant must check inventory, update shipping status, and calculate delivery estimates. Which APIs the assistant calls, and in which order, must depend on the user request and on the previous result. The company already maintains OpenAPI schemas for the REST APIs. The company does not want to predefine every branch of the workflow. The company wants the LEAST operational overhead.",
+      "question": "Which solution will meet these requirements?",
       "options": [
         {
           "id": "a",
-          "text": "Create a single Lambda function that handles all operations and invoke it directly from Amazon Bedrock"
+          "text": "Create a single AWS Lambda function that always performs every operation. Invoke the function from Amazon Bedrock after each user request."
         },
         {
           "id": "b",
-          "text": "Build a custom orchestration layer using Step Functions to route user requests to appropriate endpoints"
+          "text": "Create an AWS Step Functions workflow. Add a Choice state for every possible sequence of inventory, shipping, and delivery operations."
         },
         {
           "id": "c",
-          "text": "Pre-compute all possible operation combinations and store them in a lookup table"
+          "text": "Configure an Amazon Bedrock agent. Create action groups that use the existing OpenAPI schemas so that the agent can choose which APIs to call."
         },
         {
           "id": "d",
-          "text": "Configure Amazon Bedrock Agents with Action Groups, defining each operation as a separate action with OpenAPI schemas"
+          "text": "Pre-compute every combination of operations. Store the combinations in Amazon DynamoDB. Look up a combination for each user request."
         }
       ],
       "correctAnswers": [
-        "d"
+        "c"
       ],
-      "explanation": "Amazon Bedrock Agents with Action Groups is designed for exactly this use case. Each operation (inventory check, shipping update, delivery calculation) becomes an action defined by an OpenAPI schema. The agent's ReAct-style orchestration autonomously decides which actions to invoke based on user intent.",
+      "explanation": "Amazon Bedrock Agents run a ReAct-style loop. The agent chooses the next action from the user goal and the current state. Action groups that use existing OpenAPI schemas expose inventory, shipping, and delivery APIs without a scripted branch for every path. Therefore, this solution meets the requirements with the least operational overhead.",
       "incorrectExplanations": {
-        "d": "Pre-computing combinations doesn't scale and can't handle novel user requests that weren't anticipated.",
-        "c": "Step Functions provides orchestration but requires predefined workflows. It doesn't provide the autonomous, intent-based operation selection that agents offer.",
-        "a": "A single Lambda function doesn't provide the autonomous decision-making capability. The FM wouldn't know when or how to invoke it."
+        "a": "A single Lambda function that always runs every operation is not autonomous tool selection. The assistant cannot decide which APIs to call based on the previous result.",
+        "b": "AWS Step Functions is a scripted workflow. A Choice state for every sequence requires you to predefine branches. The company does not want to predefine every branch.",
+        "d": "Pre-computing combinations cannot handle a novel request. A lookup table is not an agent that chooses tools at runtime."
       },
       "parseStrategy": {
-        "keyPhrase": "autonomously decide which operations",
+        "keyPhrase": "autonomously decide / does not want to predefine every branch",
         "eliminationHints": [
-          "Single Lambda = no autonomous orchestration",
-          "Step Functions = predefined workflows, not autonomous",
-          "Pre-compute = doesn't scale, can't handle novel requests"
+          "Always-call Lambda = not autonomous",
+          "Step Functions Choice = scripted branches",
+          "Pre-compute = cannot handle novel requests"
         ],
-        "decisionFramework": "Autonomous multi-operation execution = Bedrock Agents with Action Groups"
+        "decisionFramework": "Dynamic next-tool choice + existing OpenAPI = Bedrock Agents action groups"
       },
       "services": [
-        "Amazon Bedrock Agents"
+        "Amazon Bedrock Agents",
+        "AWS Step Functions",
+        "AWS Lambda",
+        "Amazon DynamoDB"
       ],
-      "examTip": "Questions about autonomous tool execution or multi-step operations point to Bedrock Agents with Action Groups."
+      "examTip": "Autonomous multi-operation execution with OpenAPI contracts points to Bedrock Agents and action groups, not Step Functions."
     },
     {
       "id": "d2-q02",
@@ -62,48 +65,51 @@
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
-      "scenario": "A research organization is developing an AI assistant that needs to search academic databases, query internal knowledge bases, and access real-time experiment data. The assistant will run on researchers' local machines and must be able to connect to different data sources depending on the researcher's project. The organization wants to add new data sources without modifying the AI application code.",
-      "question": "Which architecture enables researchers to connect to project-specific data sources without application code changes?",
+      "scenario": "A research organization is building an AI assistant that runs on researchers' laptops. The assistant must search academic databases, query internal knowledge bases, and read live experiment data. Each researcher connects to a different set of data sources for each project. The organization must add a new data source without changing the assistant application code. The company wants a standard protocol for tool discovery.",
+      "question": "Which solution will meet these requirements?",
       "options": [
         {
           "id": "a",
-          "text": "Deploy Amazon Bedrock Agents with pre-configured Action Groups for each possible data source"
+          "text": "Deploy an Amazon Bedrock agent with a pre-configured action group for every data source that any researcher might use."
         },
         {
           "id": "b",
-          "text": "Implement Model Context Protocol (MCP) servers for each data source, allowing dynamic server discovery and connection"
+          "text": "Create AWS Lambda functions that read an environment variable to select a data source. Redeploy the functions when a project adds a source."
         },
         {
           "id": "c",
-          "text": "Use Lambda functions with environment variables to switch between data sources"
+          "text": "Create an Amazon API Gateway REST API that routes to backends based on a project identifier. Update the gateway when a new source is added."
         },
         {
           "id": "d",
-          "text": "Create a unified API gateway that routes requests to different backends based on project configuration"
+          "text": "Implement a Model Context Protocol (MCP) server for each data source. Allow the local assistant to discover and connect to project-specific servers without changing application code."
         }
       ],
       "correctAnswers": [
-        "b"
+        "d"
       ],
-      "explanation": "Model Context Protocol (MCP) provides a standardized interface for connecting AI assistants to external tools and data sources. MCP servers can be discovered and connected dynamically without modifying the AI application. Each data source runs as an MCP server, and researchers can connect to project-specific servers as needed.",
+      "explanation": "MCP is a standard way to expose tools. Each data source is a server that the local assistant can discover and attach per project. Adding a server does not require changing the assistant code. Therefore, this solution meets the requirements.",
       "incorrectExplanations": {
-        "d": "Lambda environment variables require redeployment to change. This doesn't meet the 'without code changes' requirement.",
-        "a": "Pre-configured Action Groups require defining all sources upfront and don't support dynamic discovery. Adding new sources requires agent reconfiguration.",
-        "c": "A unified API gateway centralizes control but requires gateway modifications for new data sources. It doesn't provide the local, dynamic connection capability described."
+        "a": "Pre-configured action groups require you to define every source in the agent. Adding a source requires agent changes. This does not support local, project-specific discovery.",
+        "b": "Lambda environment variables require a redeploy when the source list changes. The assistant application and the functions still change. This does not meet the no-code-change requirement.",
+        "c": "API Gateway centralizes routing. You must modify the gateway for each new backend. This is not a local, dynamically discovered tool protocol."
       },
       "parseStrategy": {
-        "keyPhrase": "without application code changes",
+        "keyPhrase": "without modifying the AI application code / local / project-specific",
         "eliminationHints": [
-          "Pre-configured = requires upfront definition",
-          "API gateway = requires gateway modifications",
-          "Environment variables = require redeployment"
+          "Pre-configured action groups = defined upfront",
+          "Lambda env vars = redeploy",
+          "API Gateway = gateway changes"
         ],
-        "decisionFramework": "Dynamic data source connection without code changes = MCP"
+        "decisionFramework": "Local dynamic tool attachment without app changes = MCP servers"
       },
       "services": [
-        "Model Context Protocol"
+        "Model Context Protocol",
+        "Amazon Bedrock Agents",
+        "AWS Lambda",
+        "Amazon API Gateway"
       ],
-      "examTip": "MCP enables standardized, dynamic tool connections. Think MCP when you see 'dynamic data source connection' or 'local AI assistant with external tools.'"
+      "examTip": "MCP is the exam answer for standardized, dynamic tool connections to a local or multi-runtime assistant."
     },
     {
       "id": "d2-q03",
@@ -114,49 +120,50 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "A customer support platform uses Amazon Bedrock Agents to handle customer inquiries. The agent needs to access customer account information, process refunds, and escalate to human agents when necessary. The operations have different security requirements: viewing account info requires basic authentication, processing refunds requires elevated privileges, and escalation requires manager approval.",
-      "question": "How should the team configure the agent to enforce different authorization levels for each operation?",
+      "scenario": "A customer support platform uses Amazon Bedrock Agents. The agent must look up account information, process refunds, and escalate to a human. Looking up an account requires basic authentication. A refund requires elevated privileges. Escalation requires manager approval. The company must enforce authorization in software. The company must not rely on the foundation model (FM) prompt to decide whether a refund is allowed.",
+      "question": "Which solution will meet these requirements?",
       "options": [
         {
           "id": "a",
-          "text": "Create separate Bedrock Agents for each security level, routing requests to the appropriate agent"
+          "text": "Configure action groups whose AWS Lambda functions read user context from session attributes and verify authorization before they perform each operation."
         },
         {
           "id": "b",
-          "text": "Use a single Action Group with all operations and handle authorization in the FM prompt"
+          "text": "Use a single action group that contains every operation. Instruct the FM in the system prompt to refuse refunds unless the user is a manager."
         },
         {
           "id": "c",
-          "text": "Configure Action Groups with Lambda functions that verify authorization using the user context passed through session attributes"
+          "text": "Create a separate Amazon Bedrock agent for each security level. Route each request to an agent based on a string in the prompt."
         },
         {
           "id": "d",
-          "text": "Store authorization levels in a DynamoDB table and have the agent query it before each operation"
+          "text": "Store authorization labels in Amazon DynamoDB. Instruct the agent to query the table and to follow the result as a prompt instruction."
         }
       ],
       "correctAnswers": [
-        "c"
+        "a"
       ],
-      "explanation": "Lambda functions backing Action Groups can access session attributes containing user context. Each Lambda function verifies the user's authorization level before executing its operation. This provides proper authorization enforcement at the action level without relying on the FM to make security decisions.",
+      "explanation": "Authorization must run in the Lambda that backs the action, not in generated text. Session attributes carry the caller context into the function. The function allows or denies the refund or escalation before any side effect. Therefore, this solution meets the requirements.",
       "incorrectExplanations": {
-        "c": "Never rely on FM prompts for security decisions. Prompts can be manipulated, and FMs don't enforce security\u2014they generate text.",
-        "d": "Querying authorization separately adds latency and still requires enforcement logic. The Lambda approach combines lookup and enforcement.",
-        "a": "Multiple agents adds complexity and doesn't solve the authorization problem\u2014you'd still need to verify permissions within each agent."
+        "b": "A prompt is not a security control. Users can jailbreak or ignore instructions. The FM generates text. It does not enforce authorization.",
+        "c": "Separate agents add operational overhead. Each agent still needs an enforcement point inside its tools. Routing by prompt text is not authorization.",
+        "d": "A DynamoDB lookup that the model is told to obey is still prompt-level control. Enforcement must happen in the Lambda before the refund runs."
       },
       "parseStrategy": {
-        "keyPhrase": "different authorization levels",
+        "keyPhrase": "must not rely on the FM prompt / different authorization levels",
         "eliminationHints": [
-          "Multiple agents = doesn't solve auth problem",
-          "FM prompt = never use for security decisions",
-          "Separate query = inefficient, still needs enforcement"
+          "System prompt = not enforcement",
+          "Multiple agents = still need auth in tools",
+          "DynamoDB + prompt = lookup without enforcement"
         ],
-        "decisionFramework": "Authorization enforcement = Lambda functions with user context from session attributes"
+        "decisionFramework": "Action authorization = Lambda checks session attributes, not the FM"
       },
       "services": [
         "Amazon Bedrock Agents",
-        "AWS Lambda"
+        "AWS Lambda",
+        "Amazon DynamoDB"
       ],
-      "examTip": "Security decisions must be made in code (Lambda), not in FM prompts. Session attributes carry user context to Lambda functions."
+      "examTip": "Security decisions belong in Lambda (or IAM), never only in the prompt."
     },
     {
       "id": "d2-q04",
@@ -192,9 +199,9 @@
       ],
       "explanation": "Provisioned Throughput provides guaranteed capacity with consistent latency for baseline traffic. On-demand handles overflow during peaks without over-provisioning. This hybrid approach optimizes cost while maintaining latency SLAs.",
       "incorrectExplanations": {
-        "b": "Fixed SageMaker instances sized for peak means paying for unused capacity during low-traffic periods, reducing cost efficiency.",
+        "c": "Fixed SageMaker instances sized for peak means paying for unused capacity during low-traffic periods, reducing cost efficiency.",
         "a": "On-demand alone may have variable latency during high-traffic periods as resources are shared. It doesn't guarantee the 2-second latency requirement.",
-        "d": "Spot Instances can be interrupted, which is unacceptable for real-time content creation. This introduces reliability issues."
+        "b": "Spot Instances can be interrupted, which is unacceptable for real-time content creation. This introduces reliability issues."
       },
       "parseStrategy": {
         "keyPhrase": "cost efficiency with consistent latency",
@@ -271,49 +278,50 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "An enterprise is building an internal GenAI chatbot that needs to access company databases containing sensitive employee information. The security team requires that all communication between the application and Amazon Bedrock remain within the AWS network without traversing the public internet.",
-      "question": "Which configuration ensures private connectivity between the application and Amazon Bedrock?",
+      "scenario": "A company is building an internal chatbot in a VPC. The chatbot invokes Amazon Bedrock. The security team requires that traffic from the application to Bedrock stay on the AWS network. The traffic must not use the public internet. The application already runs in private subnets.",
+      "question": "Which solution will meet these requirements?",
       "options": [
         {
           "id": "a",
-          "text": "Configure AWS Direct Connect from the corporate data center to the VPC hosting the application"
+          "text": "Create an interface VPC endpoint for Amazon Bedrock in the application's VPC. Send Bedrock API calls through the endpoint."
         },
         {
           "id": "b",
-          "text": "Create an Interface VPC Endpoint for Amazon Bedrock in the application's VPC"
+          "text": "Configure AWS Direct Connect from the corporate data center to the VPC. Continue to call Bedrock through public service endpoints."
         },
         {
           "id": "c",
-          "text": "Deploy the application in a private subnet with a NAT Gateway for outbound Bedrock access"
+          "text": "Add a NAT Gateway to the private subnets. Allow the application to reach Bedrock through the NAT Gateway."
         },
         {
           "id": "d",
-          "text": "Use AWS PrivateLink between the corporate network and a Bedrock-dedicated VPC"
+          "text": "Create an AWS Client VPN from analyst laptops to the VPC. Invoke Bedrock from each laptop with long-lived IAM user keys."
         }
       ],
       "correctAnswers": [
-        "b"
+        "a"
       ],
-      "explanation": "Interface VPC Endpoints (powered by AWS PrivateLink) create private connectivity to AWS services without using public IPs or traversing the internet. Creating a Bedrock endpoint in the VPC allows private communication from the application to Bedrock.",
+      "explanation": "An interface VPC endpoint (AWS PrivateLink) gives the VPC a private elastic network interface for Amazon Bedrock. API calls stay on the AWS network and do not traverse the public internet. Therefore, this solution meets the requirements.",
       "incorrectExplanations": {
-        "c": "NAT Gateway enables internet access from private subnets. Traffic through NAT Gateway still traverses the public internet, violating the requirement.",
-        "d": "PrivateLink is the underlying technology, but you implement it through Interface VPC Endpoints. This option describes the mechanism, not the correct configuration approach.",
-        "a": "Direct Connect provides private connectivity from on-premises to AWS but doesn't address the VPC-to-Bedrock communication, which would still go over the internet without a VPC endpoint."
+        "b": "Direct Connect privatizes the path from on-premises to the VPC. Calls from the VPC to Bedrock public endpoints still use the public Bedrock API unless you add a VPC endpoint.",
+        "c": "A NAT Gateway gives private subnets outbound internet access. That path still uses the public internet, which the security team does not allow.",
+        "d": "Client VPN and IAM user keys do not create private connectivity from the application to Bedrock. Long-lived keys also violate least privilege."
       },
       "parseStrategy": {
-        "keyPhrase": "without traversing the public internet",
+        "keyPhrase": "must not use the public internet / VPC to Bedrock",
         "eliminationHints": [
-          "Direct Connect = on-premises connectivity, not VPC-to-service",
-          "NAT Gateway = still uses public internet",
-          "Generic PrivateLink = VPC Endpoint is the implementation"
+          "Direct Connect = on-premises to VPC, not VPC to Bedrock",
+          "NAT Gateway = still internet",
+          "Client VPN + access keys = wrong problem"
         ],
-        "decisionFramework": "Private VPC-to-AWS-service connectivity = Interface VPC Endpoint"
+        "decisionFramework": "Private AWS-service access from a VPC = interface VPC endpoint"
       },
       "services": [
         "Amazon VPC",
-        "Amazon Bedrock"
+        "Amazon Bedrock",
+        "AWS Direct Connect"
       ],
-      "examTip": "VPC Endpoints provide private connectivity to AWS services. Interface Endpoints (PrivateLink) for most services including Bedrock."
+      "examTip": "Interface VPC endpoints are how a VPC talks to Bedrock privately. NAT is still the internet."
     },
     {
       "id": "d2-q07",
@@ -403,9 +411,9 @@
       ],
       "explanation": "For very short outputs like headlines, synchronous InvokeModel provides lowest total latency. Streaming adds overhead for establishing the stream, which isn't beneficial for short responses. High Lambda concurrency handles the throughput requirement with parallel processing.",
       "incorrectExplanations": {
-        "d": "Single Lambda processing creates a bottleneck. Processing in order means articles queue up, increasing latency during high-volume periods.",
+        "a": "Single Lambda processing creates a bottleneck. Processing in order means articles queue up, increasing latency during high-volume periods.",
         "b": "Streaming optimizes perceived latency for long responses by delivering first tokens quickly. For short headlines, the stream setup overhead makes it slower than synchronous calls.",
-        "c": "Sequential batch processing increases latency significantly. Each article waits for the previous batch to complete, violating the 100ms requirement."
+        "d": "Sequential batch processing increases latency significantly. Each article waits for the previous batch to complete, violating the 100ms requirement."
       },
       "parseStrategy": {
         "keyPhrase": "LOWEST latency for high-throughput",
@@ -431,48 +439,49 @@
       ],
       "type": "multiple-choice",
       "difficulty": "hard",
-      "scenario": "A legal tech company processes large contract documents (50+ pages) and needs to extract key terms, identify risks, and generate summaries. Document processing is not time-sensitive\u2014users upload documents and expect results within a few hours. Cost optimization is the primary concern.",
-      "question": "Which invocation pattern provides the MOST cost-effective processing for large documents?",
+      "scenario": "A research team must generate summaries for 40,000 archived papers. A delay of several hours is acceptable. The team must use the same Amazon Bedrock foundation model (FM) that the interactive application uses. The team wants to reduce inference cost compared with on-demand Converse API calls. The team does not need tokens to appear in a user interface while the job runs.",
+      "question": "Which solution will meet these requirements in the MOST cost-effective way?",
       "options": [
         {
           "id": "a",
-          "text": "Break documents into pages and process each page in parallel using Lambda concurrent invocations"
+          "text": "Submit the papers to Amazon Bedrock batch inference. Retrieve the results when the job completes."
         },
         {
           "id": "b",
-          "text": "Process documents synchronously using Lambda with 15-minute timeout and maximum memory allocation"
+          "text": "Create an AWS Lambda function that calls the Converse API once for each paper during the day."
         },
         {
           "id": "c",
-          "text": "Use Amazon Bedrock batch inference, submitting documents in batches and retrieving results when processing completes"
+          "text": "Use InvokeModelWithResponseStream for each paper so that summaries start returning immediately."
         },
         {
           "id": "d",
-          "text": "Stream document processing using InvokeModelWithResponseStream to get incremental results"
+          "text": "Split each paper into pages. Invoke Amazon Bedrock in parallel for every page. Concatenate the page summaries in application code."
         }
       ],
       "correctAnswers": [
-        "c"
+        "a"
       ],
-      "explanation": "Batch inference provides the lowest per-token cost for non-time-sensitive workloads. Bedrock batch inference processes documents asynchronously, optimizing for throughput over latency. This matches the few-hours expectation while minimizing costs.",
+      "explanation": "Amazon Bedrock batch inference is priced for asynchronous bulk jobs. A delay of hours is acceptable, and you can use the same FM. Streaming and on-demand Converse calls cost more and add no value when nobody is watching tokens. Therefore, batch inference is the most cost-effective solution.",
       "incorrectExplanations": {
-        "c": "Streaming doesn't reduce cost\u2014it reduces perceived latency. For non-time-sensitive batch processing, streaming adds unnecessary complexity.",
-        "b": "Synchronous Lambda processing is more expensive than batch for large volumes. It also risks timeouts for very long documents.",
-        "d": "Parallel page processing increases costs (more invocations) and doesn't leverage batch pricing. It also loses document context across pages."
+        "b": "On-demand Converse calls for 40,000 papers use interactive pricing. Lambda timeouts and concurrency also add operational risk for a bulk offline job.",
+        "c": "Streaming reduces perceived latency for a user who is watching the UI. It does not provide bulk pricing. The team does not need live tokens.",
+        "d": "Per-page parallel on-demand calls increase invocation count and lose document context. They do not use batch pricing."
       },
       "parseStrategy": {
-        "keyPhrase": "MOST cost-effective",
+        "keyPhrase": "delay of several hours is acceptable / reduce inference cost / same FM",
         "eliminationHints": [
-          "Synchronous Lambda = higher cost, timeout risk",
-          "Streaming = doesn't reduce cost",
-          "Parallel pages = more invocations, loses context"
+          "On-demand Lambda loop = interactive price",
+          "Streaming = latency, not bulk cost",
+          "Per-page parallel = more on-demand calls"
         ],
-        "decisionFramework": "Non-time-sensitive + cost optimization = batch inference"
+        "decisionFramework": "Large offline same-FM job = Bedrock batch inference"
       },
       "services": [
-        "Amazon Bedrock"
+        "Amazon Bedrock",
+        "AWS Lambda"
       ],
-      "examTip": "Batch inference is the cost-optimization answer for non-time-sensitive workloads. Think batch when you see 'hours acceptable' and 'cost is primary concern.'"
+      "examTip": "Hours-ok + same FM + cheaper than on-demand = batch inference, not streaming."
     },
     {
       "id": "d2-q10",
@@ -509,8 +518,8 @@
       "explanation": "Summarizing older messages while keeping recent messages in full balances context retention with token efficiency. This 'rolling window with summary' approach maintains conversational continuity without linearly growing token usage as conversations lengthen.",
       "incorrectExplanations": {
         "d": "Retrieving full history when 'relevant' is hard to determine and still risks token overflow. This doesn't address the efficiency requirement.",
-        "c": "Discarding history loses important context. Users may reference earlier topics, and the model won't understand.",
-        "a": "Full history grows without bound, eventually exceeding context limits and dramatically increasing costs for long conversations."
+        "b": "Full history grows without bound, eventually exceeding context limits and dramatically increasing costs for long conversations.",
+        "c": "Discarding history loses important context. Users may reference earlier topics, and the model won't understand."
       },
       "parseStrategy": {
         "keyPhrase": "balance context retention with token efficiency",
@@ -535,48 +544,51 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "A company wants to deploy an AI assistant that can answer questions about internal company policies, HR procedures, and technical documentation. The content is spread across SharePoint, Confluence, and internal wikis. They want employees to interact through their existing Slack workspace.",
-      "question": "Which AWS service provides the MOST streamlined deployment for this enterprise knowledge assistant use case?",
+      "scenario": "A company wants employees to ask natural-language questions over SharePoint, Confluence, and Slack. Retrieved answers must respect each employee's existing document access control lists (ACLs). The company does not want to build or operate a custom retrieval-augmented generation (RAG) pipeline. The company wants the LEAST operational overhead.",
+      "question": "Which solution will meet these requirements?",
       "options": [
         {
           "id": "a",
-          "text": "Index documents in OpenSearch and build custom embeddings pipeline for semantic search"
+          "text": "Index copies of the sites in Amazon OpenSearch Service. Build a custom embedding and chat pipeline."
         },
         {
           "id": "b",
-          "text": "Build a custom RAG pipeline using Amazon Bedrock Knowledge Bases, Lambda, and deploy a Slack bot"
+          "text": "Deploy Amazon Q Business with data source connectors for SharePoint, Confluence, and Slack. Use identity-aware ACL enforcement."
         },
         {
           "id": "c",
-          "text": "Deploy Amazon Q Business with connectors for SharePoint, Confluence, and integrate with Slack"
+          "text": "Create an Amazon Bedrock knowledge base over Amazon S3 copies of the sites. Build a custom Slack bot that calls RetrieveAndGenerate."
         },
         {
           "id": "d",
-          "text": "Use Amazon Kendra for search with custom Lambda functions to format responses for Slack"
+          "text": "Use Amazon Kendra to index the sites. Create AWS Lambda functions that format Kendra results into Slack messages."
         }
       ],
       "correctAnswers": [
-        "c"
+        "b"
       ],
-      "explanation": "Amazon Q Business is purpose-built for enterprise knowledge assistants. It provides pre-built connectors for common enterprise sources (SharePoint, Confluence) and integrates with workplace tools like Slack. This is significantly faster to deploy than building custom RAG pipelines.",
+      "explanation": "Amazon Q Business is a managed enterprise chat application over company data sources. Connectors ingest SharePoint, Confluence, and similar repositories with identity-aware ACLs. You do not build a custom RAG pipeline. Therefore, this solution meets the requirements with the least operational overhead.",
       "incorrectExplanations": {
-        "c": "Kendra provides search but requires custom code for conversational AI capabilities. Q Business includes the full stack.",
-        "d": "Custom OpenSearch implementation is the most effort-intensive option. It requires building everything from scratch.",
-        "a": "Custom RAG pipelines work but require significantly more development effort. Q Business provides this functionality out of the box."
+        "a": "A custom OpenSearch embedding pipeline is a RAG system that you operate. The company does not want to build that pipeline.",
+        "c": "A Bedrock knowledge base plus a custom Slack bot can answer questions. You must operate ingestion, the bot, and ACL logic. That increases operational overhead.",
+        "d": "Amazon Kendra can search documents. You still write Lambda glue for conversational answers and Slack. Q Business includes that stack."
       },
       "parseStrategy": {
-        "keyPhrase": "MOST streamlined deployment",
+        "keyPhrase": "existing ACLs / does not want a custom RAG pipeline",
         "eliminationHints": [
-          "Custom RAG = more development effort",
-          "Kendra + custom = partial solution",
-          "OpenSearch custom = maximum effort"
+          "OpenSearch custom = you build RAG",
+          "KB + Slack bot = custom app",
+          "Kendra + Lambda = search, not turnkey chat"
         ],
-        "decisionFramework": "Enterprise knowledge assistant with common sources = Amazon Q Business"
+        "decisionFramework": "Employee chat over company docs with ACLs = Amazon Q Business"
       },
       "services": [
-        "Amazon Q Business"
+        "Amazon Q Business",
+        "Amazon Bedrock Knowledge Bases",
+        "Amazon Kendra",
+        "Amazon OpenSearch Service"
       ],
-      "examTip": "Amazon Q Business is the turnkey enterprise AI assistant. Think Q Business when you see enterprise knowledge bases + workplace integration."
+      "examTip": "Q Business is the turnkey employee assistant. Q Developer is the IDE. Do not swap them."
     },
     {
       "id": "d2-q12",
@@ -587,48 +599,51 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "A software development team wants to accelerate code reviews and improve code quality. They use VS Code as their primary IDE and want AI assistance that understands their codebase, can suggest improvements, and generate unit tests based on existing patterns.",
-      "question": "Which AWS service provides contextual AI assistance within the development environment?",
+      "scenario": "A software team uses Visual Studio Code. Developers must receive inline code suggestions, generate unit tests from existing patterns, and review pull requests with an AWS coding assistant. The team must not build a custom IDE extension. The team must not train a new foundation model (FM) on the repository.",
+      "question": "Which solution will meet these requirements with the LEAST operational overhead?",
       "options": [
         {
           "id": "a",
-          "text": "Deploy Amazon Q Business with a custom connector for the code repository"
+          "text": "Install Amazon Q Developer in Visual Studio Code. Use it for inline suggestions, tests, and pull request review."
         },
         {
           "id": "b",
-          "text": "Use Amazon SageMaker to train a custom code generation model on the codebase"
+          "text": "Deploy Amazon Q Business with a connector to the Git repository. Ask developers to paste code into the Q Business chat."
         },
         {
           "id": "c",
-          "text": "Build a custom VS Code extension that calls Amazon Bedrock for code suggestions"
+          "text": "Train a custom code model on Amazon SageMaker AI. Host an endpoint. Build a Visual Studio Code extension that calls the endpoint."
         },
         {
           "id": "d",
-          "text": "Use Amazon CodeWhisperer (Amazon Q Developer) integrated with VS Code"
+          "text": "Create a Visual Studio Code extension that calls the Amazon Bedrock Converse API for every keystroke."
         }
       ],
       "correctAnswers": [
-        "d"
+        "a"
       ],
-      "explanation": "Amazon Q Developer (formerly CodeWhisperer) provides IDE-integrated AI assistance for developers. It understands code context, suggests completions, generates tests, and integrates directly with VS Code. It's purpose-built for the developer assistance use case.",
+      "explanation": "Amazon Q Developer is the AWS coding assistant for IDEs, the CLI, and pull requests. It provides inline suggestions, tests, and reviews without a custom extension or a trained model. Therefore, this solution meets the requirements with the least operational overhead.",
       "incorrectExplanations": {
-        "a": "Q Business is for enterprise knowledge assistants, not IDE-integrated developer tools. Wrong product for this use case.",
-        "c": "Custom extension requires significant development. Q Developer provides this functionality out of the box with optimized code understanding.",
-        "d": "Custom model training is overkill and expensive. Q Developer already has strong code understanding capabilities."
+        "b": "Amazon Q Business is employee chat over company documents. It is not an IDE coding assistant. Pasting code into Q Business does not provide inline completions.",
+        "c": "Training and hosting a custom model, then writing an IDE extension, is the opposite of least operational overhead.",
+        "d": "A custom extension that calls Converse is a product you must build and maintain. The team must not build a custom IDE extension."
       },
       "parseStrategy": {
-        "keyPhrase": "AI assistance within the development environment",
+        "keyPhrase": "VS Code / must not build a custom extension / must not train a new FM",
         "eliminationHints": [
-          "Q Business = wrong product (knowledge assistant)",
-          "Custom extension = unnecessary development",
-          "Custom training = overkill"
+          "Q Business = enterprise docs, not IDE",
+          "SageMaker custom model = you train and host",
+          "Custom Converse extension = you build the IDE plugin"
         ],
-        "decisionFramework": "IDE-integrated developer AI assistance = Amazon Q Developer"
+        "decisionFramework": "IDE coding assistant = Amazon Q Developer, not Q Business"
       },
       "services": [
-        "Amazon Q Developer"
+        "Amazon Q Developer",
+        "Amazon Q Business",
+        "Amazon SageMaker AI",
+        "Amazon Bedrock"
       ],
-      "examTip": "Amazon Q Developer is for developers in IDEs. Amazon Q Business is for business users asking questions about company knowledge."
+      "examTip": "Q Developer replaced CodeWhisperer. If an option still says only CodeWhisperer, treat it as the old name for the same product."
     },
     {
       "id": "d2-q13",
@@ -664,9 +679,9 @@
       ],
       "explanation": "Lambda functions calling FHIR APIs keep patient data within the organization's processing flow. API Gateway provides the integration layer with request/response logging. CloudTrail captures API activity for audit requirements. Data stays in the organization's account throughout.",
       "incorrectExplanations": {
-        "b": "Cross-account access doesn't address the data sovereignty concern\u2014data would be accessed from another account. The requirement is data never leaves the organization's account.",
-        "d": "Replicating patient data to S3 creates additional copies of sensitive data, increasing data governance complexity. It's better to access through APIs.",
-        "c": "HealthLake doesn't convert FHIR to a 'proprietary format.' It's a FHIR-compliant service. This answer misrepresents the service and doesn't address the integration pattern."
+        "c": "Replicating patient data to S3 creates additional copies of sensitive data, increasing data governance complexity. It's better to access through APIs.",
+        "a": "HealthLake doesn't convert FHIR to a 'proprietary format.' It's a FHIR-compliant service. This answer misrepresents the service and doesn't address the integration pattern.",
+        "d": "Cross-account access doesn't address the data sovereignty concern\u2014data would be accessed from another account. The requirement is data never leaves the organization's account."
       },
       "parseStrategy": {
         "keyPhrase": "data sovereignty + FHIR API integration + auditable",
@@ -771,9 +786,9 @@
       ],
       "explanation": "S3 Event Notifications provide immediate, event-driven triggering when objects are created. The Lambda function can orchestrate the full pipeline: text extraction, Bedrock analysis, and metadata storage. This is the standard pattern for S3-triggered processing.",
       "incorrectExplanations": {
-        "c": "Polling adds unnecessary latency (up to 1 minute) and consumes resources even when no new files exist. Event-driven is more efficient.",
         "b": "Textract doesn't automatically forward to Bedrock. It extracts text but requires additional orchestration for the Bedrock analysis step.",
-        "d": "CloudWatch Events/EventBridge can receive S3 events but adds an extra hop. Direct S3 Event Notifications to Lambda is simpler for this use case."
+        "d": "Polling adds unnecessary latency (up to 1 minute) and consumes resources even when no new files exist. Event-driven is more efficient.",
+        "a": "CloudWatch Events/EventBridge can receive S3 events but adds an extra hop. Direct S3 Event Notifications to Lambda is simpler for this use case."
       },
       "parseStrategy": {
         "keyPhrase": "trigger automatically when new PDFs arrive",
@@ -800,48 +815,50 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "A machine learning team has fine-tuned an open-source LLM for their specific use case and needs to deploy it for production inference. They require control over the inference infrastructure, including the ability to optimize batch sizes and use custom inference code. The model is 13B parameters.",
-      "question": "Which deployment option provides the MOST control over inference infrastructure for custom models?",
+      "scenario": "A machine learning team packaged an open-weight 13B model in a custom inference container. The team must control batch size, CUDA libraries, and inference code. The company wants managed hosting. The company does not want to operate load balancers on Amazon EC2. The company does not want a fully managed Bedrock import that hides the container.",
+      "question": "Which solution will meet these requirements?",
       "options": [
         {
           "id": "a",
-          "text": "Import the model to Amazon Bedrock using Custom Model Import"
+          "text": "Import the model into Amazon Bedrock by using Custom Model Import. Invoke the model with the Converse API."
         },
         {
           "id": "b",
-          "text": "Use Amazon Bedrock fine-tuning to adapt a base model to the use case"
+          "text": "Fine-tune a Bedrock-hosted base model. Invoke the custom Bedrock model with on-demand inference."
         },
         {
           "id": "c",
-          "text": "Deploy on Amazon SageMaker with a custom inference container and endpoint configuration"
+          "text": "Run the container on Amazon EC2 instances. Configure an Application Load Balancer and Auto Scaling groups."
         },
         {
           "id": "d",
-          "text": "Host the model on Amazon EC2 instances with manual load balancing"
+          "text": "Deploy the custom inference container to an Amazon SageMaker AI real-time endpoint. Configure instance type and batch size on the endpoint."
         }
       ],
       "correctAnswers": [
-        "c"
+        "d"
       ],
-      "explanation": "SageMaker provides full control over inference infrastructure while managing the underlying instances. Custom inference containers allow custom code, and endpoint configuration controls batch sizes, instance types, and scaling. This balances control with managed infrastructure.",
+      "explanation": "Amazon SageMaker AI real-time endpoints host a custom inference container. You control CUDA libraries, inference code, instance type, and batch size. SageMaker manages the instances. You do not run your own load balancer. Therefore, this solution meets the requirements.",
       "incorrectExplanations": {
-        "c": "EC2 with manual load balancing provides maximum control but loses the managed inference benefits. More operational overhead without additional capability.",
-        "d": "Bedrock fine-tuning starts with Bedrock base models, not custom open-source models. It doesn't address the bring-your-own-model requirement.",
-        "a": "Bedrock Custom Model Import hosts models but doesn't provide the same level of infrastructure control as SageMaker. You can't customize inference code or batch optimization."
+        "a": "Custom Model Import hosts supported artifacts in Bedrock. You do not bring an arbitrary inference container or control batching code the way SageMaker does.",
+        "b": "Bedrock fine-tuning starts from a Bedrock base model. It does not deploy the team's existing open-weight container.",
+        "c": "EC2 and an Application Load Balancer can run the container. The company does not want to operate load balancers. This solution increases operational overhead."
       },
       "parseStrategy": {
-        "keyPhrase": "MOST control over inference infrastructure",
+        "keyPhrase": "custom inference container / control batch size / managed hosting",
         "eliminationHints": [
-          "Bedrock import = less infrastructure control",
-          "EC2 manual = unnecessary operational overhead",
-          "Bedrock fine-tuning = wrong starting point (not BYOM)"
+          "CMI = no custom container control",
+          "Bedrock fine-tune = different starting model",
+          "EC2 + ALB = you operate the fleet"
         ],
-        "decisionFramework": "Custom model + infrastructure control = SageMaker"
+        "decisionFramework": "BYO container + managed GPUs = SageMaker real-time endpoint"
       },
       "services": [
-        "Amazon SageMaker"
+        "Amazon SageMaker AI",
+        "Amazon Bedrock",
+        "Amazon EC2"
       ],
-      "examTip": "SageMaker is the answer when you need infrastructure control for custom models. Bedrock is for using provided foundation models."
+      "examTip": "SageMaker is the exam answer when you must run YOUR container and still want managed hosting."
     },
     {
       "id": "d2-q17",
@@ -878,9 +895,9 @@
       ],
       "explanation": "Agent tracing captures the full reasoning path\u2014which tools were called, what data was retrieved, how the agent reached its conclusion. Human-in-the-loop action configuration requires explicit human approval before the trade execution action proceeds. This addresses both requirements within the agent architecture.",
       "incorrectExplanations": {
-        "c": "Step Functions could work but requires rebuilding the agent workflow outside of Bedrock Agents. The question asks about Bedrock Agent configuration.",
-        "d": "Guardrails are for content safety, not workflow approval. They filter content, not orchestrate human approvals.",
-        "b": "Logging responses doesn't capture the reasoning path. Separate manual trading loses the integration benefits of the agent. This is a workaround, not a solution."
+        "a": "Step Functions could work but requires rebuilding the agent workflow outside of Bedrock Agents. The question asks about Bedrock Agent configuration.",
+        "b": "Logging responses doesn't capture the reasoning path. Separate manual trading loses the integration benefits of the agent. This is a workaround, not a solution.",
+        "d": "Guardrails are for content safety, not workflow approval. They filter content, not orchestrate human approvals."
       },
       "parseStrategy": {
         "keyPhrase": "auditability and human approval",
@@ -930,9 +947,9 @@
       ],
       "explanation": "MCP servers can run locally on the developer's machine, providing standardized tool interfaces for file system access, terminal commands, and other local operations. The AI assistant connects to these MCP servers directly without requiring cloud infrastructure.",
       "incorrectExplanations": {
-        "c": "Bedrock Agents run in AWS cloud and can't directly invoke local endpoints without complex tunneling.",
-        "d": "API Gateway is a cloud service that can't route to local development servers without VPN or tunneling.",
-        "a": "Lambda functions run in AWS cloud, not locally. They can't access the developer's local file system."
+        "c": "API Gateway is a cloud service that can't route to local development servers without VPN or tunneling.",
+        "a": "Bedrock Agents run in AWS cloud and can't directly invoke local endpoints without complex tunneling.",
+        "b": "Lambda functions run in AWS cloud, not locally. They can't access the developer's local file system."
       },
       "parseStrategy": {
         "keyPhrase": "local tool execution",
@@ -1139,8 +1156,8 @@
       "explanation": "SageMaker allows custom inference containers where you control CUDA libraries and dependencies. The ml.p4d instances provide the multi-GPU capacity needed for 70B models. SageMaker manages the infrastructure while you control the container.",
       "incorrectExplanations": {
         "a": "Bedrock Custom Model Import uses managed containers\u2014you don't control the CUDA environment or specific libraries.",
-        "c": "Lambda has memory limits (10GB) and execution time limits that can't support 70B model inference.",
-        "d": "Fargate doesn't currently support GPU workloads. ECS with GPUs requires EC2 launch type."
+        "d": "Fargate doesn't currently support GPU workloads. ECS with GPUs requires EC2 launch type.",
+        "b": "Lambda has memory limits (10GB) and execution time limits that can't support 70B model inference."
       },
       "parseStrategy": {
         "keyPhrase": "custom container control for large models",
@@ -1504,9 +1521,9 @@
       ],
       "explanation": "Amplify provides pre-built UI components for AI applications, including chat interfaces that integrate with Bedrock. This significantly accelerates development without requiring deep frontend or GenAI integration expertise.",
       "incorrectExplanations": {
-        "c": "CloudFront with Lambda@Edge is for edge computing, not frontend development acceleration.",
-        "d": "EC2 development servers don't provide pre-built components\u2014you'd build everything manually.",
-        "a": "S3 static hosting requires building everything from scratch\u2014no pre-built AI components."
+        "b": "CloudFront with Lambda@Edge is for edge computing, not frontend development acceleration.",
+        "d": "S3 static hosting requires building everything from scratch\u2014no pre-built AI components.",
+        "c": "EC2 development servers don't provide pre-built components\u2014you'd build everything manually."
       },
       "parseStrategy": {
         "keyPhrase": "quickly create frontend for GenAI",
@@ -1557,8 +1574,8 @@
       ],
       "explanation": "Cognito handles user authentication and assigns roles. IAM policies then control what each role can do\u2014which Bedrock models they can invoke, which Knowledge Bases they can query, and which features they can access. Together, they implement complete RBAC.",
       "incorrectExplanations": {
-        "c": "Guardrails filter content but don't control role-based access to features or data sources.",
-        "d": "CloudFront signed URLs are for content delivery authentication, not application-level RBAC."
+        "a": "CloudFront signed URLs are for content delivery authentication, not application-level RBAC.",
+        "c": "Guardrails filter content but don't control role-based access to features or data sources."
       },
       "parseStrategy": {
         "keyPhrase": "role-based access control",
@@ -1714,9 +1731,9 @@
       ],
       "explanation": "AWS Outposts extends AWS infrastructure to on-premises locations, enabling local inference without internet round-trips. Models deployed on Outposts run at the factory, providing millisecond latency for real-time quality inspection.",
       "incorrectExplanations": {
-        "a": "Cross-Region Inference still requires internet connectivity to reach Bedrock. It optimizes cloud-to-cloud routing, not edge deployment.",
-        "c": "Caching helps for repeated queries but doesn't address real-time inspection of unique images where each inspection is different.",
-        "d": "Direct Connect provides faster private connectivity but still involves network round-trips. Millisecond latency requires local inference."
+        "b": "Direct Connect provides faster private connectivity but still involves network round-trips. Millisecond latency requires local inference.",
+        "d": "Cross-Region Inference still requires internet connectivity to reach Bedrock. It optimizes cloud-to-cloud routing, not edge deployment.",
+        "a": "Caching helps for repeated queries but doesn't address real-time inspection of unique images where each inspection is different."
       },
       "parseStrategy": {
         "keyPhrase": "edge locations with minimal latency",
@@ -1766,9 +1783,9 @@
       ],
       "explanation": "InvokeModelWithResponseStream returns response tokens as they're generated, enabling real-time display of partial responses. The client receives chunks immediately rather than waiting for the full response to complete.",
       "incorrectExplanations": {
-        "d": "GetModelInvocationResult retrieves completed batch job results, not real-time streaming responses.",
-        "c": "Batch processing is asynchronous and returns results later\u2014it's not designed for real-time streaming.",
-        "a": "InvokeModel returns the complete response only after generation finishes. Polling doesn't help\u2014there's nothing partial to retrieve."
+        "b": "Batch processing is asynchronous and returns results later\u2014it's not designed for real-time streaming.",
+        "d": "InvokeModel returns the complete response only after generation finishes. Polling doesn't help\u2014there's nothing partial to retrieve.",
+        "c": "GetModelInvocationResult retrieves completed batch job results, not real-time streaming responses."
       },
       "parseStrategy": {
         "keyPhrase": "partial responses in real-time",
@@ -1818,9 +1835,9 @@
       ],
       "explanation": "Action Groups with Lambda functions handle external API integrations. The Lambda manages OAuth authentication, calls the weather API, parses the JSON response, and returns structured data to the agent. This encapsulates integration complexity.",
       "incorrectExplanations": {
-        "d": "Bedrock doesn't have built-in weather tools. External API integrations require custom Action Groups.",
-        "c": "Knowledge Bases are for document retrieval, not real-time API data like current weather conditions.",
-        "a": "Bedrock Agents can't call external APIs directly\u2014they invoke Action Groups, which call Lambda or APIs through defined schemas."
+        "c": "Bedrock doesn't have built-in weather tools. External API integrations require custom Action Groups.",
+        "b": "Knowledge Bases are for document retrieval, not real-time API data like current weather conditions.",
+        "d": "Bedrock Agents can't call external APIs directly\u2014they invoke Action Groups, which call Lambda or APIs through defined schemas."
       },
       "parseStrategy": {
         "keyPhrase": "external API with OAuth",
@@ -1871,9 +1888,9 @@
       ],
       "explanation": "Model cascading routes requests to the appropriate model based on complexity. Simple documents use the inexpensive small model; complex documents escalate to the large model. This optimizes cost (80% at low cost) while maintaining quality (20% at higher cost when needed).",
       "incorrectExplanations": {
-        "a": "Accepting lower quality on 20% of documents (the complex ones) degrades the service unacceptably.",
-        "c": "Off-peak processing doesn't address real-time summarization needs and doesn't optimize which model handles which documents.",
-        "d": "Nightly batch processing can't serve real-time summarization requests."
+        "b": "Accepting lower quality on 20% of documents (the complex ones) degrades the service unacceptably.",
+        "d": "Nightly batch processing can't serve real-time summarization requests.",
+        "c": "Off-peak processing doesn't address real-time summarization needs and doesn't optimize which model handles which documents."
       },
       "parseStrategy": {
         "keyPhrase": "reduces costs while maintaining quality",
@@ -1923,9 +1940,9 @@
       ],
       "explanation": "Bedrock Data Automation provides intelligent document processing with pre-built extractors for common document types including invoices. It handles various formats and extracts structured data without custom ML model training.",
       "incorrectExplanations": {
-        "d": "Polly converts text to speech\u2014it doesn't process or extract data from documents.",
-        "c": "Rekognition analyzes images but doesn't extract structured business data from documents.",
-        "a": "Comprehend extracts entities from text but doesn't handle document layout understanding for invoices."
+        "b": "Polly converts text to speech\u2014it doesn't process or extract data from documents.",
+        "a": "Rekognition analyzes images but doesn't extract structured business data from documents.",
+        "c": "Comprehend extracts entities from text but doesn't handle document layout understanding for invoices."
       },
       "parseStrategy": {
         "keyPhrase": "automatically extract from documents",
@@ -2027,9 +2044,9 @@
       ],
       "explanation": "Batch inference provides a significant cost discount (up to 50%) compared to on-demand invocations. Since results aren't needed immediately, batch processing is ideal\u2014you submit the job and retrieve results when complete.",
       "incorrectExplanations": {
-        "d": "Provisioned Throughput guarantees capacity but doesn't reduce per-token costs. Batch inference is more cost-effective for non-urgent workloads.",
-        "c": "Streaming reduces perceived latency but doesn't reduce cost. It's designed for real-time display, not bulk processing.",
-        "a": "Synchronous processing with Lambda uses on-demand pricing (more expensive) and risks timeouts for long-running jobs."
+        "b": "Provisioned Throughput guarantees capacity but doesn't reduce per-token costs. Batch inference is more cost-effective for non-urgent workloads.",
+        "c": "Synchronous processing with Lambda uses on-demand pricing (more expensive) and risks timeouts for long-running jobs.",
+        "a": "Streaming reduces perceived latency but doesn't reduce cost. It's designed for real-time display, not bulk processing."
       },
       "parseStrategy": {
         "keyPhrase": "cost-effective bulk processing",
@@ -2105,50 +2122,50 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "A company's legacy order management system emits events when orders are created, updated, or cancelled. They want to trigger GenAI-powered analysis whenever significant order events occur, without modifying the legacy system.",
-      "question": "Which integration pattern enables GenAI processing triggered by legacy system events?",
+      "scenario": "A company's legacy order-management system emits events when orders are created, updated, or cancelled. The company must run Amazon Bedrock analysis on those events. The company must not modify the legacy system. Additional consumers will be added later. The company wants event-driven loose coupling.",
+      "question": "Which solution will meet these requirements?",
       "options": [
         {
           "id": "a",
-          "text": "Modify the legacy system to call Bedrock APIs directly"
+          "text": "Change the legacy system to call the Amazon Bedrock Converse API for each order event."
         },
         {
           "id": "b",
-          "text": "Replace the legacy system with a GenAI-native solution"
+          "text": "Replace the legacy system with a new application that calls Amazon Bedrock from the order workflow."
         },
         {
           "id": "c",
-          "text": "Poll the legacy database for changes and process them nightly"
+          "text": "Send the order events to Amazon EventBridge. Create a rule that invokes an AWS Lambda function. Configure the function to call Amazon Bedrock."
         },
         {
           "id": "d",
-          "text": "Use EventBridge to capture events and trigger Lambda functions that invoke Bedrock"
+          "text": "Create a scheduled AWS Lambda function that polls the legacy database every night and then calls Amazon Bedrock."
         }
       ],
       "correctAnswers": [
-        "d"
+        "c"
       ],
-      "explanation": "EventBridge provides loose coupling\u2014it captures events from various sources (including legacy systems) without modifying them. Lambda functions triggered by EventBridge can invoke Bedrock for GenAI processing, keeping the integration clean.",
+      "explanation": "Amazon EventBridge can ingest events without changing the producer. A rule invokes Lambda, and Lambda calls Bedrock. You add later consumers as additional rules. The legacy system stays unmodified. Therefore, this solution meets the requirements.",
       "incorrectExplanations": {
-        "a": "Modifying the legacy system violates the requirement to integrate without modifications.",
-        "d": "Replacing legacy systems is expensive and risky. The question asks for integration, not replacement.",
-        "c": "Nightly polling adds latency and doesn't capture real-time events. It's not event-driven."
+        "a": "Calling Bedrock from the legacy system is a modification. The company must not modify the legacy system.",
+        "b": "Replacing the system is not integration. It increases cost and risk and does not meet the requirement to keep the legacy producer.",
+        "d": "Nightly polling adds latency and is not event-driven. New consumers still require changes to the poller."
       },
       "parseStrategy": {
-        "keyPhrase": "without modifying the legacy system",
+        "keyPhrase": "without modifying the legacy system / additional consumers later",
         "eliminationHints": [
-          "Modify legacy = violates requirement",
-          "Nightly polling = not real-time",
-          "Replace = expensive and risky"
+          "Call Bedrock from legacy = modification",
+          "Replace = not integration",
+          "Nightly poll = not event-driven"
         ],
-        "decisionFramework": "Event-driven legacy integration = EventBridge + Lambda"
+        "decisionFramework": "Loose-coupled events from a system you cannot change = EventBridge + Lambda"
       },
       "services": [
         "Amazon EventBridge",
         "AWS Lambda",
         "Amazon Bedrock"
       ],
-      "examTip": "EventBridge enables event-driven integration without modifying source systems. It's the loose coupling solution."
+      "examTip": "EventBridge is the exam bus when the producer must not know the consumers."
     },
     {
       "id": "d2-q42",
@@ -2238,9 +2255,9 @@
       ],
       "explanation": "Bedrock Prompt Flows provides a visual interface for chaining AI operations. You connect nodes (prompts, classifiers, extractors) without code, creating complex workflows through drag-and-drop orchestration.",
       "incorrectExplanations": {
-        "c": "Step Functions requires code/JSON definitions\u2014it's not visual no-code orchestration.",
-        "d": "Lambda chaining through API Gateway requires writing code for each Lambda and configuring integrations.",
-        "a": "Knowledge Bases are for RAG retrieval, not workflow orchestration between different AI operations."
+        "c": "Lambda chaining through API Gateway requires writing code for each Lambda and configuring integrations.",
+        "b": "Knowledge Bases are for RAG retrieval, not workflow orchestration between different AI operations.",
+        "a": "Step Functions requires code/JSON definitions\u2014it's not visual no-code orchestration."
       },
       "parseStrategy": {
         "keyPhrase": "visual, no-code chaining",
@@ -2290,9 +2307,9 @@
       ],
       "explanation": "On-demand inference has no upfront commitment\u2014you pay only for what you use. This is ideal for uncertain traffic patterns and startups. If traffic grows, on-demand scales automatically without capacity planning.",
       "incorrectExplanations": {
-        "c": "SageMaker reserved capacity requires upfront commitment and capacity planning\u2014wrong for uncertain traffic.",
-        "a": "Provisioned Throughput requires hourly commitment regardless of usage. It's expensive for low or uncertain traffic.",
-        "d": "EC2 instances require provisioning and maintenance\u2014high operational overhead for a startup."
+        "a": "SageMaker reserved capacity requires upfront commitment and capacity planning\u2014wrong for uncertain traffic.",
+        "d": "EC2 instances require provisioning and maintenance\u2014high operational overhead for a startup.",
+        "b": "Provisioned Throughput requires hourly commitment regardless of usage. It's expensive for low or uncertain traffic."
       },
       "parseStrategy": {
         "keyPhrase": "minimize upfront costs while ensuring scale",
@@ -2395,9 +2412,9 @@
       ],
       "explanation": "A router model (often a small, fast classifier) analyzes the question and routes to the appropriate specialized model. This provides expert-level responses from fine-tuned models while keeping routing costs low.",
       "incorrectExplanations": {
-        "c": "User selection creates friction and assumes users know which domain their question belongs to.",
-        "a": "A general model can't match the quality of domain-specific fine-tuned models for specialized questions.",
-        "d": "Querying all models is expensive, slow, and combining responses from different domains doesn't make sense."
+        "d": "Querying all models is expensive, slow, and combining responses from different domains doesn't make sense.",
+        "b": "User selection creates friction and assumes users know which domain their question belongs to.",
+        "c": "A general model can't match the quality of domain-specific fine-tuned models for specialized questions."
       },
       "parseStrategy": {
         "keyPhrase": "intelligent routing to specialized models",
@@ -2447,9 +2464,9 @@
       ],
       "explanation": "Lambda functions behind existing API Gateway integrate naturally with the current application. New endpoints use the same authentication, rate limiting, and monitoring as existing features. This is the microservice approach to adding AI capabilities.",
       "incorrectExplanations": {
-        "a": "Separate applications create fragmented experiences and duplicate cross-cutting concerns (auth, monitoring).",
-        "c": "Direct browser calls expose Bedrock credentials. All AI calls should go through backend services.",
-        "d": "Full replacement is expensive, risky, and unnecessary when you can incrementally add AI features."
+        "a": "Direct browser calls expose Bedrock credentials. All AI calls should go through backend services.",
+        "b": "Full replacement is expensive, risky, and unnecessary when you can incrementally add AI features.",
+        "c": "Separate applications create fragmented experiences and duplicate cross-cutting concerns (auth, monitoring)."
       },
       "parseStrategy": {
         "keyPhrase": "add GenAI to existing applications",
@@ -2501,9 +2518,9 @@
       ],
       "explanation": "Amazon Q Developer (formerly CodeWhisperer) is specifically designed for developers. The VS Code extension provides code-aware AI assistance including explanations, test generation, and code completion with full project context.",
       "incorrectExplanations": {
-        "a": "Q Business is for enterprise knowledge assistants, not IDE-integrated code assistance.",
-        "d": "Cloud9 is a cloud IDE but doesn't have the same code assistance capabilities as Q Developer.",
-        "c": "CodeCatalyst is for project management and CI/CD, not code assistance within the IDE."
+        "c": "CodeCatalyst is for project management and CI/CD, not code assistance within the IDE.",
+        "b": "Q Business is for enterprise knowledge assistants, not IDE-integrated code assistance.",
+        "a": "Cloud9 is a cloud IDE but doesn't have the same code assistance capabilities as Q Developer."
       },
       "parseStrategy": {
         "keyPhrase": "AI-powered code assistance in VS Code",
@@ -2947,49 +2964,49 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "An e-commerce platform handles product queries that range from simple catalog lookups to complex styling recommendations. Simple queries can use a smaller, faster model, while complex queries require a large language model. The team wants to minimize cost while maintaining quality for complex queries. Traffic is 80% simple queries and 20% complex.",
-      "question": "Which deployment pattern BEST optimizes cost while maintaining quality?",
+      "scenario": "An ecommerce chat application handles catalog lookups and complex styling recommendations. About 80 percent of prompts are simple. About 20 percent need a larger foundation model (FM). The company wants to reduce inference cost. Simple prompts must still receive a correct answer. Complex prompts must use the larger FM. The company will implement routing in application code by using a confidence threshold from the small model.",
+      "question": "Which solution will meet these requirements?",
       "options": [
         {
           "id": "a",
-          "text": "Route all queries to the large model and cache responses for repeated simple queries"
+          "text": "Send every prompt to the large FM. Cache identical catalog lookups in Amazon ElastiCache."
         },
         {
           "id": "b",
-          "text": "Implement model cascading: route queries to a small model first, then escalate to the large model only when the small model's confidence is below a threshold"
+          "text": "Send every prompt to the small FM. Fine-tune the small FM so that it also handles styling recommendations."
         },
         {
           "id": "c",
-          "text": "Deploy two separate endpoints and have the application classify query complexity before routing"
+          "text": "Invoke the small FM first. If the confidence score is below a threshold, invoke the large FM. Return the large-FM result to the user."
         },
         {
           "id": "d",
-          "text": "Use the small model for all queries and fine-tune it to handle complex queries better"
+          "text": "Purchase Provisioned Throughput for the large FM. Send every prompt to the provisioned model."
         }
       ],
       "correctAnswers": [
-        "b"
+        "c"
       ],
-      "explanation": "Model cascading sends all requests to the cheaper small model first and only escalates to the expensive large model when the small model cannot handle the query confidently. Since 80% of traffic is simple, most queries complete on the cheaper model, dramatically reducing costs while preserving quality for complex queries.",
+      "explanation": "Application-level model cascading sends easy work to a cheaper model and escalates only when confidence is low. Most catalog lookups finish on the small FM. Styling questions can still use the large FM. Therefore, this solution reduces cost without dropping quality on hard prompts.",
       "incorrectExplanations": {
-        "a": "Routing all queries to the large model wastes cost on the 80% simple queries. Caching helps for repeated queries but doesn't address the fundamental cost of initial processing.",
-        "c": "Pre-classification requires building and maintaining a separate classifier, which adds complexity. Model cascading achieves the same routing with the model's built-in confidence scores.",
-        "d": "Fine-tuning a small model for complex queries may degrade its performance on simple queries and may not achieve the quality of the large model for truly complex reasoning tasks."
+        "a": "Sending every prompt to the large FM pays the high token price for the 80 percent simple traffic. A cache helps only when the exact lookup repeats.",
+        "b": "Using only the small FM risks quality on complex styling questions. Fine-tuning does not guarantee the large-FM quality the company requires.",
+        "d": "Provisioned Throughput reserves capacity for one model. Sending every prompt to the large FM does not use a cheaper model for simple lookups."
       },
       "parseStrategy": {
-        "keyPhrase": "minimize cost while maintaining quality",
+        "keyPhrase": "80 percent simple / confidence threshold / reduce cost",
         "eliminationHints": [
-          "All to large model = wasted cost on simple queries",
-          "Separate classifier = added complexity",
-          "Fine-tune small = quality risk for complex queries"
+          "All large = wastes money on simple traffic",
+          "All small = quality risk",
+          "PT on large = still the expensive model for everything"
         ],
-        "decisionFramework": "Cost optimization with mixed query complexity = model cascading"
+        "decisionFramework": "Mixed difficulty + your confidence rule = cascade small then large"
       },
       "services": [
         "Amazon Bedrock",
-        "Amazon SageMaker"
+        "Amazon ElastiCache"
       ],
-      "examTip": "Model cascading routes to the cheapest capable model first and only escalates when needed \u2014 ideal when most traffic is simple."
+      "examTip": "Cascading is application routing by difficulty. Intelligent prompt routing is Bedrock's family-level router. Do not mix the two."
     },
     {
       "id": "d2-q58",
@@ -3317,48 +3334,51 @@
       ],
       "type": "multiple-choice",
       "difficulty": "medium",
-      "scenario": "A live sports commentary platform generates real-time play-by-play descriptions using a foundation model. Users expect commentary to appear within 1-2 seconds of a play occurring. Currently the system waits for the complete model response before displaying it, causing 8-10 second delays.",
-      "question": "Which API integration pattern MOST effectively reduces perceived latency?",
+      "scenario": "A web application generates play-by-play commentary with Amazon Bedrock. Users must see the first tokens in the browser within about 2 seconds of a play. The full completion often takes 8 to 10 seconds. An Amazon API Gateway REST API currently waits for the entire body and then times out on long plays. The company wants the LEAST operational overhead.",
+      "question": "Which solution will meet these requirements?",
       "options": [
         {
           "id": "a",
-          "text": "Use the Bedrock InvokeModelWithResponseStream API to stream tokens to users as they are generated"
+          "text": "Keep the API Gateway REST API. Wait for the Amazon Bedrock Converse API to return the full completion. Display the commentary after the REST response finishes."
         },
         {
           "id": "b",
-          "text": "Switch to a smaller, faster model that generates complete responses within 2 seconds"
+          "text": "Increase the maxTokens parameter so that the foundation model (FM) finishes the commentary faster."
         },
         {
           "id": "c",
-          "text": "Pre-generate commentary for common plays and use the model only for unusual situations"
+          "text": "Send each play to an Amazon SQS queue. Process the queue with AWS Lambda. Poll Amazon DynamoDB from the browser until the commentary exists."
         },
         {
           "id": "d",
-          "text": "Increase the max_tokens parameter to get the model to generate faster"
+          "text": "Create an Amazon API Gateway WebSocket API that invokes an AWS Lambda function. Configure the function to call ConverseStream and push token deltas to the browser."
         }
       ],
       "correctAnswers": [
-        "a"
+        "d"
       ],
-      "explanation": "Streaming (InvokeModelWithResponseStream) delivers tokens to the user as they are generated, showing the first words within 1-2 seconds even if the complete response takes 8-10 seconds. This dramatically reduces perceived latency without changing models or pre-generating content.",
+      "explanation": "ConverseStream emits tokens as the FM generates them. An API Gateway WebSocket API keeps a long-lived connection so the browser can paint the first tokens immediately. REST waits for the full body and can time out. Therefore, this solution meets the latency requirement with managed services.",
       "incorrectExplanations": {
-        "b": "Switching to a smaller model may sacrifice commentary quality and may still not meet the 2-second requirement for complete responses.",
-        "c": "Pre-generating commentary doesn't work for the infinite variety of live sports plays and removes the value of AI-generated content.",
-        "d": "The max_tokens parameter controls output length, not generation speed. Increasing it may actually increase latency."
+        "a": "REST request/response waits for the complete completion. API Gateway REST integrations also time out on long generations. Users do not see the first sentence in 2 seconds.",
+        "b": "maxTokens limits output length. Increasing it does not make generation faster and can increase latency.",
+        "c": "Amazon SQS is a queue. The worker runs later. Polling DynamoDB does not push tokens into the browser as they are generated."
       },
       "parseStrategy": {
-        "keyPhrase": "reduce perceived latency for users",
+        "keyPhrase": "first tokens in the browser / REST times out",
         "eliminationHints": [
-          "Smaller model = quality tradeoff",
-          "Pre-generate = can't cover all scenarios",
-          "max_tokens = controls length not speed"
+          "REST full body = hang-up HTTP",
+          "maxTokens = length, not speed",
+          "SQS + poll = later, not now"
         ],
-        "decisionFramework": "Reduce perceived latency = streaming API (tokens appear as generated)"
+        "decisionFramework": "Watch tokens as they generate = ConverseStream + WebSocket"
       },
       "services": [
-        "Amazon Bedrock"
+        "Amazon API Gateway",
+        "AWS Lambda",
+        "Amazon Bedrock",
+        "Amazon SQS"
       ],
-      "examTip": "Streaming APIs reduce perceived latency by showing partial results immediately. The total generation time stays the same, but user experience improves dramatically."
+      "examTip": "Perceived latency for a live UI is a streaming pipe problem, not a smaller model or a larger maxTokens."
     },
     {
       "id": "d2-q65",
@@ -3421,48 +3441,49 @@
       ],
       "type": "multiple-choice",
       "difficulty": "easy",
-      "scenario": "A startup's GenAI feature occasionally fails when the Bedrock API returns throttling errors during traffic spikes. The current code simply retries immediately three times and then fails. Users see errors during peak hours.",
-      "question": "Which integration pattern MOST effectively handles API throttling?",
+      "scenario": "A production application calls Amazon Bedrock on demand. During traffic spikes the application receives ThrottlingException errors. The current code retries immediately three times and then fails. Immediate retries make the spike worse. The company must keep using the same foundation model (FM). The company wants a resilient invocation pattern.",
+      "question": "Which solution will meet these requirements?",
       "options": [
         {
           "id": "a",
-          "text": "Increase the retry count from 3 to 10 with immediate retries"
+          "text": "Increase the retry count from 3 to 10. Retry immediately with no delay."
         },
         {
           "id": "b",
-          "text": "Implement exponential backoff with jitter for retries, combined with a request queue to smooth traffic bursts"
+          "text": "Remove retry logic. Raise the service quota and fail the request if Amazon Bedrock returns ThrottlingException."
         },
         {
           "id": "c",
-          "text": "Upgrade to a higher Bedrock service quota and remove retry logic entirely"
+          "text": "Retry with exponential backoff and jitter. Buffer burst requests in Amazon SQS so that workers invoke Amazon Bedrock at a controlled rate."
         },
         {
           "id": "d",
-          "text": "Switch to synchronous processing so each request waits for the previous one to complete"
+          "text": "Process requests one at a time in a single-threaded loop so that Amazon Bedrock never sees concurrent invocations."
         }
       ],
       "correctAnswers": [
-        "b"
+        "c"
       ],
-      "explanation": "Exponential backoff with jitter spaces out retries progressively (avoiding thundering herd problems), while a request queue smooths traffic bursts to stay within rate limits. This is the standard resilient integration pattern for API throttling.",
+      "explanation": "Exponential backoff with jitter stops a thundering herd of immediate retries. An SQS buffer smooths bursts so workers stay near the quota. The application still uses the same FM. Therefore, this solution meets the requirements.",
       "incorrectExplanations": {
-        "a": "More immediate retries make throttling worse by sending even more requests to an already overwhelmed service.",
-        "c": "Higher quotas help but don't eliminate the need for retry logic. Traffic spikes can exceed any quota, and removing retries means failures when quotas are hit.",
-        "d": "Synchronous serial processing dramatically reduces throughput and creates poor user experience as every request waits in line."
+        "a": "More immediate retries add load to an already throttled API. The stem says immediate retries make the spike worse.",
+        "b": "A higher quota helps capacity. Removing retries still fails users when a spike exceeds the new quota.",
+        "d": "Serial processing avoids concurrency but destroys throughput. It does not meet a production traffic pattern."
       },
       "parseStrategy": {
-        "keyPhrase": "handle API throttling",
+        "keyPhrase": "ThrottlingException / immediate retries make the spike worse / same FM",
         "eliminationHints": [
-          "More immediate retries = makes throttling worse",
-          "Remove retries = fragile",
-          "Serial processing = terrible throughput"
+          "More immediate retries = worse",
+          "No retries = fragile",
+          "Single-thread = throughput collapse"
         ],
-        "decisionFramework": "API throttling resilience = exponential backoff with jitter + request queue"
+        "decisionFramework": "429 storm = backoff with jitter, then add capacity (queue / CRI / PT) \u2014 not more instant retries"
       },
       "services": [
-        "Amazon Bedrock"
+        "Amazon Bedrock",
+        "Amazon SQS"
       ],
-      "examTip": "Exponential backoff with jitter is the standard pattern for API throttling. Immediate retries make throttling worse by adding more load."
+      "examTip": "Throttling: backoff and jitter first. Immediate retry storms are the classic wrong answer."
     },
     {
       "id": "d2-q67",

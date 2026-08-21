@@ -28,6 +28,9 @@ export interface Question {
   // Article reference for article-specific questions
   articleReference?: string;
 
+  /** notes-drill = trilogy pack items matched to a task; domain = long practice bank */
+  source?: 'domain' | 'notes-drill' | 'official' | 'exam-style';
+
   // Comprehensive study guide / attack plan
   strategicBreakdown?: StrategicBreakdown;
 }

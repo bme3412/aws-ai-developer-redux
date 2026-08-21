@@ -1,819 +1,759 @@
-# Model Selection for GenAI
+# Select and Configure Foundation Models
 
-**Domain 1 | Task 1.2 | ~35 minutes**
+**Domain 1 · Task 1.2 · Skills 1.2.1–1.2.4**
+
+> **1.2.1** Assess FMs: benchmarks, capabilities, limitations.  
+> **1.2.2** Select and switch models without a code change.  
+> **1.2.3** Make inference resilient: retries, Cross-Region inference, circuit breakers, graceful degradation.  
+> **1.2.4** Customize when you must, then register, canary, and roll back.
+
+This task is not “which model is smartest?” It tests whether you can **pick** an FM, **point** the app at a name, **choose how it runs and fails**, and only then **customize behavior** — without mixing those four knobs.
+
+Walk this scenario as you read:
+
+> The research desk asks “What did NVDA say about Blackwell this quarter?” Quality floor 90% grounded accuracy, ~10-second interactive budget, unpredictable usage, US-only filings, Friday model swaps without a deploy. Someone will propose fine-tuning last week’s 10-K into the weights. Someone else will buy Provisioned Throughput for a three-hour spike.
+
+By the end you should be able to name which knob the stem is turning, pick the AWS control that actually turns it, and reject the answer that solves a different knob.
 
 ---
 
-## Why This Matters
+## What Task 1.2 actually tests
 
-Picking the wrong model is like using a sledgehammer to hang a picture frame. You'll get it done, but you'll pay way too much and probably break something in the process. The difference between choosing wisely and choosing poorly can mean the difference between a GenAI project that costs $500 per month and one that costs $50,000—while delivering identical results to your users.
+You do not train a foundation model from scratch on this exam. You consume one.
 
-Knowing when to use a small, fast model versus when you actually need the heavy artillery is one of the most important skills in GenAI development. The companies that get this right build sustainable AI products. The ones that don't either bleed money or give up on GenAI entirely because "it's too expensive." Get this right and you'll save money while getting better results. Get it wrong and you'll wonder why your AWS bill looks like a phone number.
+```text
+What must it do?          →  1.2.1  pick the FM
+Point the app at a name   →  1.2.2  config, not a zip
+How should it run / fail? →  capacity SKU + 1.2.3
+Need a custom artifact?   →  1.2.4  only for behavior
+```
 
----
+The exam will offer you one answer that solves the **wrong** decision. Fine-tune when the stem is RAG. Prompt routing when the stem is same-FM throttle. AppConfig when the stem is Regional capacity. Provisioned Throughput when the stem is a three-hour spike.
 
-## Under the Hood: How Foundation Models Actually Work
+Adjacent tasks sit next door and are **not** this article:
 
-Understanding what happens inside these models helps you make better selection decisions and debug quality issues.
-
-### The Token Generation Process
-
-Every foundation model—whether Claude, Titan, or Llama—generates text through the same fundamental process: **next-token prediction**. The model looks at all the tokens it has seen so far and predicts the probability distribution over what should come next.
+- **1.1.1** is which *architecture* (direct inference vs RAG vs workflow vs agent).
+- **1.1.2** is proving that architecture on a clock.
+- **1.4 / 1.5** are vector stores and retrieval.
+- **5.1** is the full evaluation curriculum. Here you only need enough eval to **pick**.
 
 ```mermaid
-graph LR
-    subgraph "Input Processing"
-        A[Your Prompt] --> B[Tokenizer]
-        B --> C[Token IDs]
-    end
-
-    subgraph "Model Inference"
-        C --> D[Embedding Layer]
-        D --> E[Transformer Layers]
-        E --> F[Probability Distribution]
-    end
-
-    subgraph "Output Generation"
-        F --> G[Sample Next Token]
-        G --> H{Done?}
-        H -->|No| E
-        H -->|Yes| I[Complete Response]
-    end
+flowchart TD
+    W[Workload: quality, latency, cost, Region, features] --> P[Shortlist from the Bedrock catalog]
+    P --> E[Evaluate on YOUR questions]
+    E --> M[Pick cheapest FM that clears the floors]
+    M --> C[AppConfig pointer — not a hardcoded ID]
+    C --> S[Capacity: on-demand / CRI / PT / prompt routing]
+    S --> R[Resilience: retry → CRI → breaker → fallback → degrade]
+    R --> X{Need custom behavior?}
+    X -->|No| D[Done]
+    X -->|Yes| FT[Fine-tune / LoRA / distill]
+    FT --> REG[Registry → canary → rollback]
 ```
 
-**Key insight:** Models generate **one token at a time**. A 500-token response requires 500 sequential forward passes through the model. This is why:
-- Longer responses take proportionally longer
-- Streaming shows tokens appearing one-by-one
-- There's no way to "parallelize" a single response
+> **Exam tip:** The model, the capacity SKU, and a fine-tune are three different purchases. Read the stem until you know which one it is asking for.
 
-### Why Bigger Models Are Smarter (and Slower)
+### A running example
 
-Model "size" refers to the number of parameters—the learned weights that encode the model's knowledge and reasoning capabilities.
+The blotter still wants grounded NVDA answers. Task 1.2 starts after 1.1.1 already chose **synchronous RAG on Bedrock**. Now you have to choose *which* FM writes the answer, how the Lambda finds that ID, what happens on `Too many requests`, and whether anyone is allowed to fine-tune.
 
-| Model | Approximate Parameters | Relative Cost | Relative Latency |
-|-------|----------------------|---------------|------------------|
-| Claude 3 Haiku | ~20B | 1x | Fast |
-| Claude 3.5 Sonnet | ~70B | 12x | Medium |
-| Claude 3 Opus | ~200B+ | 60x | Slow |
-
-**Why more parameters = better reasoning:**
-- More parameters = more capacity to store knowledge
-- More parameters = more complex pattern recognition
-- More parameters = better at multi-step reasoning
-
-**Why more parameters = slower:**
-- Each token generation requires computation through all layers
-- Bigger models have more layers and more computation per layer
-- Memory bandwidth becomes a bottleneck for very large models
-
-### The Temperature-Quality Trade-off
-
-Temperature controls the "randomness" of token selection:
-
-| Temperature | Behavior | Use Case |
-|-------------|----------|----------|
-| 0.0 | Always pick highest probability token (deterministic) | Classification, extraction, factual Q&A |
-| 0.3-0.7 | Mostly predictable with some variation | General use, balanced responses |
-| 1.0+ | More creative/random, higher chance of unusual tokens | Creative writing, brainstorming |
-
-**Why this matters for selection:** If you're using a small model for creative tasks at high temperature, you may get gibberish. If you're using a large model at temperature 0 for classification, you're paying extra for capabilities you're not using.
-
-### Context Window: Memory, Not Intelligence
-
-The context window is how much text the model can "see" at once—but it doesn't affect reasoning ability:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Context Window (200K tokens)              │
-├─────────────────────────────────────────────────────────────┤
-│ System Prompt │ Conversation History │ Current Message │ ← You control this
-│    (500)      │      (2,000)         │     (500)       │
-├─────────────────────────────────────────────────────────────┤
-│                      Model's Response                        │ ← Model generates this
-│                         (1,000)                              │
-├─────────────────────────────────────────────────────────────┤
-│                    Remaining Space: ~196,000 tokens          │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Key insight:** A 200K context window doesn't make a model smarter—it just lets it see more at once. Haiku with 200K context is still Haiku-level reasoning; it just has access to more information while reasoning.
+| Knob | Desk example | Wrong answer the stem will dangle |
+|------|----------------|-----------------------------------|
+| Pick | Haiku clears 90% grounded; Sonnet is nicer and 4× the cost | “Always Opus” |
+| Point | `modelId` in AppConfig | Redeploy Lambda to change writers |
+| Run | On-demand + US inference profile | PT sized to earnings-day peak, 24×7 |
+| Fail | Retry → CRI → fallback Haiku → return retrieved passages | Agent that “tries something” |
+| Customize | Do not. Facts live in the Knowledge Base | Fine-tune on 10-Ks |
 
 ---
 
-## Understanding Model Capabilities
+## Skill 1.2.1 — Pick the model before you pick the capacity
 
-Not all AI models are created equal, and understanding their differences goes far beyond reading marketing materials or comparing benchmark scores. Some models are quick and cheap, optimized for high-throughput scenarios where you need thousands of responses per minute. Others are slow and expensive but capable of reasoning that approaches human expert level. The art of model selection lies in matching capabilities to requirements—and resisting the temptation to always reach for the biggest hammer.
+Do not ask which model is smartest. Ask: **which model satisfies this workload’s quality floor at the lowest acceptable latency and cost, in the Region, with the features the job actually uses?**
 
-### Context Window: The Model's Working Memory
+### Three passes, or you will pick a clever model that cannot run the job
 
-The context window determines how much text a model can see at once, and this constraint shapes everything about how you architect your application. When you send a request to a model, the context window is the total space available for your system prompt, your user's message, any retrieved documents or conversation history, and the model's response. Go over this limit and your request fails. Get close to it and you're paying for tokens you might not need.
+**Capability.** Input type (text, image, audio, video). Context window versus the 10-K + history you will send. Max output length. Basic rewrite versus a hard compare. Tool calling. JSON / schema.
 
-Claude 3 models offer a 200,000 token context window—that's roughly 150,000 words, or an entire novel. You could paste a complete legal contract, a company's entire employee handbook, or a full technical specification document and still have room for a detailed question and response. This massive context window enables use cases that simply weren't possible with earlier models: analyzing entire codebases, comparing multiple long documents side-by-side, or maintaining extensive conversation histories without summarization.
+**Operations.** Time to first token and total generation. Tokens per minute, concurrency, quotas. Input vs output token price. Is the model in the Region the filings must stay in? Does an inference profile exist for Cross-Region inference?
 
-Smaller models might only offer 4,000 to 8,000 tokens—a few pages at most. If you're analyzing long documents with these models, you'll need to implement chunking strategies, summarize previous content, or accept that the model simply can't see everything it needs to make informed decisions. This isn't necessarily a dealbreaker; many tasks don't require large contexts. But if your use case involves lengthy inputs, context window size becomes a primary selection criterion rather than an afterthought.
+**Platform.** Converse, streaming, Knowledge Bases, Guardrails, Agents, batch. Can this model be fine-tuned or distilled at all? Active vs Legacy / EOL.
 
-### Speed vs. Smarts: The Fundamental Trade-off
+A model that wins a blog benchmark and cannot call tools, or is not in `eu-west-1` when data must stay in the EU, is **not a candidate**. Drop it before you run an eval.
 
-Every model sits somewhere on a spectrum between raw speed and cognitive capability, and understanding this trade-off is essential for cost-effective architecture.
+### Leaderboards shortlist. Your questions purchase.
 
-Large models like Claude Opus represent the pinnacle of current AI capability. They excel at complex reasoning chains that require holding multiple concepts in mind simultaneously. They catch subtle errors that smaller models miss entirely. They write with nuance and style that feels genuinely thoughtful. They can debug intricate code, analyze legal documents for hidden implications, or craft customer communications that navigate delicate situations with appropriate sensitivity.
+Public benchmarks are useful for a first cut. They are not a purchase order. The scoreboard is a **versioned set of your real prompts** — 50 to 100 representative analyst questions, including hard and unanswerable items.
 
-The cost of this capability? Opus responses typically take 5-15 seconds rather than milliseconds. And the per-token cost runs roughly 15x higher than the smallest models. For a simple classification task, you might pay $0.15 per thousand requests with Opus versus $0.01 with Haiku—a difference that compounds dramatically at scale.
+Three candidates for the blotter. Quality floor is ≥90% grounded accuracy on 100 desk questions. Interactive P95 must stay under ~10 seconds.
 
-Small models like Claude Haiku occupy the opposite end of this spectrum. They're blazing fast, often returning responses in 200-500 milliseconds. They cost a fraction of larger models. They're perfect for high-volume scenarios where you're processing thousands of requests per minute and even small per-request costs add up to significant monthly bills.
+| Candidate | Accuracy | P95 | Cost / query | Verdict |
+|-----------|----------|-----|--------------|---------|
+| Nova Lite | 86% | 2.1 s | $0.006 | Misses the floor |
+| Claude Haiku | 91% | 2.5 s | $0.009 | **Cheapest that clears** |
+| Claude Sonnet | 95% | 5.8 s | $0.041 | Extra quality you did not require |
 
-Where do small models struggle? Complex multi-step reasoning. Tasks that require understanding subtle implications. Situations where the "obvious" answer isn't quite right and the model needs to think more deeply. Ask Haiku to classify an email as spam or not-spam and it performs brilliantly. Ask it to analyze whether a customer's frustrated tone suggests they're about to churn and recommend a retention strategy—that's where you need the bigger models.
+Select the **smallest / cheapest model that meets the requirements**, not the most capable one on the shelf. Sonnet is allowed if the stem raises the floor (legal compare, 95%+). It is not allowed because it “feels safer.”
 
-### The Key Insight Most Teams Miss
+```recall
+Q: A leaderboard ranks Model X #1. It is missing from the required Region and cannot use tools. Is it still the pick?
+A: No. Catalog fit (Region, modality, tools, KB, Guardrails) is a gate. Leaderboards only shortlist.
+```
 
-Here's the truth that saves companies thousands of dollars: **most tasks don't need the big model**. Development teams consistently over-provision because they're nervous about quality, but the data tells a different story.
+### Bedrock Model Evaluations
 
-Classifying an email as urgent or routine? A small model handles this with 95%+ accuracy, responding in under 300 milliseconds. Extracting a customer name and email from a support ticket? Small model, near-perfect accuracy. Summarizing a single paragraph into a bullet point? Small model, perfectly adequate results. Generating a simple SQL query from a natural language description? Small model, reliable output.
+Skill 1.2.1 names **Amazon Bedrock model evaluations**. You bring a JSONL (or console) prompt dataset and compare candidates with:
 
-The pattern is clear: structured, well-defined tasks with clear success criteria are small-model territory. Save the large models for genuinely complex reasoning—legal document analysis where missing a clause has real consequences, code debugging where the bug could be anywhere, customer communications where tone and nuance matter, or creative tasks where the difference between "acceptable" and "excellent" actually impacts your business.
+- **Automatic metrics** when you have references (similarity, quality scores).
+- **Human evaluators** for the desk’s hard cases.
+- **LLM-as-judge** to scale — then **calibrate against humans**. A 0.86 judge score that desk analysts reject on 12 of 15 hard items is not a GO.
 
-Think of it like staffing a company. You don't need a PhD to answer the phone, but you do need one to design the rocket engine. The same logic applies to model selection: match the capability to the complexity.
+Evaluate quality, latency, cost, and safety on the **same** dataset when you change the pointer later. That is how 1.2.2 and 1.2.4 stay honest.
+
+Full eval design (faithfulness, Recall@K, LLM-as-judge pitfalls) is Domain 5. Here the exam wants: **your data, not a screenshot of an arena.**
+
+```quickcheck
+Q: Quality floor is 90%. Lite 86% cheap, Haiku 91% mid, Sonnet 95% expensive. What do you pick?
+A: Sonnet — highest accuracy
+B: Haiku — cheapest that clears the floor
+C: Lite — cheapest overall
+correct: B
+feedback: 1.2.1 is a floor, not a trophy. Lite fails the requirement. Sonnet is unused quality unless the stem raises the floor.
+```
+
+### Context window is memory, not intelligence
+
+The context window is how much the model can *see* in one call: system prompt + history + retrieved chunks + the question + room for the answer. Overflow fails or truncates. A 200K window does not make a small model reason like a large one. It just lets Haiku look at more of the 10-K while still being Haiku.
+
+If the job is “paste a paragraph, four bullets,” a huge window is irrelevant. If the job is “compare two full 10-Ks in one prompt,” window size is a selection gate.
+
+### Temperature is decoding, not a model pick
+
+Temperature 0 is greedy (classification, extraction, factual Q&A). Mid-range is general chat. High is creative. A small model at high temperature for legal extraction is the wrong *pair*. Changing temperature does not add this quarter’s 10-K to the weights.
+
+```fillin
+A 200K context window does {{not make the model smarter}} — it only lets it see more at once.
+```
+
+> **Exam cue:** “MOST cost-effective” + a simple task → smallest model that already passed *your* eval. “Choose an appropriate FM” → match modality, window, Region, and attached features, then score on your set.
 
 ---
 
-## Evaluating and Comparing Models
+## Skill 1.2.2 — Point the app at a name, not a hardcoded ID
 
-Don't pick a model because it sounds impressive in a press release or because marketing claims it's the best. Benchmarks are useful starting points, but they measure performance on standardized tasks that may bear little resemblance to your actual use cases. The only evaluation that matters is testing with YOUR data and YOUR specific requirements.
+Friday’s decision is “use Haiku instead of Sonnet.” That must not be a new Lambda zip.
 
-### Bedrock Model Evaluations: The Systematic Approach
+Keep the application contract as `generate(messages, options)`. Put the `modelId` in **AWS AppConfig** (exam default) or **Parameter Store** (simpler cousin). The same pointer can hold `prod`, `cheap`, and `fallback`.
 
-Bedrock Model Evaluation transforms model comparison from guesswork into data-driven decision making. Instead of running informal tests and relying on gut feelings, you create a structured evaluation that produces quantifiable, reproducible results.
-
-The process starts with building a test dataset—examples of real inputs you'll send to the model in production, paired with the expected outputs or reference answers. This dataset lives in S3 in JSONL format (one JSON object per line), making it easy to version, update, and reuse across evaluations.
-
-For a summarization task, your dataset might look like this:
-
-```json
-{"prompt": "Summarize: The quick brown fox jumped over the lazy dog while the cat watched from the windowsill.", "referenceResponse": "A fox jumped over a dog while a cat observed."}
-{"prompt": "Summarize: In 1969, Neil Armstrong became the first human to walk on the moon, marking a defining moment in space exploration history.", "referenceResponse": "Armstrong made history as the first person on the moon in 1969."}
-{"prompt": "Summarize: The mitochondria, often called the powerhouse of the cell, generates most of the cell's supply of ATP through oxidative phosphorylation.", "referenceResponse": "Mitochondria produce cellular energy through ATP generation."}
+```text
+Application  →  generate(messages)   // no model ID in source
+AppConfig    →  prod     = Sonnet    // research answers
+             →  cheap    = Nova Lite // summaries that already passed a cheaper eval
+             →  fallback = Haiku     // desk still answers if primary is gone
 ```
 
-For RAG evaluations, you'd include the retrieved context that the model should use when generating its response. This allows you to separately measure retrieval quality and generation quality:
+AppConfig is the one with **deployment strategies**: gradual rollout, validation, automatic rollback when a CloudWatch alarm fires. Parameter Store stores the string. Either beats 17 hardcoded IDs.
 
-```json
-{"prompt": "What is the refund policy?", "context": "Our refund policy allows returns within 30 days of purchase. Items must be unused and in original packaging. Refunds are processed within 5-7 business days.", "referenceResponse": "Returns are accepted within 30 days for unused items in original packaging, with refunds processed in 5-7 business days."}
+Lambda and API Gateway still sit in front — they *read* the pointer. They are not where you bake `anthropic.claude-…` into a constant.
+
+### Converse is a shared envelope, not identical models
+
+**Converse** (and `ConverseStream`) gives one message shape across providers. That is why swapping IDs is *possible*. It does **not** make every model identical. Context windows, modalities, tool support, inference parameters, Regions, and Bedrock feature attach still differ.
+
+Blindly pointing a tool-calling research path at an embedding model “because Converse is provider-agnostic” is the trap. Change the pointer, then **re-run the same eval set**.
+
+```recall
+Q: Where does the production model ID live if you must swap writers this afternoon with no deploy?
+A: AWS AppConfig (or Parameter Store) — not source code, not a new SageMaker endpoint.
 ```
 
-Your dataset should include at least 10 examples, though 100 or more provides much more reliable results. Include typical cases that represent the bulk of your traffic, edge cases that stress-test the model's capabilities, and adversarial examples designed to expose weaknesses.
-
-### Choosing the Right Metrics
-
-Bedrock supports three categories of evaluation metrics, each with different trade-offs between cost, speed, and nuance.
-
-**Automatic metrics** compute scores without human involvement. ROUGE measures n-gram overlap between the model's output and your reference response—useful for summarization where you care about capturing key phrases. BERTScore uses embeddings to compare semantic similarity, catching cases where the model used different words to express the same meaning. F1 Score balances precision and recall for classification tasks. Exact Match provides binary feedback for extraction tasks where you need specific values.
-
-The appeal of automatic metrics is obvious: they're fast, cheap, and consistent. Run them against a thousand examples and you get results in minutes. The limitation is equally obvious: they can miss nuance. A response might be perfectly correct but phrased differently than your reference, scoring poorly on ROUGE. A response might score well on BERTScore despite containing a subtle factual error.
-
-**Human evaluation** brings judgment that metrics can't replicate. You define criteria—helpfulness, accuracy, tone, relevance—and human reviewers rate responses on Likert scales (1-5), binary judgments (yes/no), or comparative rankings (response A vs B). Human evaluation catches subtleties that automatic metrics miss entirely: Was the response appropriately empathetic? Did it address the user's underlying concern, not just their stated question? Would this response satisfy a customer or frustrate them?
-
-The trade-off: human evaluation is slow and expensive. Each response needs human attention, which means either paying reviewers or diverting your team's time. Reserve human evaluation for high-stakes applications where quality differences have real business impact—customer-facing communications, medical information, legal advice, or anywhere that mistakes carry significant consequences.
-
-**LLM-as-a-Judge** occupies an interesting middle ground. You use a foundation model to evaluate another model's outputs based on criteria you define. The judge model reads the prompt, the response, and your evaluation criteria, then provides scores and explanations.
-
-```json
-{
-  "evaluationCriteria": "Rate the response on accuracy (1-5), helpfulness (1-5), and safety (1-5). Explain your reasoning for each score."
-}
-```
-
-LLM-as-judge runs faster than human evaluation and provides more nuanced feedback than automatic metrics. It can explain why a response scored poorly, helping you improve prompts or identify patterns in failures. The limitation is that judge models have their own biases—they may favor responses that match their own style or make similar mistakes to the models being evaluated. Use LLM-as-judge as a screening layer, then validate surprising results with human review.
-
-### RAG-Specific Metrics: Evaluating Retrieval-Augmented Generation
-
-Standard metrics weren't designed for RAG systems, where failures can occur at multiple points in the pipeline. A RAG system might retrieve the wrong documents, or retrieve the right documents but ignore them, or faithfully use the documents but answer a different question than the user asked. Bedrock's RAG-specific metrics isolate these failure modes.
-
-**Context Relevance** measures whether your retrieval actually found relevant documents. If this score is low, your vector search isn't working—maybe your embeddings don't capture the right semantics, your chunking is too coarse, or your knowledge base lacks the information users need. This is a retrieval problem, not a generation problem.
-
-**Faithfulness** (also called Groundedness) measures whether the model's response is actually supported by the retrieved context. Low faithfulness indicates hallucination—the model is making things up rather than using the documents you provided. This is critical because hallucinated responses often sound confident and plausible while being completely wrong. High faithfulness means the model is quoting from and reasoning over the retrieved documents rather than falling back on its training data or imagination.
-
-**Answer Relevance** measures whether the response actually addresses the user's question. A response might be perfectly faithful to the retrieved context but still miss the point. If someone asks "How do I reset my password?" and the model responds with accurate but off-topic information about password security best practices, answer relevance would be low.
-
-**Answer Correctness** measures factual accuracy against your reference answers. This requires you to provide ground truth in your evaluation dataset, but when available, it provides the most direct measure of whether your RAG system is giving correct information.
-
-### Running an Evaluation Job
-
-The workflow is straightforward: prepare your dataset, configure the job, run it, and analyze results.
-
-```typescript
-const response = await bedrockClient.createEvaluationJob({
-  jobName: 'claude-model-comparison',
-  roleArn: 'arn:aws:iam::123456789012:role/BedrockEvalRole',
-  evaluationConfig: {
-    automated: {
-      datasetMetricConfigs: [{
-        taskType: 'Summarization',
-        metricNames: ['Rouge', 'BertScore']
-      }]
-    }
-  },
-  inferenceConfig: {
-    models: [
-      { modelIdentifier: 'anthropic.claude-3-haiku-20240307-v1:0' },
-      { modelIdentifier: 'anthropic.claude-3-sonnet-20240229-v1:0' },
-      { modelIdentifier: 'anthropic.claude-3-5-sonnet-20241022-v2:0' }
-    ]
-  },
-  outputDataConfig: {
-    s3Uri: 's3://my-bucket/eval-results/'
-  }
-});
-```
-
-This configuration evaluates three Claude models on a summarization task using ROUGE and BERTScore metrics. Results land in S3 where you can download them for analysis or view them in the Bedrock console.
-
-### Interpreting Results: Beyond the Numbers
-
-Raw scores only tell part of the story. The real insights come from digging into patterns.
-
-Look at per-example breakdowns: Does one model consistently fail on certain types of inputs? Maybe Haiku struggles with technical jargon but excels at conversational text. Maybe Sonnet handles ambiguous questions well but occasionally over-explains simple ones. These patterns inform not just model selection but prompt engineering—you might keep using a smaller model if you can adjust your prompts to avoid its weak spots.
-
-Compare accuracy to cost: Model A scores 95% accuracy at $0.01 per request. Model B scores 97% accuracy at $0.10 per request. Is that 2% improvement worth 10x the price? For most applications, no. But for medical advice, legal analysis, or other high-stakes domains? Maybe. The right answer depends entirely on your use case.
-
-Check failure modes: When a model gets something wrong, how wrong is it? A model that occasionally gives slightly imprecise answers might be fine. A model that occasionally gives confidently wrong answers is dangerous. Low-severity failures are tolerable; high-severity failures are not.
-
-### Evaluation Best Practices
-
-**Build representative datasets.** If 80% of your production traffic is simple queries and 20% is complex, your test set should reflect that ratio. Overweighting edge cases makes your evaluation look worse than real-world performance.
-
-**Include adversarial examples.** Add inputs designed to break things—very long prompts, unusual formatting, ambiguous questions, prompts that try to extract system instructions. Models that handle adversarial cases gracefully are more robust in production.
-
-**Version everything.** When you improve your test set, keep the old version. You'll want to track performance over time with consistent baselines. A model that scores 92% on v1 of your dataset and 88% on v2 might have improved—or v2 might just be harder.
-
-**Automate regular evaluation.** Build evaluation into your CI/CD pipeline. When prompts change, when new models release, when you update your training data—run evaluations automatically. Catching regressions early is much cheaper than discovering them in production.
+> **Exam cue:** “without code changes,” “without redeploying,” “switch models dynamically” → AppConfig. Then re-eval. Converse helps; it does not bless an unfit model.
 
 ---
 
-## Dynamic Model Selection Patterns
+## Capacity and routing — three logos the exam will shuffle
 
-Smart systems don't hardcode model choices—they adapt based on context, cost constraints, and real-time conditions. The techniques in this section separate amateur implementations from production-grade systems.
+Which model answers and **how you pay for capacity** are different knobs. Prompt routing is not extra quota for one FM.
 
-### Configuration-Driven Selection
+| If the stem is… | Pick |
+|-----------------|------|
+| Default / spiky / unpredictable / do not pay for idle | **On-demand** (input + output tokens). Shared per-Region quota. Peak can return `Too many requests`. |
+| Same FM, this Region is hot, least ops, stay in US/EU | **Cross-Region inference** via an inference profile (`us.…`, `eu.…`, or global) |
+| Stable high utilization, or a custom model with no on-demand path | **Provisioned Throughput** — Model Units by the hour, including 3am |
+| Easy vs hard prompts, **same family**, save money at ask time | **Intelligent prompt routing** |
+| Supported **custom** model, variable traffic | **Custom Model Deployment** (on-demand tokens). Custom models **cannot** use CRI. |
 
-Storing model IDs in your source code creates a deployment dependency you don't need. Every time you want to switch models—whether for cost optimization, testing a new release, or responding to an outage—you have to modify code, go through CI/CD, and deploy. That's too slow for operational flexibility.
+Do not rent 24/7 Model Units for a three-hour earnings spike.
 
-AWS AppConfig solves this by externalizing configuration. Your code reads the model ID at runtime, and changing models becomes a configuration update rather than a deployment.
+### What actually moved?
 
-```typescript
-import { AppConfigDataClient, GetLatestConfigurationCommand, StartConfigurationSessionCommand } from '@aws-sdk/client-appconfigdata';
+Ask this out loud. The exam mixes the logos on purpose.
 
-class ModelConfigProvider {
-  private client: AppConfigDataClient;
-  private sessionToken: string | undefined;
+| Feature | What changed | What did not |
+|---------|--------------|--------------|
+| Cross-Region inference | **Region** (spare capacity for the same FM) | The writer |
+| Intelligent prompt routing | **Model**, same family (small vs large) | Your AppConfig code |
+| Application routing (AppConfig) | Whatever you put in the pointer — model, provider, task, fallback | A Bedrock SKU |
 
-  constructor() {
-    this.client = new AppConfigDataClient({});
-  }
+Prompt routing *picks* the cheaper model **at runtime**. Distillation (skill 1.2.4) *trains* the cheaper model to imitate a teacher **before** runtime.
 
-  async initialize() {
-    const session = await this.client.send(new StartConfigurationSessionCommand({
-      ApplicationIdentifier: 'GenAIApp',
-      EnvironmentIdentifier: 'Production',
-      ConfigurationProfileIdentifier: 'ModelConfig'
-    }));
-    this.sessionToken = session.InitialConfigurationToken;
-  }
+### Prompt caching (do not confuse with “remember the answer”)
 
-  async getModelId(): Promise<string> {
-    const response = await this.client.send(new GetLatestConfigurationCommand({
-      ConfigurationToken: this.sessionToken!
-    }));
-    this.sessionToken = response.NextPollConfigurationToken;
-    const config = JSON.parse(new TextDecoder().decode(response.Configuration));
-    return config.modelId;
-  }
-}
+The IR methodology is a long, stable prefix. The analyst question is not. **Prompt caching** stores the computed state of a supported, repeated prefix so later calls skip re-processing those input tokens — cheaper, often faster. It does **not** cache the completion. A unique 8K retrieved blob with nothing shared will not help. Deeper cost treatment is Domain 4.
+
+> Cache the static prefix. Do not expect a cache to remember last night’s Blackwell bullets.
+
+```quickcheck
+Q: Earnings-day 429s in us-east-1. Same FM. US-only. Least ops?
+A: Prompt routing to a cheaper model
+B: US geographic inference profile
+C: PT sized to the peak, all day
+correct: B
+feedback: Same writer, spare US Region, still tokens. Routing changes the model. PT pays for idle overnight.
 ```
-
-This pattern enables powerful operational capabilities. Want to test a new model with 10% of traffic? Update the configuration to route based on a random value. Want to use different models in different environments? Same code, different configuration values. Want to roll back instantly when something goes wrong? Configuration update, no deployment required.
-
-AppConfig also supports deployment strategies—gradual rollouts where configuration changes propagate slowly, automatic rollback when CloudWatch alarms fire, and validation functions that verify new configurations before they take effect.
-
-### Cascading: The Cost Optimization Pattern
-
-Model cascading is a clever architecture that routes every request to a fast, cheap model first, then escalates only when needed. Most requests resolve at the first tier; only the genuinely difficult cases consume expensive model capacity.
-
-The insight behind cascading is that simple requests don't benefit from more powerful models. If a user asks "What time is it in Tokyo?" or "Convert 100 USD to EUR," Haiku answers just as correctly as Opus—but at 1/15th the cost and 10x the speed. Sending these requests to Opus wastes money without improving outcomes.
-
-```typescript
-async function cascadeRequest(prompt: string): Promise<string> {
-  // First tier: fast and cheap
-  const tier1Response = await invokeModel('anthropic.claude-3-haiku-20240307-v1:0', prompt);
-
-  // Check confidence signals
-  const needsEscalation = detectLowConfidence(tier1Response);
-
-  if (!needsEscalation) {
-    return tier1Response;
-  }
-
-  // Second tier: more capable
-  const tier2Response = await invokeModel('anthropic.claude-3-5-sonnet-20241022-v2:0', prompt);
-  return tier2Response;
-}
-
-function detectLowConfidence(response: string): boolean {
-  // Explicit uncertainty phrases
-  const uncertaintyPhrases = [
-    "I'm not certain",
-    "I'm not sure",
-    "it's unclear",
-    "I don't have enough information",
-    "this is ambiguous"
-  ];
-
-  for (const phrase of uncertaintyPhrases) {
-    if (response.toLowerCase().includes(phrase)) {
-      return true;
-    }
-  }
-
-  // Very short responses might indicate the model struggled
-  if (response.length < 50) {
-    return true;
-  }
-
-  // You could add more sophisticated signals:
-  // - Classifier confidence scores
-  // - Response pattern matching
-  // - Domain-specific heuristics
-
-  return false;
-}
-```
-
-The key to effective cascading is defining clear escalation criteria. Explicit uncertainty phrases are the most reliable signal—when the model says "I'm not sure," believe it. Very short responses can indicate the model didn't know what to say. Domain-specific patterns might indicate low confidence: hedging language, overly generic responses, or answers that don't quite address the question.
-
-Well-tuned cascading can cut costs by 60-80% while maintaining quality on complex requests. The exact savings depend on your traffic mix—if most requests are complex, you won't save much. But most production workloads are dominated by straightforward requests that small models handle perfectly.
-
-### A/B Testing: Learning from Production
-
-Benchmarks measure performance on test data. A/B testing measures what actually matters: real user outcomes.
-
-Route a percentage of production traffic to each model variant and measure business metrics. Which model produces higher user satisfaction ratings? Better task completion rates? Fewer escalations to human agents? Lower complaint rates?
-
-These metrics reveal truths that benchmarks miss. A model might score lower on academic evaluations but produce more satisfying customer interactions. A model might seem equivalent in testing but show subtle differences at scale—maybe one model's errors cluster in a specific domain that matters to your users.
-
-Implementation is straightforward: use AppConfig or feature flags to route traffic, then correlate model assignments with outcome metrics in your analytics pipeline.
-
-### Fallback Patterns: Graceful Degradation
-
-Models fail. Regions experience outages. Latency spikes during high-demand periods. Your application should handle these scenarios gracefully rather than crashing spectacularly.
-
-The simplest fallback is a backup model. If your primary model times out or returns an error, retry with an alternative. This might mean falling from Sonnet to Haiku, accepting slightly lower quality in exchange for availability.
-
-```typescript
-async function invokeWithFallback(prompt: string): Promise<string> {
-  const models = [
-    'anthropic.claude-3-5-sonnet-20241022-v2:0',
-    'anthropic.claude-3-haiku-20240307-v1:0',
-    'amazon.titan-text-lite-v1'
-  ];
-
-  for (const modelId of models) {
-    try {
-      return await invokeModelWithTimeout(modelId, prompt, 10000);
-    } catch (error) {
-      console.warn(`Model ${modelId} failed, trying next fallback`);
-      continue;
-    }
-  }
-
-  // All models failed - return cached response or error
-  return getCachedResponse(prompt) || "I'm temporarily unable to process your request. Please try again.";
-}
-```
-
-Caching common responses in ElastiCache or CloudFront provides another fallback layer. If you know certain questions appear frequently, pre-compute responses and serve them instantly when models are unavailable.
-
-For some applications, rule-based fallbacks make sense. If AI is unavailable, fall back to keyword matching, decision trees, or simple heuristics. The response won't be as good, but users get something rather than nothing.
 
 ---
 
-## Model Customization Lifecycle
+## Skill 1.2.3 — Failure is not one thing
 
-Sometimes base models aren't quite right for your use case. Before jumping to customization, exhaust prompt engineering—it's faster, cheaper, and often sufficient. But when prompts aren't enough, AWS provides several customization options with different trade-offs.
+A 429, a dead Region, a model that returns garbage, and a path that is completely down are different failures. Stack the responses. Do not pick one logo and stop.
 
-### Fine-Tuning: Teaching New Behaviors
+| Failure | Response |
+|---------|----------|
+| Transient 429 / 5xx | **Retry** with exponential backoff **and jitter**. Immediate identical retries are a thundering herd. |
+| This Region is out of spare capacity; same FM still required | **Cross-Region inference** (inference profile). Not a different writer. |
+| Repeated failure; retries make timeouts worse | **Circuit breaker**: CLOSED → (threshold) OPEN → wait → HALF-OPEN (probe) → CLOSED. Stop hammering. |
+| Provider or primary model is gone | **Fallback** model from AppConfig (Sonnet → Haiku). Quality may drop; the desk still answers. |
+| Generation is dead | **Degrade**: return retrieved 10-K passages or last night’s cached summary. The UI does not go blank. |
 
-Fine-tuning adjusts a model's behavior through examples. You show the model hundreds of input-output pairs that demonstrate exactly how you want it to respond, and it learns to generalize those patterns.
-
-Common fine-tuning use cases include consistent output formatting—maybe you need responses in a specific JSON schema, or with particular section headers, or in a distinctive voice. Another use case is domain-specific behavior: legal responses that cite precedents appropriately, medical responses that use correct terminology, customer service responses that match your brand voice.
-
-The mechanics are straightforward: prepare a JSONL file with input-output pairs, upload it to S3, configure the fine-tuning job with hyperparameters (learning rate, epochs, batch size), and let Bedrock handle the infrastructure. Your custom model version appears alongside base models, ready to use with the same APIs.
-
-```json
-{"prompt": "Respond to this customer complaint:", "completion": "[Your company's ideal response style]"}
-{"prompt": "Summarize this legal document:", "completion": "[Your preferred summary format]"}
-```
-
-Fine-tuning requires hundreds to thousands of examples—the more complex the desired behavior, the more examples you need. Quality matters as much as quantity; inconsistent examples produce inconsistent models.
-
-### Continued Pre-Training: Adding Knowledge
-
-Fine-tuning adjusts behavior but doesn't add new knowledge. If your company has proprietary processes, specialized terminology, or domain expertise that doesn't exist in the model's training data, continued pre-training incorporates that knowledge into the model itself.
-
-This approach requires significantly more data than fine-tuning—thousands of documents covering your domain. The model essentially reads your content and learns from it, updating its internal representations to understand your specific context.
-
-Use cases include highly specialized industries (biotechnology, advanced manufacturing, niche legal areas), company-specific products and processes, or domains with terminology that has specialized meanings different from common usage.
-
-### Custom Model Import: Bring Your Own Model
-
-Bedrock Custom Model Import lets you deploy models trained outside AWS on Bedrock's infrastructure. You might have a model fine-tuned on Hugging Face, trained with your own infrastructure, or sourced from a specialized vendor.
-
-Supported formats include Hugging Face models and GGUF (the format used by llama.cpp). The model goes through validation to ensure compatibility, then deploys on Provisioned Throughput—you pay for reserved capacity rather than per-token.
-
-This matters because Provisioned Throughput is required for imported models. You can't use on-demand pricing with custom imports, which changes the economics. Custom import makes sense when you've invested significantly in model development and want to use Bedrock's infrastructure, or when you need a specialized model that isn't available through Bedrock's marketplace.
-
-### LoRA Adapters: Efficient Customization
-
-Low-Rank Adaptation (LoRA) provides an efficient alternative to full fine-tuning. Instead of updating millions of model parameters, LoRA trains small adapter layers that modify the model's behavior. These adapters are faster to train, smaller to store, and can be swapped at inference time.
-
-The practical benefit: one base model, multiple personalities. You might have a customer service adapter, a technical writing adapter, and a legal review adapter—all using the same underlying model but optimized for different tasks. Switch adapters based on the request type without loading different models.
-
-### The Model Registry: Version Control for Models
-
-As you create custom model versions, tracking becomes critical. Which training data produced each version? How did performance compare across iterations? If the new version performs worse than expected, can you roll back instantly?
-
-**SageMaker Model Registry** provides the infrastructure for this. It stores model versions with metadata, approval status, and deployment history—acting as version control for your models:
-
-```python
-import boto3
-
-sagemaker = boto3.client('sagemaker')
-
-# Register a new model version
-sagemaker.create_model_package(
-    ModelPackageGroupName='customer-service-model',
-    ModelPackageDescription='Fine-tuned Claude for customer service v3 - improved refund handling',
-    InferenceSpecification={
-        'Containers': [{
-            'Image': '763104351884.dkr.ecr.us-east-1.amazonaws.com/inference:latest',
-            'ModelDataUrl': 's3://models/customer-service/v3/model.tar.gz'
-        }],
-        'SupportedContentTypes': ['application/json'],
-        'SupportedResponseMIMETypes': ['application/json']
-    },
-    # Custom metadata for tracking
-    CustomerMetadataProperties={
-        'TrainingDataset': 's3://data/training/customer-service-v3.jsonl',
-        'TrainingExamples': '2500',
-        'BaseModel': 'anthropic.claude-3-haiku-20240307-v1:0',
-        'EvalAccuracy': '0.94',
-        'EvalBaseline': '0.87'
-    },
-    ModelApprovalStatus='PendingManualApproval'  # Requires human review
-)
-
-# Approve after evaluation passes
-sagemaker.update_model_package(
-    ModelPackageArn='arn:aws:sagemaker:us-east-1:123456789:model-package/customer-service-model/3',
-    ModelApprovalStatus='Approved'
-)
-```
-
-**The deployment pipeline** for custom models follows a standard pattern:
-
-```
-Training → Evaluation → Registry → Approval → Staging → Production
-    ↓           ↓           ↓          ↓          ↓          ↓
-  S3 data   Golden set   Version    Human/    Canary     Full
-  + config  + metrics   + metadata  auto gate  deploy    rollout
-```
-
-**Rollback strategies:**
-- **Instant rollback**: Keep the previous model version deployed alongside the new one. Route traffic back via AppConfig or API Gateway weighted routing.
-- **Canary deployment**: Route 5-10% of traffic to the new model. Monitor quality metrics (accuracy, latency, user ratings). If metrics degrade, route 100% back to the previous version.
-- **Blue/green**: Maintain two identical environments. Switch DNS or load balancer when the new version is validated. Roll back by switching back.
-
-**Bedrock's built-in tracking** complements SageMaker Model Registry. Bedrock maintains metadata about custom fine-tuning jobs (training configuration, hyperparameters, completion status) and your custom model versions are accessible via the same `InvokeModel` API. For Bedrock-native fine-tuning, you don't need SageMaker Model Registry—Bedrock tracks your versions. Use SageMaker Model Registry when you're managing models across multiple training environments or need formal approval workflows.
-
-### Customization Decision Framework
-
-This is a **high-value exam topic**. Many questions present a scenario and ask which customization approach is most appropriate.
-
-| Approach | When to Use | Data Required | Time | Cost | Reversible? |
-|----------|-------------|---------------|------|------|-------------|
-| **Prompt engineering** | First attempt for any task | 0 examples (just instructions) | Minutes | Free | Instantly |
-| **Few-shot examples** | Need consistent formatting or style | 3-10 examples in the prompt | Minutes | Slightly more tokens per request | Instantly |
-| **RAG** | Need access to current/proprietary knowledge | Your document corpus | Days (pipeline setup) | Retrieval + generation costs | Remove knowledge base |
-| **Fine-tuning** | Need consistent behavior across many inputs | 100-1,000+ examples | Days-weeks | Training job + ongoing inference | Deploy previous version |
-| **Continued pre-training** | Need deep domain knowledge embedded in model | 1,000s of domain documents | Weeks | Significant training costs | Deploy previous version |
-| **LoRA adapters** | Need multiple specialized behaviors from one model | 100-1,000+ examples per adapter | Days | Less than full fine-tuning | Swap adapters |
-| **Custom model import** | Have externally trained model | Complete model weights | Hours (import) | Provisioned Throughput required | Import different model |
-
-**The decision flow:**
+A circuit breaker sits **in front of** CRI. It does not replace CRI. Retry is a blip. Fallback is a different model. Degradation is “generation is gone, still show something.”
 
 ```mermaid
-graph TD
-    A[Task not working well enough] --> B{Tried 10+ prompt<br/>formulations?}
-    B -->|No| C[Improve prompts first]
-    B -->|Yes| D{Need current or<br/>proprietary knowledge?}
-    D -->|Yes| E[RAG with Knowledge Bases]
-    D -->|No| F{Need consistent<br/>format/style/voice?}
-    F -->|Yes| G{Multiple specialized<br/>behaviors needed?}
-    F -->|No| H{Need deep domain<br/>understanding?}
-    G -->|Yes| I[LoRA Adapters<br/>One base model, many adapters]
-    G -->|No| J[Fine-Tuning<br/>Dedicated custom model]
-    H -->|Yes| K[Continued Pre-Training]
-    H -->|No| L[Re-examine prompts<br/>The problem is elsewhere]
+flowchart TD
+    REQ[Request] --> INV[Invoke primary from AppConfig]
+    INV -->|200| OK[Return answer]
+    INV -->|transient 429 / 5xx| RET[Backoff + jitter, retry]
+    RET -->|ok| OK
+    RET -->|still failing, capacity| CRI[Same FM via inference profile]
+    CRI -->|ok| OK
+    CRI -->|repeated failure| CB[Circuit OPEN]
+    CB --> FB[Fallback model]
+    FB -->|ok| OK
+    FB -->|generation gone| DEG[Return retrieved passages / cache]
 ```
 
-### The Golden Rule of Customization
+### Step Functions when the path is already written down
 
-**Prompt engineering first, always.**
+Skill 1.2.3 names **AWS Step Functions**. You do not need an agent to decide “if the API fails three times, call backup.”
 
-Many teams jump to "we need to fine-tune" when the real problem is "we need better prompts." Fine-tuning requires collecting training data, running training jobs, evaluating results, potentially iterating multiple times—a process measured in weeks and thousands of dollars.
-
-Good prompt engineering costs nothing but time. Adding few-shot examples, improving instructions, restructuring prompts, adjusting system messages—these changes deploy instantly and often solve the problem entirely.
-
-Ask yourself: have we really exhausted prompt options? Have we tried ten different prompt formulations? Have we added examples? Have we broken the task into smaller steps? Only when the answer to all these questions is "yes, and it's still not working" should you consider fine-tuning.
-
----
-
-## Designing Failover and Resilience
-
-Models fail. Regions go down. Latency spikes during high-demand periods. Capacity runs out when everyone wants to use AI at once. Building resilient systems means planning for these scenarios before they happen.
-
-### Cross-Region Inference: The Easy Button
-
-Cross-Region Inference is one of the most important resilience features Bedrock offers, and it's surprisingly simple to use. Instead of specifying a model ID that locks you to a single region, you use an inference profile ARN that allows Bedrock to route requests to available capacity across regions.
-
-Here's how it works. When you invoke a model using an inference profile, Bedrock checks capacity in your specified region. If that region is constrained—high demand, partial outage, maintenance—Bedrock automatically routes to another region with available capacity. Your code doesn't know the difference; the response comes back just like a normal invocation.
-
-The inference profile ARN format tells you everything you need to know:
-
-```
-arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-3-sonnet-20240229-v1:0
+```text
+Invoke primary
+    → retry / backoff on transient 429 / 5xx
+    → still failing? invoke AppConfig fallback
+    → still failing? return degraded / cached response. Stop.
 ```
 
-Notice the `us.` prefix on the model identifier. This indicates a US-based profile that routes across US regions (us-east-1, us-west-2, us-east-2, etc.). EU profiles use the `eu.` prefix and route across EU regions. AP profiles use `ap.` and route across Asia-Pacific regions.
+That is a deterministic workflow. Agents are for when the *model* must choose tools (1.1.1 / 2.1). An EventBridge cron that emails someone every hour is not failover.
 
-This geographic scoping matters enormously for compliance. Data never leaves its geographic area. A US profile will never route to EU regions, and vice versa. This makes Cross-Region Inference compatible with GDPR, data sovereignty requirements, and other regulatory constraints that mandate geographic data residency.
+> **Exam cue:** Known failover graph → Step Functions. Same FM, peak throttle → CRI. Stop hammering → circuit breaker. Show something when generation is dead → degrade. Change writers without a deploy → AppConfig, then re-eval.
 
-Using inference profiles in code requires minimal changes:
-
-```typescript
-// Without Cross-Region Inference (locked to one region)
-const response = await client.invokeModel({
-  modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
-  body: payload
-});
-
-// With Cross-Region Inference (automatic failover)
-const response = await client.invokeModel({
-  modelId: 'arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-3-sonnet-20240229-v1:0',
-  body: payload
-});
-```
-
-When does Cross-Region Inference help? Capacity constraints during high-demand periods, regional service issues, latency optimization (routing to the region with best current performance). When doesn't it help? It doesn't change model quotas (still per-account, per-region), pricing (same cost regardless of actual region), or model availability (model must be available in target regions).
-
-**System-defined profiles** are AWS-managed and automatically handle cross-region routing. You just use the `us.`, `eu.`, or `ap.` prefix. **Application inference profiles** let you create custom routing behavior or associate profiles with specific configurations.
-
-For the exam, this is critical: **inference profile ARN = Cross-Region Inference = automatic regional failover**. When you see questions about high availability, regional resilience, or failover for Bedrock, Cross-Region Inference is usually the answer.
-
-### Circuit Breakers: Preventing Cascade Failures
-
-When a model starts failing, continuing to send requests makes things worse. You're wasting time waiting for timeouts, potentially paying for requests that will fail, and putting additional load on an already-struggling system.
-
-Circuit breakers detect failure patterns and temporarily stop sending requests, allowing the system to recover. The pattern has three states:
-
-**Closed** (normal operation): Requests flow through normally. The breaker tracks failure rates.
-
-**Open** (failure detected): When failures exceed a threshold, the breaker "opens" and requests fail immediately without even attempting the model call. This prevents cascade failures and gives the system time to recover.
-
-**Half-open** (testing recovery): After a timeout period, the breaker allows a few test requests through. If they succeed, the breaker closes and normal operation resumes. If they fail, the breaker stays open.
-
-Step Functions can implement circuit breakers with state tracking. Store the circuit state in DynamoDB or Parameter Store, check it before each invocation, and update it based on results.
-
-### Retry Logic: The Right Way
-
-When a request fails, retrying immediately is usually counterproductive. If a thousand requests failed and all retry simultaneously, you're creating a thundering herd that prevents recovery.
-
-The right approach is **exponential backoff with jitter**. Each retry waits longer than the last (exponential backoff), and each wait time is randomized (jitter) to spread retries across time rather than clustering them.
-
-```typescript
-async function invokeWithRetry(modelId: string, payload: any, maxRetries: number = 3): Promise<any> {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await client.invokeModel({ modelId, body: payload });
-    } catch (error) {
-      if (attempt === maxRetries) throw error;
-
-      // Exponential backoff with jitter
-      const baseDelay = Math.pow(2, attempt) * 100; // 100ms, 200ms, 400ms...
-      const jitter = Math.random() * baseDelay;
-      await sleep(baseDelay + jitter);
-    }
-  }
-}
+```recall
+Q: Circuit breaker vs Cross-Region inference — which one changes the writer?
+A: Neither. CRI changes Region for the same FM. The breaker stops sending. Changing the writer is fallback / AppConfig.
 ```
 
 ---
 
-## Managing Custom Model Lifecycle
+## Skill 1.2.4 — Customize behavior, not this week’s 10-K
 
-Custom models need lifecycle management just like traditional software. Without proper processes, you end up with mystery models that nobody remembers how to reproduce.
+RAG changes **what the model knows at inference time**. Customization changes **how the model behaves**. Do not fine-tune to “add this week’s 10-K.” That knowledge is stale the morning after the 8-K. Put the filing in a Knowledge Base.
 
-### Training Data: The Foundation
+**Prompt engineering first.** Few-shot examples, clearer instructions, splitting the task, Prompt Management. Fine-tuning is weeks and a training set. Prompts iterate this afternoon.
 
-Garbage in, garbage out applies doubly to model training. Store training datasets in S3 with versioning enabled, so you know exactly what data produced each model version. Tag datasets with metadata: creation date, source system, preprocessing steps applied, intended use case.
+| Need | Lever |
+|------|--------|
+| Fresh / private / changing facts, citations | **RAG** — not a custom model |
+| Task-specific behavior from labeled input–output pairs | **Supervised fine-tuning** |
+| Objective reward / grader | **Reinforcement fine-tuning (RFT)** |
+| Large-model behavior at lower cost, trained ahead of time | **Distillation** (teacher → student) |
+| Domain adaptation from unlabeled corpus | **Continued pretraining** |
+| Several specialized behaviors, swap at inference, thin extra weights | **LoRA / adapters** |
 
-Document data provenance. Where did this data come from? How was it filtered? Who reviewed it for quality? What biases might exist? These questions matter when debugging model behavior months or years later.
+You put JSONL (or the teacher’s outputs) on S3, run a Bedrock or SageMaker job, and get a **custom model**. Invoke it with a **Custom Model Deployment** ARN (on-demand, if that model/Region supports it) or with **Provisioned Throughput**. Custom models still **cannot** use Cross-Region inference.
 
-### Evaluation: Proving Improvement
-
-Run your standardized test dataset against every custom model version and compare to the base model. Customization should show measurable improvement on your specific metrics—if it doesn't, your prompts might just need work rather than model changes.
-
-Track performance over time. Does the improvement hold as your use cases evolve? New types of queries might reveal gaps in your custom model's training that weren't apparent initially.
-
-### Blue-Green Deployment: Risk Minimization
-
-Deploy new model versions alongside existing ones. Route a small percentage of traffic to the new version while monitoring metrics closely. If problems appear, shift traffic back to the old version instantly. Only after extended observation with no issues do you fully cut over.
-
-Your users never notice the transition because both versions remain available throughout. If the new version performs better, great—gradually increase its traffic share. If it performs worse, you discovered this with minimal user impact and can investigate without urgency.
-
----
-
-## Model Size Selection Guide
-
-| Criterion | Large Models (Opus/Sonnet) | Small Models (Haiku/Llama 8B) | Custom Fine-tuned |
-|-----------|---------------------------|------------------------------|-------------------|
-| Best for | Complex reasoning, nuanced writing, code generation, multi-step analysis | Classification, extraction, simple Q&A, high-volume tasks | Domain terminology, specific formats, consistent voice |
-| Latency | 1-15 seconds | 100-500ms | Depends on base model |
-| Relative cost | 10-20x more expensive | Cheapest per token | Training cost + inference costs |
-
----
-
-## Decision Framework: Choosing the Right Model
-
-Use this framework to systematically select the optimal model for your use case.
-
-### Quick Reference
-
-| Scenario | Choose | Why |
-|----------|--------|-----|
-| Classify emails as spam/not-spam | **Haiku** | Binary classification, speed matters |
-| Extract customer name from ticket | **Haiku** | Simple extraction, clear structure |
-| Summarize a single paragraph | **Haiku** | Short input, straightforward task |
-| Analyze a complex legal contract | **Opus** | Nuanced reasoning, high stakes |
-| Debug intricate code | **Sonnet/Opus** | Multi-step reasoning required |
-| Generate marketing copy | **Sonnet** | Creative but structured |
-| Answer customer support questions | **Sonnet** (consider Haiku with escalation) | Balance quality and cost |
-| Process 100K documents overnight | **Haiku + Batch Inference** | Volume prioritizes cost |
-
-### Decision Tree
-
-```mermaid
-graph TD
-    A[New Model Selection] --> B{Task complexity?}
-
-    B -->|Simple| C{High volume?}
-    B -->|Medium| D[Sonnet]
-    B -->|Complex| E[Opus]
-
-    C -->|Yes| F[Haiku]
-    C -->|No| G{Latency critical?}
-
-    G -->|Yes| F
-    G -->|No| H{Quality sensitive?}
-
-    H -->|Yes| D
-    H -->|No| F
-
-    D --> I{Mixed complexity<br/>in traffic?}
-    E --> I
-    F --> I
-
-    I -->|Yes| J[Consider Cascading]
-    I -->|No| K{Need customization?}
-
-    J --> K
-
-    K -->|Format/Style| L[Fine-tune Haiku/Sonnet]
-    K -->|Domain Knowledge| M[Continued Pre-training]
-    K -->|No| N[Use Base Model]
+```fillin
+Fine-tune for behavior. Retrieve for {{facts}}. Distill to make the cheap model better; route to pick the cheap model live.
 ```
 
-### Task Complexity Guide
+### Register, canary, rollback, retire
 
-**Simple (Haiku-appropriate):**
-- Binary or multi-class classification
-- Entity extraction with clear patterns
-- Short-form summarization
-- Template-based generation
-- Simple Q&A with factual answers
-- Sentiment analysis
-- Language detection
-- Format conversion (JSON ↔ text)
+Skill 1.2.4 is the **lifecycle**, not a one-shot job. A custom model that cannot be rolled back is not a production model.
 
-**Medium (Sonnet-appropriate):**
-- Multi-step reasoning (2-3 steps)
-- Creative writing with constraints
-- Code generation for common patterns
-- Customer communication drafting
-- Document summarization (longer texts)
-- Comparative analysis
-- Instruction following with nuance
+```text
+Base FM → customize → offline eval → SageMaker Model Registry
+    → approve
+    → canary / blue-green (5% → 25% → 100%)
+    → CloudWatch alarms
+    → unhealthy? roll back to v2
+    → retire when the base FM goes Legacy / EOL
+```
 
-**Complex (Opus-appropriate):**
-- Deep reasoning chains (4+ steps)
-- Novel problem solving
-- Expert-level analysis (legal, medical, financial)
-- Nuanced creative writing
-- Complex code debugging
-- Multi-document synthesis
-- Tasks requiring world knowledge integration
+**SageMaker Model Registry** versions the package and is what CI/CD points at. Do not bury `MODEL = "old-id"` in 17 Lambdas — that is what AppConfig and the registry are for. Hard-cutting 100% to v3 and deleting v2 is how you get stuck.
 
-### Trade-off Analysis
+Bedrock FMs move **Active → Legacy → EOL**. Migrate to an Active model before retirement. Customization options can shrink once a model is Legacy. Treat the production pointer as a config alias, evaluate the replacement on the **same** dataset, then cut over.
 
-| Factor | Haiku | Sonnet | Opus | Fine-tuned |
-|--------|-------|--------|------|------------|
-| **Cost** | $ | $$$ | $$$$$ | $$+ training |
-| **Latency** | ~200ms | ~1-2s | ~5-15s | Varies |
-| **Reasoning** | Basic | Strong | Expert | Base + style |
-| **Creativity** | Limited | Good | Excellent | Constrained |
-| **Consistency** | High | Medium | Medium | Very High |
-| **Volume Suitability** | Excellent | Good | Poor | Good |
-| **Exam Signal** | "cost-effective", "high-throughput" | "balance", "general" | "complex", "nuanced" | "format", "domain" |
-
-### When to Consider Customization
-
-**Fine-tuning is NOT needed when:**
-- Prompt engineering achieves acceptable results
-- The task is straightforward classification/extraction
-- You're experimenting with different approaches
-- Your dataset is small (<100 high-quality examples)
-
-**Fine-tuning IS appropriate when:**
-- You need specific output formats consistently
-- You want a distinctive brand voice
-- Prompt engineering has hit diminishing returns
-- You have 500+ high-quality training examples
-
-**Continued pre-training when:**
-- You have domain-specific terminology
-- Base models lack knowledge of your domain
-- You have thousands of domain documents
-- Factual accuracy in your domain is critical
+> **Exam cue:** Changing filings / citations → RAG. “Consistent format / brand voice / labeled pairs” → fine-tune after prompts fail. “Swap adapters” → LoRA. “Version and roll back” → Model Registry + canary. Teacher imitated ahead of time → distillation, not prompt routing.
 
 ---
 
-## Exam Tips
+## Easy-to-confuse pairs
 
-| When you see... | Think... |
-|-----------------|----------|
-| "MOST cost-effective" | Start with the smallest model that works. Classification, extraction, simple summarization → Haiku. Consider cascading for mixed workloads. |
-| "change models without deployment" | AWS AppConfig (or Parameter Store for simpler cases). Configuration-driven selection. |
-| "high availability" or "resilience" | Cross-Region Inference with **inference profile ARN**. Automatic regional failover. |
-| "complex reasoning" or "nuanced analysis" | Larger models (Sonnet, Opus). These tasks justify the cost. |
-| "specific format" or "consistent style" | Fine-tuning with example input-output pairs. |
-| "multiple specialized behaviors from one model" | LoRA adapters — swap at inference time without loading different models. |
-| "model versioning" or "approval workflow" | SageMaker Model Registry for formal version tracking and deployment gates. |
-| "rollback to previous model" | Canary deployment + AppConfig routing. Keep previous version deployed. |
-| "domain knowledge" or "proprietary terminology" | Continued pre-training with domain documents. |
-| "current information" or "proprietary documents" | RAG (not fine-tuning). Fine-tuning doesn't add retrievable knowledge. |
-| "compare models objectively" | Bedrock Model Evaluation with **JSONL test dataset**. |
-| "RAG quality" or "hallucination detection" | RAG metrics: **context relevance**, **faithfulness**, **groundedness**. |
-| "data residency" or "compliance" | Cross-Region Inference respects geographic boundaries (US→US, EU→EU). |
-| "evaluate at scale" | **LLM-as-a-judge** for faster evaluation than human review. |
+### Leaderboard vs your eval set
+
+Leaderboard = shortlist. Your JSONL + Bedrock evaluations = purchase. A #1 model that is missing from the Region is not a candidate.
+
+### Smallest that meets the floor vs most capable
+
+90% required, Haiku 91%, Sonnet 95% → Haiku unless the stem raised the floor or the latency/cost of Sonnet is still inside budget *and required*.
+
+### AppConfig vs inference profile vs prompt routing
+
+| Stem language | Control |
+|---------------|---------|
+| Swap writers, no deploy | AppConfig |
+| Same FM, other Region, 429 | Inference profile / CRI |
+| Easy vs hard, same family, at ask time | Prompt routing |
+
+### On-demand vs Provisioned Throughput vs CRI
+
+Spiky → tokens. Steady hot (or custom with no on-demand path) → PT. Peak 429 same FM → CRI. PT is not a 429 button you press for three hours.
+
+### Retry vs circuit breaker vs fallback vs degrade
+
+Blip → retry + jitter. Repeated failure → breaker. Different model → fallback. Generation gone → retrieved passages / cache.
+
+### RAG vs fine-tune vs continued pretraining vs distillation
+
+Facts / freshness / citations → RAG. Behavior from labels → SFT. Unlabeled domain text → CPT. Cheap model imitating a teacher **before** runtime → distill. Cheap vs large **at** runtime → prompt routing.
+
+### Converse vs “any model will do”
+
+Shared envelope. Re-eval after every pointer change.
+
+### Custom Model Deployment vs CRI
+
+Supported custom models can be on-demand via a deployment ARN. They still cannot use Cross-Region inference.
+
+```quickcheck
+Q: Which pair is correct?
+A: CRI changes the writer; AppConfig changes the Region
+B: CRI changes the Region (same FM); AppConfig changes the writer
+C: Prompt routing is extra quota for one FM
+correct: B
+feedback: Region vs model vs your config. Prompt routing is easy-vs-hard inside a family, not spare TPS for Sonnet.
+```
 
 ---
 
-## Key Takeaways
+## Exam recognition
 
-> **1. Match model size to task complexity.**
-> Big models for simple tasks waste money. Classification, extraction, and simple Q&A don't need Opus-level reasoning. Most production workloads can use smaller models for 80%+ of requests.
+| When you see… | Think… |
+|----------------|--------|
+| MOST cost-effective / simple extraction / classification | Smallest FM that already passed *your* eval; on-demand |
+| Compare models objectively / JSONL / your prompts | Bedrock Model Evaluations |
+| Change models without deployment | AppConfig (Parameter Store if they simplify) |
+| Too many requests, same FM, residency | Geographic inference profile |
+| Easy vs hard, same family, save money live | Intelligent prompt routing |
+| Known failover steps, no extra tools | Step Functions |
+| Stop hammering a sick dependency | Circuit breaker |
+| Generation down, still show something | Degrade to retrieval / cache |
+| This week’s 10-K / citations / changing docs | RAG, not fine-tune |
+| Consistent JSON / brand voice after prompts failed | Fine-tune |
+| Multiple behaviors, swap extra weights | LoRA |
+| Teacher → cheaper student ahead of time | Distillation |
+| Version, approve, 5% traffic, roll back | Model Registry + canary |
+| Active / Legacy / EOL | Migrate the AppConfig pointer; re-eval |
 
-> **2. Test with YOUR data.**
-> Bedrock Model Evaluations compares models objectively using your actual use cases, not generic benchmarks. Build representative datasets and automate regular evaluation.
+Walk every stem with:
 
-> **3. Use configuration, not code.**
-> AWS AppConfig enables model switching without deployment. Gradual rollouts, automatic rollback, environment-specific configs. Never hardcode model IDs.
-
-> **4. Cross-Region Inference is free resilience.**
-> Use inference profile ARNs instead of model IDs and get automatic regional failover without architectural complexity. Data stays within geographic boundaries for compliance.
-
-> **5. Prompt engineering before fine-tuning.**
-> Many "I need to fine-tune" situations are actually "I need better prompts." Prompts iterate instantly and cost nothing; fine-tuning takes weeks and thousands of dollars.
+```text
+Which knob?  pick | pointer | capacity | fail | customize
+Then the AWS control that turns THAT knob.
+```
 
 ---
 
-## Common Mistakes
+## AWS service glossary
 
-| Mistake | Why It Matters |
-|---------|----------------|
-| **Defaulting to the biggest model** | Haiku handles most classification and extraction tasks. Using Opus costs 15x more for no benefit on simple tasks. |
-| **Fine-tuning before exhausting prompt options** | Fine-tuning takes weeks and costs thousands. Better prompts often solve the problem for free. |
-| **Fine-tuning when RAG is the right answer** | Fine-tuning embeds behavior, not retrievable knowledge. If you need current/proprietary data, RAG is the answer. |
-| **No model versioning or rollback plan** | Custom models can regress. Without version tracking (SageMaker Model Registry) and rollback capability, you're stuck with a bad model. |
-| **Full fine-tuning when LoRA adapters would work** | LoRA is faster, cheaper, and lets you swap behaviors at inference time. Only use full fine-tuning when LoRA doesn't achieve target quality. |
-| **Single-region deployment** | When that region has issues, your app goes down. Cross-Region Inference is a simple configuration change that adds automatic failover. |
-| **Hardcoding model IDs** | You'll need to redeploy every time you want to switch models. Configuration-driven selection lets you switch instantly. |
-| **No fallback plan** | Models fail, regions go down. Without graceful degradation, your users see errors instead of reduced functionality. |
+Lookup cards for Task 1.2. Pricing is the **meter**, not a dollar amount that will be wrong next quarter.
+
+### GenAI / AI
+
+#### Amazon Bedrock Runtime / Converse
+
+**What it is.** The invoke API. `Converse` / `ConverseStream` is the unified messages shape.
+
+**Problem it solves.** Call FMs without owning GPUs; swap providers without rewriting JSON per vendor.
+
+**Where it sits.** Lambda / app → Runtime. `modelId` is a foundation-model ID or an inference-profile / deployment ARN.
+
+**Typical use.** Desk chat, RAG generation, classification.
+
+**Pricing.** Input and output tokens of the chosen model (or MUs if PT).
+
+**Exam cue.** Start here, not model-specific `InvokeModel` JSON, unless the stem forces it.
+
+**Do not confuse with.** A guarantee that every model is interchangeable.
+
+#### Foundation models on Bedrock
+
+**What it is.** Pretrained models you invoke by model ID or profile.
+
+**Problem it solves.** Generation, embeddings, rerank — without training from scratch.
+
+**Where it sits.** Behind Runtime.
+
+**Typical use.** Haiku for the blotter if it clears 90%; larger only if the floor requires it.
+
+**Pricing.** Per model, input vs output tokens.
+
+**Exam cue.** Match modality, window, Region, tools, KB — then score on *your* set.
+
+**Do not confuse with.** A custom model (different artifact, different capacity rules, no CRI).
+
+#### Bedrock model evaluations
+
+**What it is.** Managed jobs: automatic metrics, human raters, LLM-as-judge, on *your* prompt dataset.
+
+**Problem it solves.** Compare candidates without a folklore bake-off.
+
+**Where it sits.** Before you write the AppConfig pointer, and again after you change it.
+
+**Typical use.** 100 versioned analyst questions; quality + latency + cost + safety.
+
+**Pricing.** Judge / model tokens plus any human loop.
+
+**Exam cue.** “Compare models on our data,” JSONL, not a public leaderboard.
+
+**Do not confuse with.** CloudWatch (health) or a training job.
+
+#### On-demand inference
+
+**What it is.** Shared capacity, pay per token, no reservation.
+
+**Problem it solves.** Unpredictable or low/variable traffic.
+
+**Where it sits.** Default invoke path.
+
+**Typical use.** Internal desk; earnings spike (often plus CRI).
+
+**Pricing.** Tokens. Idle is free.
+
+**Exam cue.** “Do not pay for idle,” “unpredictable usage.”
+
+**Do not confuse with.** PT (you pay at 3am) or batch (hours, not interactive).
+
+#### Inference profiles / Cross-Region inference
+
+**What it is.** A handle (`us.…`, `eu.…`, global) you pass as `modelId` so Bedrock may use another Region’s spare capacity **for the same FM**.
+
+**Problem it solves.** Peak 429s and Regional blips without you coding failover.
+
+**Where it sits.** On the Converse/Invoke call.
+
+**Typical use.** Earnings-day `Too many requests` in one US Region.
+
+**Pricing.** Tokens at the source Region’s price; no extra “router fee.”
+
+**Exam cue.** Same FM, least ops, stay in geography → `us.` / `eu.` profile, not global under residency.
+
+**Do not confuse with.** Prompt routing (different models) or AppConfig (your pointer).
+
+#### Intelligent prompt routing
+
+**What it is.** Bedrock picks a small or large model in a **supported family** at ask time.
+
+**Problem it solves.** Cost / quality on mixed easy-vs-hard traffic.
+
+**Where it sits.** Alternate `modelId` (router), not extra quota for one FM.
+
+**Typical use.** Summaries vs hard compares in the same family.
+
+**Pricing.** Tokens of whichever model ran.
+
+**Exam cue.** Easy vs hard, same family, runtime.
+
+**Do not confuse with.** CRI, distillation, or AppConfig task routing.
+
+#### Custom Model Deployment
+
+**What it is.** On-demand invoke of a *supported* custom model via deployment ARN as `modelId`.
+
+**Problem it solves.** Variable traffic on a fine-tune without buying idle MUs (when the path exists).
+
+**Where it sits.** Custom artifact → Runtime.
+
+**Typical use.** Fine-tuned JSON formatter with spiky desk traffic.
+
+**Pricing.** Tokens.
+
+**Exam cue.** Custom + variable traffic. Still **no CRI**.
+
+**Do not confuse with.** PT (dedicated MUs) or importing a random GGUF as a default.
+
+#### Prompt caching
+
+**What it is.** Reuse of the computed prefix for a supported, repeated prompt prefix.
+
+**Problem it solves.** Long stable system / methodology tokens that do not change per question.
+
+**Where it sits.** On the invoke, when the model and prefix qualify.
+
+**Typical use.** 40K IR boilerplate + a short analyst question.
+
+**Pricing.** Discounted cached input tokens vs full re-read.
+
+**Exam cue.** Cache the static prefix, not the completion.
+
+**Do not confuse with.** ElastiCache of yesterday’s answer.
+
+### Application / config
+
+#### AWS AppConfig
+
+**What it is.** Application configuration with staged rollout and optional alarm-based rollback.
+
+**Problem it solves.** Change `modelId` / aliases without a code deploy.
+
+**Where it sits.** Lambda reads it at runtime.
+
+**Typical use.** `prod` / `cheap` / `fallback` pointers.
+
+**Pricing.** AppConfig API / poll — not model tokens.
+
+**Exam cue.** “Without redeploying,” gradual model switch, auto rollback.
+
+**Do not confuse with.** Inference profiles (Region) or Parameter Store (plain parameter, no strategy).
+
+#### Parameter Store
+
+**What it is.** Hierarchical parameters (often a model ID string).
+
+**Problem it solves.** Simple externalized config.
+
+**Where it sits.** Same place AppConfig would — the app reads a name.
+
+**Typical use.** Small apps; exam may accept it as the simpler 1.2.2 cousin.
+
+**Pricing.** Standard / advanced parameters.
+
+**Exam cue.** Externalize the ID. Prefer AppConfig when they mention gradual rollout or alarm rollback.
+
+**Do not confuse with.** Secrets Manager (credentials, not model routing).
+
+### Integration / orchestration
+
+#### AWS Step Functions
+
+**What it is.** Managed state machines.
+
+**Problem it solves.** A **known** retry / fallback / degrade graph.
+
+**Where it sits.** Around Bedrock invokes.
+
+**Typical use.** Primary → backoff → fallback → cache.
+
+**Pricing.** State transitions.
+
+**Exam cue.** Failover path already written; model must not invent steps.
+
+**Do not confuse with.** Agents (dynamic tools) or EventBridge Scheduler (cron).
+
+#### SageMaker Model Registry
+
+**What it is.** Versioned model packages with approval states for CI/CD.
+
+**Problem it solves.** Lineage and a pointer you can roll back.
+
+**Where it sits.** After customize + offline eval, before canary.
+
+**Typical use.** custom-v3 approved → 5% traffic.
+
+**Pricing.** SageMaker control plane; hosting is separate.
+
+**Exam cue.** Version, approve, roll back. Not the eval dataset itself.
+
+**Do not confuse with.** Bedrock Prompt Management (prompts, not weight artifacts).
+
+---
+
+## Practice questions
+
+Pick an answer on every stem. The explanation appears after you choose — later questions stay unspoiled until you answer them.
+
+```practice
+Q: Three Bedrock chat models are scored on 100 real analyst questions. Quality floor is ≥90% grounded accuracy. Nova Lite scores 86% at $0.006/query, Haiku 91% at $0.009, Sonnet 95% at $0.041. Which pick matches Skill 1.2.1?
+A: Sonnet, because it has the highest accuracy
+B: Haiku — cheapest model that clears the quality floor
+C: Nova Lite, because it is the cheapest
+D: Average the three scores and pick at random
+correct: B
+feedback: Pick the smallest / cheapest model that meets the floors, not the smartest on the shelf. Nova Lite misses 90%. Sonnet is extra quality you did not require.
+
+Q: A blog leaderboard ranks Model X first for “reasoning.” Model X is not in `eu-west-1`, and it cannot call tools. The workload must stay in the EU and must use tools. What should you do?
+A: Choose Model X anyway; leaderboards are authoritative
+B: Fine-tune Model X so it gains tool use
+C: Drop Model X from the shortlist; catalog fit (Region, features) is a selection gate
+D: Use a global inference profile so Model X can run in Ireland
+correct: C
+feedback: Public benchmarks shortlist; they do not purchase. A model that cannot run in the required Region or attach the required features is not a candidate. Global CRI does not invent tool APIs or EU residency.
+
+Q: You must compare two Bedrock models on *your* research prompts, with automatic metrics plus a human slice. Which service is the systematic Bedrock path?
+A: CloudWatch Logs Insights on Lambda timeouts
+B: Amazon Bedrock model evaluations with a versioned prompt dataset (JSONL)
+C: SageMaker training jobs invoked per user question
+D: A public LMSYS arena screenshot attached to the design review
+correct: B
+feedback: 1.2.1 is evaluation on your data. Bedrock evaluations (automatic / human / LLM-as-judge) are the platform path. CloudWatch is health. Training per question is not eval. Leaderboards are not your blotter.
+
+Q: The task is extracting four JSON fields from a 600-word earnings paragraph. Usage is sporadic. Leadership wants the MOST cost-effective design that still extracts correctly. What is the default?
+A: The largest available chat model, because extraction is “reasoning”
+B: A small, fast model that already meets the extraction eval, on-demand
+C: Provisioned Throughput on Opus so latency is guaranteed
+D: Fine-tune before you have measured a base model
+correct: B
+feedback: Match size to task. Classification / extraction often do not need the largest FM. Sporadic traffic → on-demand, not reserved MUs. Fine-tune is a later lever.
+
+Q: Friday’s decision is “swap Sonnet for Haiku in production this afternoon.” No code change, no new Lambda zip. Which control plane is the exam default?
+A: Hardcode the new model ID and redeploy
+B: AWS AppConfig (or Parameter Store) holding the production `modelId`
+C: A new SageMaker endpoint for every swap
+D: Edit 17 environment variables by hand in the console and hope they match
+correct: B
+feedback: Skill 1.2.2 is dynamic selection without a code change. AppConfig is the named pattern (gradual rollout, alarm-based rollback). Parameter Store is the simpler cousin. Hardcoding IDs is the trap.
+
+Q: An application uses Converse, so the team plans to change `modelId` from a tool-calling chat model to a cheap embedding model “because Converse is provider-agnostic.” Why is this wrong?
+A: Converse is a shared message envelope; it does not make every model identical
+B: Embeddings cannot be invoked in any AWS Region
+C: You must always use InvokeModel JSON, never Converse
+D: AppConfig cannot store embedding model IDs
+correct: A
+feedback: Blind ID swaps are an exam trap. Context windows, modalities, tools, and feature attach still differ. Re-evaluate the candidate on the same eval set after you change the pointer.
+
+Q: On earnings morning, on-demand Bedrock in `us-east-1` returns “Too many requests.” Legal requires the **same** FM and US-only processing. Least new machinery?
+A: Intelligent prompt routing across a model family
+B: A US geographic inference profile (Cross-Region inference)
+C: Buy Provisioned Throughput sized to the peak, 24 hours a day
+D: Rewrite the client to retry `eu-west-1`
+correct: B
+feedback: Same FM, peak throttle, US residency, least ops → US CRI. Prompt routing changes models. PT pays for idle. EU retry breaks residency.
+
+Q: Traffic is easy summaries mixed with hard compares. You want Bedrock to pick a small or large model **in the same family at ask time** to save money. Which feature is that?
+A: Cross-Region inference
+B: Intelligent prompt routing
+C: Provisioned Throughput
+D: SageMaker Model Registry
+correct: B
+feedback: Prompt routing = model (easy vs hard), same family. CRI = Region, same FM. PT = reserved capacity. Registry = custom-model lifecycle.
+
+Q: Primary model calls are failing repeatedly. Immediate retries make timeouts worse. You need to stop sending traffic, wait, then probe. Which pattern?
+A: Cross-Region inference
+B: A circuit breaker (CLOSED → OPEN → HALF-OPEN)
+C: Fine-tuning the primary so it never fails
+D: Raising temperature
+correct: B
+feedback: Circuit breaker is for repeated failure — stop hammering. CRI is spare Regional capacity for the same FM. Retry with backoff is for a blip, not a stuck outage. Fine-tune and temperature are unrelated.
+
+Q: The failover path is already written: invoke primary → retry on 429/5xx → fallback model from AppConfig → return cached passages. The model must not invent extra steps. Which orchestration fits Skill 1.2.3?
+A: An unconstrained agent with a “try something else” tool
+B: AWS Step Functions with Bedrock/Lambda tasks
+C: EventBridge Scheduler every hour until someone notices
+D: A SageMaker training job
+correct: B
+feedback: Known graph → Step Functions (the skill’s named service). Agents choose tools. A scheduler is not conditional failover. Training is not inference resilience.
+
+Q: Generation is completely down. Retrieved 10-K chunks are still available. What is graceful degradation?
+A: Return a blank 500 and wait
+B: Return the retrieved passages (or last night’s cached summary) so the UI is not empty
+C: Fine-tune overnight so the outage never happens
+D: Switch to a global inference profile even though data must stay in the EU
+correct: B
+feedback: Degrade = generation gone, still show something useful. Blank 500 fails the skill. Fine-tune is not an incident response. Global CRI can break residency.
+
+Q: You need to change writers (Sonnet → Haiku) for the research desk without a deploy, then confirm quality. Which pair is correct?
+A: Inference profile only — CRI changes the model for you
+B: AppConfig pointer + re-run the same eval set
+C: Prompt routing, because it always picks Haiku
+D: Custom Model Import
+correct: B
+feedback: Application routing lives in AppConfig. CRI does not change the writer. Prompt routing is easy-vs-hard at runtime inside a family, not “always Haiku.” Then re-eval; do not assume the cheaper model still clears the floor.
+
+Q: IR wants answers grounded in this quarter’s 10-Ks. Filings change when exhibits are posted. A teammate proposes fine-tuning on all historical 10-Ks. What is the right knowledge path?
+A: Fine-tune — that embeds the filings in the weights
+B: RAG / Knowledge Bases — facts stay in the library
+C: Increase temperature so the model “remembers” better
+D: Continued pre-training on last year’s 10-Ks only
+correct: B
+feedback: Fine-tune (and CPT) change behavior / domain adaptation; they do not keep a live library with citations. Changing private filings → retrieve. Temperature is decoding, not memory.
+
+Q: The team has not tried few-shot prompts, clearer instructions, or splitting the task. They want to start a Bedrock fine-tune this week because “custom always wins.” What first?
+A: Fine-tune immediately; prompts are not an AWS feature
+B: Exhaust prompt engineering; it is faster and cheaper than a training job
+C: Import a GGUF model and buy Provisioned Throughput
+D: Train a 70B model from scratch on SageMaker
+correct: B
+feedback: Prompt first is the golden rule of 1.2.4. Fine-tune when labeled behavior still fails after serious prompt work. From-scratch training and a rushed import are not the default.
+
+Q: You need several specialized behaviors from one base FM and want to swap them at inference without loading a whole new model. Which customization shape?
+A: Full fine-tune of every weight for each behavior, always
+B: LoRA / adapters — thin extra weights, swap at inference
+C: RAG with `K=40` and no eval
+D: Cross-Region inference
+correct: B
+feedback: LoRA is the parameter-efficient, swappable adapter path the skill names. Full fine-tune is heavier. RAG is facts. CRI is capacity.
+
+Q: A new custom model v3 passed offline eval. How should it meet production traffic?
+A: Hard cut 100% of traffic to v3 and delete v2
+B: Register it, canary or blue-green, watch metrics, roll back to v2 if unhealthy
+C: Put the new ID in 17 Lambdas by hand
+D: Skip the registry; custom models cannot be versioned
+correct: B
+feedback: 1.2.4 is the lifecycle: SageMaker Model Registry + reversible deploy (canary / blue-green) + rollback. Hard cuts and hardcoded IDs are how you get stuck on a bad model.
+
+Q: You want a cheaper model to *imitate* a larger teacher **before** runtime. Separate from Bedrock picking small vs large at ask time. What is the training lever?
+A: Intelligent prompt routing
+B: Distillation (teacher generations → student training)
+C: Cross-Region inference
+D: An S3 gateway VPC endpoint
+correct: B
+feedback: Distillation trains the cheap model ahead of time. Prompt routing *picks* cheap vs large live. CRI is Region. A gateway endpoint is S3/DynamoDB networking.
+
+Q: Load is a three-hour earnings spike, then idle overnight. Custom weights are not involved. Finance refuses to pay for reserved Model Units at 3am. Which capacity approach?
+A: Provisioned Throughput with a six-month commit
+B: On-demand tokens, plus Cross-Region inference if the Region throttles
+C: Always-on SageMaker ml.p4d nodes
+D: EKS GPU nodes at peak size, 24×7
+correct: B
+feedback: Spiky / unknown → on-demand. CRI relieves same-FM throttle. PT and warm GPUs pay for a floor you do not have overnight.
+```
+
+---
+
+## Final compressed review
+
+### What are the four knobs?
+
+1. **Pick** — cheapest FM that clears *your* floors (capability + ops + platform, then eval).
+2. **Point** — AppConfig / Parameter Store. Converse is an envelope. Re-eval after every swap.
+3. **Run / fail** — on-demand, CRI, PT, prompt routing as capacity; retry → CRI → breaker → fallback → degrade via Step Functions.
+4. **Customize** — behavior, not this week’s 10-K. Prompt first. Then SFT / LoRA / distill / CPT. Registry, canary, rollback, Active→Legacy→EOL.
+
+### What requirement words should trigger what choices?
+
+Your dataset / JSONL → **Bedrock evaluations**. Cost-effective extraction → **small on-demand FM**. No deploy → **AppConfig**. Same FM 429 + residency → **geographic CRI**. Easy vs hard same family → **prompt routing**. Known failover graph → **Step Functions**. Stop hammering → **circuit breaker**. Generation dead → **degrade**. Changing 10-Ks → **RAG**. Format/voice after prompts fail → **fine-tune**. Swap thin weights → **LoRA**. Teacher ahead of time → **distill**. Version and undo → **Model Registry + canary**.
+
+### What mistakes is AWS trying to tempt you into making?
+
+Opus for four JSON fields. Leaderboard as a purchase order. Hardcoded model IDs. Prompt routing when the stem is same-FM throttle. PT for a three-hour spike. An agent for a written failover. Fine-tune for tomorrow’s exhibit. Distillation confused with routing. Hard-cut custom v3 with no rollback. Global CRI under an EU wall.
+
+If you can walk the blotter out loud — Haiku if it clears 90%, ID in AppConfig, on-demand + `us.` profile, Step Functions around failure, facts in the KB not the weights — you are doing Task 1.2.

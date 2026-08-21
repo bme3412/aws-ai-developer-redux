@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import CodeBlockEnhanced from '@/components/learn/CodeBlockEnhanced';
@@ -9,7 +9,9 @@ import RecallCard from '@/components/learn/RecallCard';
 import FillInTheBlank from '@/components/learn/FillInTheBlank';
 import QuickCheck from '@/components/learn/QuickCheck';
 import { generateSlug } from '@/lib/markdown-utils';
-import { parseRecallCard, parseFillIn, parseQuickCheck } from '@/lib/active-learning-parsers';
+import { parseRecallCard, parseFillIn, parseQuickCheck, parseGlossaryCard, parsePracticeQuiz, liftGlossaryEntries } from '@/lib/active-learning-parsers';
+import GlossaryCard, { GlossaryGroup } from '@/components/learn/GlossaryCard';
+import PracticeQuiz from '@/components/learn/PracticeQuiz';
 
 interface MarkdownArticleProps {
   content: string;
@@ -42,6 +44,8 @@ function extractTextFromBlockquote(node: React.ReactNode): string {
 }
 
 export default React.memo(function MarkdownArticle({ content }: MarkdownArticleProps) {
+  const rendered = useMemo(() => liftGlossaryEntries(content), [content]);
+
   return (
     <article className="prose prose-gray max-w-none">
       <ReactMarkdown
@@ -90,7 +94,7 @@ export default React.memo(function MarkdownArticle({ content }: MarkdownArticleP
             const match = /language-(\w+)/.exec(className || '');
             if (match) {
               const language = match[1];
-              const code = String(children).replace(/\n$/, '');
+              const code = (Array.isArray(children) ? children.join('') : String(children)).replace(/\n$/, '');
 
               if (language === 'recall') {
                 return <RecallCard {...parseRecallCard(code)} />;
@@ -100,6 +104,15 @@ export default React.memo(function MarkdownArticle({ content }: MarkdownArticleP
               }
               if (language === 'quickcheck') {
                 return <QuickCheck {...parseQuickCheck(code)} />;
+              }
+              if (language === 'practice') {
+                return <PracticeQuiz items={parsePracticeQuiz(code)} />;
+              }
+              if (language === 'glossary') {
+                return <GlossaryCard entry={parseGlossaryCard(code)} />;
+              }
+              if (language === 'glossarygroup') {
+                return <GlossaryGroup title={code.trim()} />;
               }
 
               return <CodeBlockEnhanced language={language} code={code} />;
@@ -140,10 +153,17 @@ export default React.memo(function MarkdownArticle({ content }: MarkdownArticleP
           blockquote: ({ children }) => {
             const textContent = extractTextFromBlockquote(children);
             const calloutType = detectCalloutType(textContent);
+            if (calloutType) {
+              return (
+                <ExamTipCallout type={calloutType}>
+                  {children}
+                </ExamTipCallout>
+              );
+            }
             return (
-              <ExamTipCallout type={calloutType}>
+              <blockquote className="not-prose my-5 border-l-4 border-gray-400 bg-slate-50 rounded-r-lg px-5 py-3.5 text-gray-800 leading-relaxed [&>p]:m-0 [&>p+p]:mt-2">
                 {children}
-              </ExamTipCallout>
+              </blockquote>
             );
           },
 
@@ -163,7 +183,7 @@ export default React.memo(function MarkdownArticle({ content }: MarkdownArticleP
           ),
         }}
       >
-        {content}
+        {rendered}
       </ReactMarkdown>
     </article>
   );

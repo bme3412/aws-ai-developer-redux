@@ -1,1228 +1,855 @@
-# Model Deployment Strategies
+# Task 2.2 — Implement Model Deployment Strategies
 
-**Domain 2 | Task 2.2 | ~45 minutes**
+**Domain 2 · Skills 2.2.1–2.2.3**
+
+The easiest way to misunderstand this task is to think:
+
+> Deployment means putting a model on a server.
+
+For GenAI, deployment is a **capacity-and-serving architecture** problem:
+
+> Which model should serve this workload, who manages the infrastructure, how much capacity do I need, and how do I meet latency and throughput requirements without wasting money?
+
+The AIP-C01 blueprint frames three skills: choose the deployment strategy, handle what makes LLM infrastructure different from ordinary ML, and optimize the model/capacity mix.
+
+By the end you should be able to answer, out loud:
+
+> Given this workload, should I invoke a managed foundation model or host one myself — and how do I serve it efficiently without buying more model or GPU than the task needs?
+
+One application runs through every section.
+
+> **Technology Investment Research Copilot.** Analysts ask questions about earnings calls, internal research, valuation, competitors, and portfolio companies — including: “What changed in the investment thesis on AMD over the last two quarters?”
+
+That request is not one kind of work. Ticker lookup, transcript summary, and thesis judgment have different model, latency, and capacity needs. Task 2.2 is how you serve all of them.
+
+> **Exam tip:** The blueprint names **Lambda for on-demand invocation**, **Bedrock Provisioned Throughput**, **SageMaker AI endpoints for hybrid solutions**, **container-based patterns** (memory, GPU, token processing, specialized loading), and **smaller models plus API-based cascading**. Teach the architecture first. Map those names second.
 
 ---
 
-## Why This Matters
+## Deployment is not “put it on a server”
 
-Every foundation model application faces a fundamental question: **how do you run the model?** The answer determines your cost structure, latency profile, operational burden, and ultimately whether your application succeeds in production.
+A 50 MB classifier on a CPU is a hosting problem. A foundation model is a **capacity** problem: tokens, concurrency, GPU memory, and who pays when nobody is asking questions.
 
-Consider this scenario: A startup launches a customer service chatbot using Lambda with Bedrock on-demand. Perfect for development—zero infrastructure, pay only for what you use. Six months later, they're processing 50,000 conversations daily. On-demand pricing now costs $15,000/month. Switching to provisioned throughput would cut that to $8,000. But they didn't architect for it, and migration requires significant refactoring.
-
-The reverse mistake is equally costly. An enterprise provisions massive capacity for a projected rollout, pays $25,000/month for guaranteed throughput, then discovers adoption is slower than expected. They're utilizing 15% of paid capacity while burning budget.
-
-**Model deployment isn't a one-time decision—it's an evolving strategy** that should match your application's lifecycle:
-- **Development**: On-demand for experimentation
-- **Early production**: On-demand with monitoring
-- **Growth**: Evaluate provisioned throughput economics
-- **Scale**: Optimize with cascading, batch processing, and committed capacity
-
-This section covers the full spectrum: from the simplest Lambda-based deployments through enterprise-grade container orchestration, including the optimization patterns that separate cost-effective systems from money pits.
-
----
-
-## Under the Hood: How Model Deployment Actually Works
-
-Understanding what happens behind the scenes helps you make better deployment decisions and debug issues when they arise.
-
-### Bedrock On-Demand: The Shared Pool
-
-When you call Bedrock without provisioned throughput, you're using **shared infrastructure**:
+If you start with “SageMaker or Bedrock?” you will skip the questions that actually pick the architecture.
 
 ```mermaid
-graph TD
-    subgraph "Your Account"
-        A[Your Application]
-    end
-
-    subgraph "Bedrock Shared Infrastructure"
-        B[Request Queue]
-        C[Load Balancer]
-        D[Model Instance Pool]
-        E[GPU 1: Claude]
-        F[GPU 2: Claude]
-        G[GPU 3: Claude]
-        H[GPU N: Claude]
-    end
-
-    A -->|API Call| B
-    B --> C
-    C --> D
-    D --> E
-    D --> F
-    D --> G
-    D --> H
-
-    I[Other Customer 1] -->|API Call| B
-    J[Other Customer 2] -->|API Call| B
-    K[Other Customer N] -->|API Call| B
+flowchart TD
+    Q1[What MODEL do I need?] --> Q2[Who should HOST or manage it?]
+    Q2 --> Q3[What does DEMAND look like?]
+    Q3 --> Q4[What LATENCY and THROUGHPUT do I need?]
+    Q4 --> Arch[Deployment architecture]
 ```
 
-**What this means:**
-- Your requests compete with all other AWS customers for the same GPU pool
-- During high demand, you may be throttled (`ThrottlingException`)
-- Latency varies based on current pool utilization
-- AWS manages all scaling, maintenance, and availability
-- You pay only for tokens consumed—nothing during idle time
+| Answers | First architecture |
+|---------|-------------------|
+| Occasional analyst query + commercial FM + traffic varies + no GPU ownership | **Bedrock on-demand** |
+| Hundreds of concurrent users + known FM + sustained predictable load + dedicated capacity | **Bedrock Provisioned Throughput** |
+| Custom / open-weight model + special inference libraries + GPU and container control | **SageMaker AI endpoint** (or containers you operate) |
 
-### Bedrock Provisioned Throughput: Dedicated Capacity
+That table is Skill 2.2.1. The rest of the task is why LLMs make those choices harder, and how not to over-serve.
 
-With provisioned throughput, you get **dedicated model units** that only serve your requests:
+---
+
+## Invoke versus host
+
+Get this distinction down before any service name. It explains most of Task 2.2.
+
+**Managed model invocation (Amazon Bedrock)**
+
+```text
+Your application
+      ↓
+Bedrock API  (Converse / ConverseStream / InvokeModel)
+      ↓
+Foundation model
+```
+
+AWS operates the inference infrastructure. Your application does **not** load weights onto a GPU. You **invoke**. AWS currently recommends **Converse** / **ConverseStream** for conversational apps because the interface is consistent across supported models; `InvokeModel` is the lower-level path.
+
+**Model hosting (SageMaker AI)**
+
+```text
+Model artifacts + container + compute
+      ↓
+SageMaker endpoint
+      ↓
+Your application invokes the endpoint
+```
+
+Now you care about container image, GPU type and memory, instance count, model loading, inference engine, batching, and model parallelism. SageMaker provisions infrastructure and deploys artifacts onto it. **Inference components** can pin CPU / accelerator / memory per model and let more than one model share an endpoint.
+
+> **Mental shortcut:** Bedrock = invoke a managed FM. SageMaker = deploy and operate a model-serving endpoint.
+
+```recall
+Q: An analyst hits Claude twice per hour through a Lambda. Where is Claude deployed?
+A: Not on Lambda. Lambda is application compute. Inference runs in Amazon Bedrock.
+```
+
+---
+
+## The AMD copilot architecture
+
+Keep this picture. Each skill is a labeled piece of the same system.
 
 ```mermaid
-graph TD
-    subgraph "Your Account"
-        A[Your Application]
-    end
-
-    subgraph "Your Provisioned Capacity"
-        B[Your Load Balancer]
-        C[Model Unit 1]
-        D[Model Unit 2]
-        E[Model Unit 3]
-    end
-
-    subgraph "Bedrock Shared Pool"
-        F[Shared Capacity]
-    end
-
-    A -->|API Call| B
-    B --> C
-    B --> D
-    B --> E
-
-    G[Other Customers] --> F
+flowchart TB
+    Analyst[Analyst] --> API[API / Lambda]
+    API --> Router["Route or cascade · 2.2.3"]
+    Router -->|ticker, dates, easy extract| Small[Small / cheap FM]
+    Router -->|thesis, synthesis| Bedrock["Bedrock FM · 2.2.1"]
+    Router -->|custom financial extractor| SM["SageMaker endpoint · 2.2.1 / 2.2.2"]
+    Bedrock --> Cap{Demand?}
+    Cap -->|variable| OD[On-demand]
+    Cap -->|earnings burst| CRI[Cross-Region inference profile]
+    Cap -->|sustained enterprise| PT[Provisioned Throughput]
+    SM --> LMI["LMI container · GPUs · 2.2.2"]
 ```
 
-**What this means:**
-- Dedicated GPU capacity reserved for your account only
-- No competition with other customers—consistent latency
-- No throttling (within your provisioned capacity)
-- You pay hourly whether you use it or not
-- Capacity measured in "model units" (throughput per minute)
+Lambda is in the picture as **the app**, not as the place the 70B model lives.
 
-### SageMaker Endpoints: Full Infrastructure Control
+---
 
-SageMaker gives you actual EC2 instances running your model:
+## Skill 2.2.1 — Choose the right deployment strategy
+
+**The question this skill answers:** Given traffic, latency, model, and control requirements, how should I make inference available to my application?
+
+There is no universally correct deployment. You are balancing latency, throughput, cost, traffic predictability, model choice, infrastructure control, and operational complexity.
+
+**Concept.** Pick *where inference happens* and *how capacity is paid for*. Application compute (Lambda, containers, ECS) is a separate decision from model serving.
+
+**Mental model.** Shared elastic capacity versus reserved capacity versus “I run the GPUs.” Same cloud question as always; the unit of work is tokens, not HTTP hits.
+
+### Bedrock on-demand
+
+The copilot has 40 analysts. Most of the day: a few questions, idle, a small spike after earnings, idle again. Dedicated GPUs running all day are waste.
+
+The app invokes Bedrock only when someone asks. **Lambda is not hosting the foundation model.** Lambda receives the request, validates, calls Bedrock, and returns the result. Bedrock performs inference.
+
+**Good fit:** unpredictable traffic; low or moderate volume; experimentation; no dedicated-capacity requirement; teams that do not want to manage GPUs.
+
+> **Note:** Current Bedrock on-demand has **Flex / Standard / Priority** service tiers (cost vs availability vs throttling). The exam still thinks in **on-demand vs Provisioned Throughput**. Use tiers as current ops nuance, not as a replacement for that distinction.
+
+### On-demand bursts and cross-Region inference
+
+AMD reports at 4:15 PM. Fifty analysts hit “Summarize AMD earnings versus our thesis.” Traffic jumps.
+
+On-demand is still subject to **quotas** and peak availability. [Cross-Region inference profiles](https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html) route requests across Regions in a profile to increase available **on-demand** throughput (geographic profiles stay inside a geography; global profiles can route worldwide, often cheaper, with different residency implications).
 
 ```mermaid
-graph TD
-    subgraph "Your VPC"
-        A[Your Application]
-    end
-
-    subgraph "SageMaker Managed Infrastructure"
-        B[Endpoint]
-        C[Production Variant A - 90%]
-        D[Production Variant B - 10%]
-
-        subgraph "Variant A Instances"
-            E[ml.g5.2xlarge #1]
-            F[ml.g5.2xlarge #2]
-        end
-
-        subgraph "Variant B Instances"
-            G[ml.g5.2xlarge #1]
-        end
-    end
-
-    A --> B
-    B -->|90%| C
-    B -->|10%| D
-    C --> E
-    C --> F
-    D --> G
-
-    H[Auto Scaling] -.->|Scale 1-10| E
-    H -.->|Scale 1-10| F
+flowchart TD
+    App[Application] --> Prof[Inference profile]
+    Prof --> A[Region A]
+    Prof --> B[Region B]
+    Prof --> C[Region C]
 ```
 
-**What this means:**
-- You select instance types (GPU, memory, CPU)
-- You control scaling policies
-- You can run multiple model versions simultaneously (A/B testing)
-- You can deploy any model (not just Bedrock-supported ones)
-- You pay for instances running, not tokens consumed
-- More operational responsibility (updates, monitoring, capacity planning)
-
-### Why This Matters for Decision-Making
-
-| Aspect | On-Demand | Provisioned | SageMaker |
-|--------|-----------|-------------|-----------|
-| **Who manages GPUs?** | AWS completely | AWS, dedicated to you | AWS, configured by you |
-| **Capacity model** | Shared pool | Reserved capacity | Instance-based |
-| **Cold starts** | Possible (rare) | None | None (if instances running) |
-| **Model loading** | Pre-loaded | Pre-loaded | You control |
-| **Instance types** | Hidden | Hidden | You choose |
-| **Scaling** | Automatic (throttle) | Fixed (add units) | Auto-scaling policies |
-
----
-
-## Understanding the Deployment Landscape
-
-Before diving into specific patterns, understand the key dimensions that differentiate deployment options:
-
-### Deployment Decision Factors
-
-| Factor | Questions to Answer |
-|--------|---------------------|
-| **Model source** | Using Bedrock's models or your own trained models? |
-| **Traffic pattern** | Predictable steady-state or highly variable spikes? |
-| **Latency requirements** | Sub-second interactive or minutes-acceptable batch? |
-| **Cost structure preference** | Pay-per-use flexibility or committed savings? |
-| **Operational capacity** | Minimal management or full control needed? |
-| **Compliance requirements** | Data residency, isolation, audit needs? |
-
-### The Deployment Spectrum
-
-| Complexity | Option | Trade-off |
-|------------|--------|-----------|
-| **Low** | Lambda + On-Demand | Zero infrastructure, pay per token |
-| **Medium** | Bedrock Provisioned | Some commitment, guaranteed capacity |
-| **High** | SageMaker Endpoints | Full control, more operational burden |
-| **Highest** | ECS/EKS Custom | Maximum flexibility, maximum responsibility |
-
-**Direction**: Low complexity → High complexity = More flexibility, more operational burden
-
----
-
-## Lambda + Bedrock On-Demand: The Starting Point
-
-The simplest deployment pattern combines **AWS Lambda** with Bedrock's **on-demand pricing**. This is where most applications should start—and where many should stay.
-
-### Architecture Pattern
-
-**Request Flow:**
-1. **API Gateway** receives requests
-2. Routes to specialized **Lambda functions**: Chat, Search, Summarization
-3. All Lambdas call **Bedrock (On-Demand)** - shared capacity, pay per token only
-
-### Implementation
-
-```python
-import boto3
-import json
-from typing import Optional
-
-# Initialize client outside handler for connection reuse
-bedrock = boto3.client('bedrock-runtime')
-
-def lambda_handler(event: dict, context) -> dict:
-    """
-    Simple Lambda handler for Bedrock inference.
-    Uses on-demand capacity - no provisioning required.
-    """
-    user_message = event.get('body', {}).get('message', '')
-
-    try:
-        response = bedrock.converse(
-            modelId='anthropic.claude-3-haiku-20240307-v1:0',
-            messages=[
-                {'role': 'user', 'content': [{'text': user_message}]}
-            ],
-            inferenceConfig={
-                'maxTokens': 1024,
-                'temperature': 0.7
-            }
-        )
-
-        assistant_message = response['output']['message']['content'][0]['text']
-
-        return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'response': assistant_message,
-                'usage': response['usage']  # Track token consumption
-            })
-        }
-
-    except bedrock.exceptions.ThrottlingException as e:
-        # On-demand can throttle during high demand
-        return {
-            'statusCode': 429,
-            'body': json.dumps({'error': 'Rate limited, please retry'})
-        }
-    except bedrock.exceptions.ModelTimeoutException as e:
-        # Complex prompts may timeout
-        return {
-            'statusCode': 504,
-            'body': json.dumps({'error': 'Request timed out'})
-        }
-```
+Do **not** confuse this with Provisioned Throughput. Cross-Region inference is still an on-demand capacity strategy. AWS currently states that **inference profiles do not support Provisioned Throughput**.
 
-### Lambda Configuration for GenAI
-
-GenAI workloads have specific Lambda configuration needs:
-
-| Setting | Recommendation | Why |
-|---------|----------------|-----|
-| **Memory** | 512MB-1024MB | More memory = more CPU = faster boto3 processing |
-| **Timeout** | 60-120 seconds | FM inference can take 10-30 seconds |
-| **Reserved concurrency** | Set limits | Prevent runaway costs and rate limiting |
-| **Provisioned concurrency** | For latency-critical | Eliminates cold starts |
-
-### When On-Demand Excels
-
-**Perfect for:**
-- **Variable traffic**: Pay nothing during quiet periods
-- **Development/staging**: No commitment while iterating
-- **Unpredictable usage**: Can't forecast token consumption
-- **Cost-sensitive startups**: No upfront commitment
-- **Multi-model experimentation**: Test different models freely
-
-**Challenges:**
-- **Shared capacity**: Competes with all AWS customers
-- **Potential throttling**: During high-demand periods
-- **Higher per-token cost**: Premium for flexibility
-- **Cold starts**: Lambda + Bedrock connection overhead
-
-### The Economics of On-Demand
-
-```
-Cost = Input Tokens × Input Price + Output Tokens × Output Price
-
-Example: Claude 3 Haiku on-demand
-- Input:  $0.00025 per 1K tokens
-- Output: $0.00125 per 1K tokens
-
-10,000 requests/day × 500 input + 200 output tokens each:
-- Input cost:  10,000 × 500 ÷ 1000 × $0.00025 = $1.25/day
-- Output cost: 10,000 × 200 ÷ 1000 × $0.00125 = $2.50/day
-- Total: $3.75/day = ~$112/month
-```
-
-At this volume, on-demand is clearly correct. The break-even with provisioned throughput depends on consistent utilization levels.
+### Bedrock Provisioned Throughput
 
----
+The copilot is now enterprise-wide: 1,000 users, constant queries, predictable business-hour load, a latency SLO. Shared on-demand may not be the capacity story you want.
 
-## Bedrock Provisioned Throughput: Committed Capacity
+[Provisioned Throughput](https://docs.aws.amazon.com/bedrock/latest/userguide/prov-throughput.html) purchases **model units**: a specified throughput level at a **fixed hourly** cost. You reserve capacity.
 
-**Provisioned Throughput** reserves dedicated model capacity. You commit to a throughput level measured in **model units**, paying hourly regardless of actual usage.
+If you **customized** a Bedrock model, you **must** purchase Provisioned Throughput to invoke it. That is a current platform rule, not just a cost optimization.
 
-### How Provisioned Throughput Works
+| | On-demand | Provisioned |
+|--|-----------|-------------|
+| Demand | Variable | Sustained / predictable |
+| Capacity | Shared / elastic | Dedicated amount |
+| Cost | Usage-oriented | Fixed provisioned capacity |
+| Idle | Attractive | Potential waste |
+| Ops | Low | Capacity planning |
 
-**Your Dedicated Capacity:**
-- Model Unit 1, 2, 3... (Reserved Compute)
-- You don't compete with the shared pool
+This is: should I share elastic capacity, or reserve it because I know I will use it?
 
-**Benefits:**
-- No throttling
-- Consistent latency
-- Guaranteed capacity
-- Lower per-token cost at scale
+> **Exam trap:** Provisioned Throughput does **not** mean “a faster model.” It addresses **capacity / throughput availability**. Do not conflate reserved capacity with per-request model speed.
 
-### Creating Provisioned Throughput
+### Latency is not throughput
 
-```python
-import boto3
+**Latency** — how long *one* request takes (`request → 2.3 s → response`).
 
-bedrock = boto3.client('bedrock')
+**Throughput** — how much work the system processes over time: requests/second, **tokens/second**, concurrent requests.
 
-# Create provisioned throughput
-response = bedrock.create_provisioned_model_throughput(
-    modelUnits=1,  # Number of model units
-    provisionedModelName='my-production-capacity',
-    modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-    commitmentDuration='OneMonth'  # Or 'SixMonths' for additional discount
-)
+A system can have excellent per-request latency and terrible aggregate throughput, or the reverse. Task 2.2 is often about balancing both. For LLMs, “requests per second” without tokens is a lying metric. Two “one request” jobs — “What’s AMD’s ticker?” vs “Read 50,000 tokens and write a 4,000-token memo” — are not the same work.
 
-provisioned_arn = response['provisionedModelArn']
+### SageMaker AI endpoint
 
-# Use the provisioned ARN for inference
-runtime = boto3.client('bedrock-runtime')
+The desk has a specialized financial model: open-weight, fine-tuned, particular inference engine, GPU-level control, custom container dependencies. Bedrock is no longer the right abstraction.
 
-inference_response = runtime.converse(
-    modelId=provisioned_arn,  # Use ARN, not model ID
-    messages=[
-        {'role': 'user', 'content': [{'text': 'Hello'}]}
-    ]
-)
-```
-
-### Model Units Explained
+You deploy to a **SageMaker AI inference endpoint**: model/container, instance type, count. That is hosting.
 
-A **model unit** provides a specific throughput capacity measured in tokens per minute. The exact capacity varies by model:
-
-| Model | Approximate Throughput per Model Unit |
-|-------|---------------------------------------|
-| Claude 3 Haiku | Higher (faster model) |
-| Claude 3 Sonnet | Medium |
-| Claude 3 Opus | Lower (more compute per token) |
-
-**Planning capacity:**
-1. Estimate tokens per minute at peak
-2. Add 20-30% headroom
-3. Divide by model unit capacity
-4. Round up to nearest unit
-
-### Commitment Options
-
-| Commitment | Discount | Best For |
-|------------|----------|----------|
-| No commitment | 0% | Testing, uncertain future |
-| 1 month | ~15% | Proven workloads, flexibility needed |
-| 6 months | ~30% | Stable production workloads |
-
-### When Provisioned Throughput Makes Sense
-
-**Use provisioned when:**
-- **Predictable, sustained traffic** (40-60%+ utilization)
-- **SLA requirements** (can't tolerate throttling)
-- **Consistent latency required** (customer-facing production)
-- **Custom models** (required—no on-demand option)
-- **Cost optimization at scale** (high-volume applications)
-
-**Avoid provisioned when:**
-- Traffic is highly variable
-- You're still experimenting with models
-- Utilization would be below 30-40%
-- Budget constraints prevent commitment
-
-### Custom Models Require Provisioned Throughput
-
-This is a critical exam point: **fine-tuned and custom models have no on-demand option**. If you've customized a model through:
-- Continued pre-training
-- Fine-tuning
-- Custom model import
-
-You **must** deploy on provisioned throughput. Factor this into any customization decision.
-
----
-
-## SageMaker Endpoints: Full Control
-
-**Amazon SageMaker endpoints** provide managed infrastructure for hosting ML models with full control over the underlying compute.
-
-### When SageMaker Is Required
-
-**Do you need any of these?**
-- Custom model (not available in Bedrock)
-- Specific instance types (GPU, memory)
-- A/B testing between model versions
-- Multi-model endpoints (multiple models, shared infra)
-- Model version management and rollbacks
-- Custom inference containers
-- Integration with SageMaker ML pipelines
-
-**Yes** → Use **SageMaker Endpoints**
-**No** → Consider **Bedrock**
-
-### SageMaker Endpoint Architecture
-
-**Endpoint Configuration:**
-
-| Variant | Traffic | Model | Instances |
-|---------|---------|-------|-----------|
-| **Production Variant A** | 90% | Model v2.1 | ml.g5.2xlarge × 2 |
-| **Production Variant B (canary)** | 10% | Model v2.2 | ml.g5.2xlarge × 1 |
-
-**Auto Scaling:** 2-10 instances based on InvocationsPerInstance metric
-
-### Deploying a Model to SageMaker
-
-```python
-import boto3
-from sagemaker.huggingface import HuggingFaceModel
-
-# Deploy a HuggingFace model to SageMaker
-huggingface_model = HuggingFaceModel(
-    model_data='s3://my-bucket/model.tar.gz',  # Your model artifacts
-    role='arn:aws:iam::123456789012:role/SageMakerRole',
-    transformers_version='4.26',
-    pytorch_version='1.13',
-    py_version='py39'
-)
-
-# Deploy with specific instance type
-predictor = huggingface_model.deploy(
-    initial_instance_count=2,
-    instance_type='ml.g5.2xlarge',
-    endpoint_name='my-llm-endpoint'
-)
-
-# Invoke the endpoint
-response = predictor.predict({
-    'inputs': 'Summarize the following document: ...',
-    'parameters': {
-        'max_new_tokens': 256,
-        'temperature': 0.7
-    }
-})
-```
-
-### Instance Selection for LLMs
-
-| Instance Family | GPU | Memory | Best For |
-|-----------------|-----|--------|----------|
-| **ml.g5.xlarge** | 1× A10G | 24GB | Small models (7B parameters) |
-| **ml.g5.2xlarge** | 1× A10G | 24GB | Medium models, better CPU |
-| **ml.g5.12xlarge** | 4× A10G | 96GB | Large models (70B parameters) |
-| **ml.p4d.24xlarge** | 8× A100 | 320GB | Very large models, training |
-| **ml.inf2.xlarge** | 2× Inferentia2 | 32GB | Cost-optimized inference |
-
-### A/B Testing with Production Variants
-
-```python
-import boto3
-
-sagemaker = boto3.client('sagemaker')
-
-# Create endpoint config with multiple variants
-sagemaker.create_endpoint_config(
-    EndpointConfigName='ab-test-config',
-    ProductionVariants=[
-        {
-            'VariantName': 'model-v1',
-            'ModelName': 'my-model-v1',
-            'InstanceType': 'ml.g5.2xlarge',
-            'InitialInstanceCount': 2,
-            'InitialVariantWeight': 90  # 90% of traffic
-        },
-        {
-            'VariantName': 'model-v2',
-            'ModelName': 'my-model-v2',
-            'InstanceType': 'ml.g5.2xlarge',
-            'InitialInstanceCount': 1,
-            'InitialVariantWeight': 10  # 10% of traffic (canary)
-        }
-    ]
-)
-```
-
-### Auto Scaling for SageMaker Endpoints
-
-```python
-import boto3
-
-autoscaling = boto3.client('application-autoscaling')
-
-# Register scalable target
-autoscaling.register_scalable_target(
-    ServiceNamespace='sagemaker',
-    ResourceId='endpoint/my-llm-endpoint/variant/AllTraffic',
-    ScalableDimension='sagemaker:variant:DesiredInstanceCount',
-    MinCapacity=1,
-    MaxCapacity=10
-)
-
-# Create scaling policy based on invocations per instance
-autoscaling.put_scaling_policy(
-    PolicyName='invocations-scaling',
-    ServiceNamespace='sagemaker',
-    ResourceId='endpoint/my-llm-endpoint/variant/AllTraffic',
-    ScalableDimension='sagemaker:variant:DesiredInstanceCount',
-    PolicyType='TargetTrackingScaling',
-    TargetTrackingScalingPolicyConfiguration={
-        'TargetValue': 100,  # Target invocations per instance
-        'PredefinedMetricSpecification': {
-            'PredefinedMetricType': 'SageMakerVariantInvocationsPerInstance'
-        },
-        'ScaleInCooldown': 300,
-        'ScaleOutCooldown': 60
-    }
-)
+SageMaker inference **modes** (not the center of 2.2, but know the map):
+
+| Mode | When |
+|------|------|
+| **Real-time** | Interactive, low latency, sustained traffic. Copilot Q&A. |
+| **Serverless** | Intermittent traffic, tolerate cold starts, pay for use. Poor fit for large multi-GPU LLMs (no GPU story like real-time + LMI). |
+| **Asynchronous** | Large payloads / long jobs; client does not need the answer on the HTTP call. Queue, write to S3. |
+| **Batch transform** | Offline, data already in hand. Nightly 10,000 filings. |
+
+Interactive AMD Q&A → real-time. Nightly corpus scoring → do not assume a real-time GPU endpoint.
+
+### Hybrid: Bedrock *and* SageMaker
+
+The blueprint explicitly names SageMaker endpoints to implement **hybrid** solutions. You are not forced to pick one logo.
+
+**Bedrock:** complex reasoning and natural-language synthesis (Claude on the AMD thesis question).
+
+**SageMaker:** a specialized financial extractor you trained and need to control.
+
+That is hybrid model deployment. Lambda (or API Gateway + compute) still sits in front as application logic.
+
+**Decision rules.**
+
+| Requirement | First thought |
+|-------------|---------------|
+| Variable / unpredictable FM requests | Bedrock on-demand |
+| Burst traffic across supported Regions | Bedrock cross-Region inference |
+| Stable high-volume FM traffic | Bedrock Provisioned Throughput |
+| Custom Bedrock model you fine-tuned | Provisioned Throughput (required to invoke) |
+| Custom inference stack / GPU / container | SageMaker AI |
+| Different workload types | Hybrid Bedrock + SageMaker |
+| Small event-driven backend invoking an FM | Lambda → Bedrock |
+
+**Failure mode.** “Use Lambda to deploy the foundation model.” Lambda invokes; Bedrock (or a SageMaker endpoint) serves. Opposite failure: provision dedicated capacity for a 40-analyst prototype that is idle 20 hours a day.
+
+```quickcheck
+Q: A research assistant gets 50–100 queries per day with long idle periods. The team wants a managed FM and does not want to operate GPUs.
+A: SageMaker multi-GPU endpoint
+B: Bedrock on-demand
+C: Bedrock Provisioned Throughput
+D: Dedicated ECS GPU cluster
+correct: B
+feedback: Variable demand and no infrastructure-control requirement. Provisioned and GPU clusters waste idle capacity.
 ```
 
 ---
 
-## Model Cascading: The Cost Optimization Secret
+## Skill 2.2.2 — Why LLM deployment is different
 
-**Model cascading** is one of the most impactful cost optimization patterns available. The insight is simple but powerful: **most queries don't need your most capable model**.
+**The question this skill answers:** Why can’t I deploy a 70-billion-parameter LLM exactly like an ordinary classifier?
 
-### The Power Law of Query Complexity
+**Concept.** Traditional ML inference might be a 50 MB model, a CPU, 30 numbers in, a class out. LLM inference is tens or hundreds of GB of weights, one or many GPUs, thousands of input tokens, hundreds or thousands of generated tokens, and many concurrent users. The infrastructure question changes from “does a service run?” to “can this hardware **hold, feed, and generate from** the model at the required concurrency?”
 
-| Complexity | Frequency | Examples |
-|------------|-----------|----------|
-| **Simple** | 70% | FAQ lookups, basic generation, formatting |
-| **Medium** | 20% | Multi-step reasoning, analysis, longer generation |
-| **Complex** | 10% | Expert reasoning, nuanced understanding, creativity |
+The blueprint’s examples are **container-based** patterns optimized for **memory**, **GPU utilization**, and **token processing**, plus **specialized model loading**. On AWS that is usually a **SageMaker LMI** container on a real-time endpoint. You can also run a serving stack yourself on **ECS / EKS / Fargate** if you already operate containers — higher ops, same physics.
 
-### Cascading Architecture
+**Mental model.** Traditional deployment asks whether a process can start. LLM deployment asks whether accelerators can keep the weights resident, the KV cache bounded, and the token pipeline busy.
 
-**Flow:**
-1. **User Query** → Query Complexity Classifier
-2. Classifier analyzes: keyword patterns, query length, reasoning depth, domain complexity
+### The model may not fit on one GPU
 
-**Routing:**
-
-| Classification | Model | Cost |
-|----------------|-------|------|
-| Simple | Haiku | $0.25/M tokens |
-| Medium | Sonnet | $3.00/M tokens |
-| Complex | Opus | $15/M tokens |
-
-**Confidence Check (for Haiku responses):**
-- High confidence → Return fast, low-cost response
-- Low confidence → Escalate to Sonnet for quality response
-
-### Complete Cascading Implementation
-
-```python
-import boto3
-import json
-from dataclasses import dataclass
-from typing import Literal, Optional
-from enum import Enum
-
-class Complexity(Enum):
-    SIMPLE = "simple"
-    MEDIUM = "medium"
-    COMPLEX = "complex"
-
-@dataclass
-class CascadeResult:
-    response: str
-    model_used: str
-    complexity: Complexity
-    escalated: bool
-    estimated_cost: float
-
-class ModelCascade:
-    """
-    Intelligent model routing based on query complexity.
-    Routes simple queries to cheap models, escalates when needed.
-    """
-
-    MODELS = {
-        Complexity.SIMPLE: {
-            'id': 'anthropic.claude-3-haiku-20240307-v1:0',
-            'name': 'Haiku',
-            'input_cost': 0.00025,   # per 1K tokens
-            'output_cost': 0.00125
-        },
-        Complexity.MEDIUM: {
-            'id': 'anthropic.claude-3-sonnet-20240229-v1:0',
-            'name': 'Sonnet',
-            'input_cost': 0.003,
-            'output_cost': 0.015
-        },
-        Complexity.COMPLEX: {
-            'id': 'anthropic.claude-3-opus-20240229-v1:0',
-            'name': 'Opus',
-            'input_cost': 0.015,
-            'output_cost': 0.075
-        }
-    }
-
-    # Indicators that suggest higher complexity
-    COMPLEXITY_INDICATORS = {
-        'simple': ['what is', 'define', 'list', 'how many', 'when did'],
-        'complex': ['analyze', 'compare and contrast', 'evaluate',
-                   'synthesize', 'critique', 'design', 'recommend strategy']
-    }
-
-    UNCERTAINTY_PHRASES = [
-        "i'm not sure", "i don't know", "unclear", "might be",
-        "possibly", "i cannot determine", "insufficient information"
-    ]
-
-    def __init__(self):
-        self.client = boto3.client('bedrock-runtime')
-
-    def classify_complexity(self, query: str) -> Complexity:
-        """Classify query complexity based on content analysis."""
-        query_lower = query.lower()
-
-        # Check for complex indicators first
-        for indicator in self.COMPLEXITY_INDICATORS['complex']:
-            if indicator in query_lower:
-                return Complexity.COMPLEX
-
-        # Check for simple indicators
-        for indicator in self.COMPLEXITY_INDICATORS['simple']:
-            if indicator in query_lower:
-                return Complexity.SIMPLE
-
-        # Default to medium for uncertain cases
-        # Production: use ML classifier here
-        word_count = len(query.split())
-        if word_count < 10:
-            return Complexity.SIMPLE
-        elif word_count > 50:
-            return Complexity.COMPLEX
-        return Complexity.MEDIUM
-
-    def invoke_model(self, model_id: str, query: str) -> tuple[str, dict]:
-        """Invoke a model and return response with usage stats."""
-        response = self.client.converse(
-            modelId=model_id,
-            messages=[{'role': 'user', 'content': [{'text': query}]}],
-            inferenceConfig={'maxTokens': 1024, 'temperature': 0.7}
-        )
-
-        text = response['output']['message']['content'][0]['text']
-        usage = response['usage']
-        return text, usage
-
-    def is_confident(self, response: str) -> bool:
-        """Check if response indicates confidence."""
-        response_lower = response.lower()
-        return not any(phrase in response_lower
-                      for phrase in self.UNCERTAINTY_PHRASES)
-
-    def calculate_cost(self, usage: dict, complexity: Complexity) -> float:
-        """Calculate cost based on token usage."""
-        model = self.MODELS[complexity]
-        input_cost = (usage['inputTokens'] / 1000) * model['input_cost']
-        output_cost = (usage['outputTokens'] / 1000) * model['output_cost']
-        return input_cost + output_cost
-
-    def process(self, query: str) -> CascadeResult:
-        """Process query with intelligent model cascading."""
-
-        # Classify query complexity
-        complexity = self.classify_complexity(query)
-        model = self.MODELS[complexity]
-
-        # Try initial model
-        response, usage = self.invoke_model(model['id'], query)
-        cost = self.calculate_cost(usage, complexity)
-
-        # Check if we need to escalate
-        escalated = False
-        if complexity == Complexity.SIMPLE and not self.is_confident(response):
-            # Escalate to medium
-            complexity = Complexity.MEDIUM
-            model = self.MODELS[complexity]
-            response, usage = self.invoke_model(model['id'], query)
-            cost += self.calculate_cost(usage, complexity)
-            escalated = True
-
-        return CascadeResult(
-            response=response,
-            model_used=model['name'],
-            complexity=complexity,
-            escalated=escalated,
-            estimated_cost=cost
-        )
-
-# Usage
-cascade = ModelCascade()
-result = cascade.process("What is the capital of France?")  # Simple -> Haiku
-result = cascade.process("Analyze the economic implications...")  # Complex -> Opus
-```
-
-### Cost Impact Analysis
-
-| Traffic Volume | All Sonnet | Cascaded (70/20/10) | Monthly Savings |
-|----------------|------------|---------------------|-----------------|
-| 100K queries/mo | $4,500 | $1,620 | $2,880 (64%) |
-| 500K queries/mo | $22,500 | $8,100 | $14,400 (64%) |
-| 1M queries/mo | $45,000 | $16,200 | $28,800 (64%) |
-
----
-
-## Cross-Region Inference with Inference Profiles
-
-**Inference Profiles** enable automatic cross-region routing for high availability. Instead of calling a model in a specific region, you call an inference profile that routes to available capacity.
-
-### How Inference Profiles Work
-
-**Example: `us.claude-sonnet` profile**
-
-| Region | Status | Routed? |
-|--------|--------|---------|
-| us-east-1 | Healthy | Yes |
-| us-west-2 | Healthy | Yes |
-| us-east-2 | Busy | No |
-
-**Geographic Scopes:**
-- `us.*` → Routes within US regions
-- `eu.*` → Routes within EU regions
-- Respects data residency requirements automatically
-
-### Using Inference Profiles
-
-```python
-import boto3
-import json
-
-client = boto3.client('bedrock-runtime')
-
-# Using inference profile for cross-region availability
-response = client.invoke_model(
-    modelId='us.anthropic.claude-3-sonnet-20240229-v1:0',  # Note: us. prefix
-    body=json.dumps({
-        'anthropic_version': 'bedrock-2023-05-31',
-        'max_tokens': 1024,
-        'messages': [{'role': 'user', 'content': 'Hello'}]
-    })
-)
-
-# Or using full ARN format
-response = client.invoke_model(
-    modelId='arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-3-sonnet-20240229-v1:0',
-    body=json.dumps({
-        'anthropic_version': 'bedrock-2023-05-31',
-        'max_tokens': 1024,
-        'messages': [{'role': 'user', 'content': 'Hello'}]
-    })
-)
-```
-
-### Inference Profiles vs Provisioned Throughput
-
-This distinction is a common exam topic:
-
-| Aspect | Inference Profiles | Provisioned Throughput |
-|--------|-------------------|------------------------|
-| **Purpose** | High availability, cross-region | Guaranteed capacity, cost savings |
-| **Capacity** | Shared (on-demand) | Dedicated |
-| **Geographic** | Routes across regions | Single region |
-| **Cost model** | Pay per token | Hourly commitment |
-| **Throttling** | Possible (shared) | No (dedicated) |
-| **Custom models** | No | Yes (required) |
-
-**Key exam point**: Inference profiles provide **availability** through geographic redundancy. Provisioned throughput provides **capacity guarantees** through dedicated resources. They solve different problems.
-
----
-
-## Batch Inference: Bulk Processing at Scale
-
-**Batch inference** processes large volumes asynchronously at approximately **50% discount** compared to on-demand. Trade latency for cost efficiency.
-
-### Batch Inference Architecture
-
-**Step 1: Prepare Input (JSONL)**
-- Upload to `s3://bucket/input/batch-job-001.jsonl`
-- Format: `{"recordId":"1","modelInput":{...}}` per line
-
-**Step 2: Create Batch Job**
-- Call `CreateModelInvocationJob`
-- Specify: jobName, modelId, inputDataConfig, outputDataConfig
-
-**Step 3: Processing (Asynchronous)**
-- Status: InProgress → Completed
-- Monitor via `GetModelInvocationJob`
-
-**Step 4: Retrieve Results**
-- Results appear at `s3://bucket/output/batch-job-001/`
-- Format: `{"recordId":"1","modelOutput":{...}}` per line
-
-### Complete Batch Processing Example
-
-```python
-import boto3
-import json
-import time
-from typing import List, Dict
-
-class BatchInferenceManager:
-    """Manages batch inference jobs for bulk processing."""
-
-    def __init__(self, bucket: str, role_arn: str):
-        self.bedrock = boto3.client('bedrock')
-        self.s3 = boto3.client('s3')
-        self.bucket = bucket
-        self.role_arn = role_arn
-
-    def prepare_input(self, documents: List[Dict], job_id: str) -> str:
-        """
-        Convert documents to JSONL format and upload to S3.
-
-        Each document should have 'id' and 'content' fields.
-        """
-        jsonl_lines = []
-
-        for doc in documents:
-            record = {
-                "recordId": doc['id'],
-                "modelInput": {
-                    "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 256,
-                    "messages": [{
-                        "role": "user",
-                        "content": f"Summarize this document in 2-3 sentences:\n\n{doc['content']}"
-                    }]
-                }
-            }
-            jsonl_lines.append(json.dumps(record))
-
-        # Upload to S3
-        input_key = f"batch-jobs/{job_id}/input.jsonl"
-        self.s3.put_object(
-            Bucket=self.bucket,
-            Key=input_key,
-            Body='\n'.join(jsonl_lines)
-        )
-
-        return f"s3://{self.bucket}/{input_key}"
-
-    def create_job(
-        self,
-        job_name: str,
-        input_s3_uri: str,
-        model_id: str = 'anthropic.claude-3-haiku-20240307-v1:0'
-    ) -> str:
-        """Create batch inference job."""
-
-        response = self.bedrock.create_model_invocation_job(
-            jobName=job_name,
-            modelId=model_id,
-            roleArn=self.role_arn,
-            inputDataConfig={
-                's3InputDataConfig': {
-                    's3Uri': input_s3_uri,
-                    's3InputFormat': 'JSONL'
-                }
-            },
-            outputDataConfig={
-                's3OutputDataConfig': {
-                    's3Uri': f"s3://{self.bucket}/batch-jobs/{job_name}/output/"
-                }
-            }
-        )
-
-        return response['jobArn']
-
-    def wait_for_completion(self, job_arn: str, poll_interval: int = 60) -> str:
-        """Poll job status until completion."""
-
-        while True:
-            response = self.bedrock.get_model_invocation_job(
-                jobIdentifier=job_arn
-            )
-
-            status = response['status']
-
-            if status == 'Completed':
-                return response['outputDataConfig']['s3OutputDataConfig']['s3Uri']
-            elif status == 'Failed':
-                raise Exception(f"Batch job failed: {response.get('message')}")
-            elif status in ['Stopping', 'Stopped']:
-                raise Exception(f"Batch job was stopped")
-
-            print(f"Job status: {status}. Waiting {poll_interval}s...")
-            time.sleep(poll_interval)
-
-    def get_results(self, output_s3_uri: str) -> List[Dict]:
-        """Retrieve and parse batch results from S3."""
-
-        # Parse S3 URI
-        bucket = output_s3_uri.split('/')[2]
-        prefix = '/'.join(output_s3_uri.split('/')[3:])
-
-        # List output files
-        response = self.s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-
-        results = []
-        for obj in response.get('Contents', []):
-            if obj['Key'].endswith('.jsonl'):
-                file_response = self.s3.get_object(Bucket=bucket, Key=obj['Key'])
-                content = file_response['Body'].read().decode('utf-8')
-
-                for line in content.strip().split('\n'):
-                    if line:
-                        results.append(json.loads(line))
-
-        return results
-
-# Usage
-manager = BatchInferenceManager(
-    bucket='my-batch-bucket',
-    role_arn='arn:aws:iam::123456789012:role/BedrockBatchRole'
-)
-
-# Prepare documents
-documents = [
-    {'id': '1', 'content': 'Long document 1...'},
-    {'id': '2', 'content': 'Long document 2...'},
-    # ... thousands more
-]
-
-input_uri = manager.prepare_input(documents, 'job-001')
-job_arn = manager.create_job('summarization-job', input_uri)
-output_uri = manager.wait_for_completion(job_arn)
-results = manager.get_results(output_uri)
-```
-
-### Batch Inference Use Cases
-
-| Use Case | Volume | Why Batch |
-|----------|--------|-----------|
-| **Document summarization** | 10,000+ docs | No real-time need, 50% savings |
-| **Data enrichment** | Millions of records | Background processing acceptable |
-| **Content generation** | Bulk marketing content | Quality over speed |
-| **Sentiment analysis** | Historical data analysis | Offline processing |
-| **Model evaluation** | Test datasets | No latency requirement |
-
----
-
-## Container-Based Deployment: Maximum Control
-
-For workloads requiring complete control over infrastructure, **ECS**, **EKS**, or **AWS App Runner** host custom model serving.
-
-**App Runner** is the in-scope option when you have a container and want AWS to run it without cluster management. Use it for HTTP model-wrapper APIs (tokenize, call Bedrock, stream SSE) — not for multi-GPU self-hosted 70B models.
-
-| Need | Choose |
-|------|--------|
-| HTTP service from a container, no cluster ops | **App Runner** |
-| GPU, custom schedulers, sidecars | **ECS on EC2** or **EKS** |
-| Bursting, no servers | **Lambda + Bedrock** |
-
-### Memory and GPU Considerations
-
-LLMs have unique resource requirements:
-
-**LLM Memory Requirements (FP16):**
-
-| Model Size | GPU Memory Required |
-|------------|---------------------|
-| 7B parameters | ~14 GB |
-| 13B parameters | ~26 GB |
-| 33B parameters | ~66 GB |
-| 70B parameters | ~140 GB |
-
-**Memory Formula:** Parameters × 2 bytes (FP16) + Activation overhead + KV cache (grows with sequence length)
-
-**Optimization Techniques:**
-
-| Technique | Memory Reduction | Trade-off |
-|-----------|------------------|-----------|
-| INT8 quantization | ~50% | Minor quality impact |
-| INT4 quantization | ~75% | Noticeable quality impact |
-| Model sharding | Distributed | Requires multi-GPU |
-| Paged attention | Dynamic | Better memory efficiency |
-
-### ECS Task Definition for LLM Serving
-
-```json
-{
-  "family": "llm-inference",
-  "requiresCompatibilities": ["EC2"],
-  "containerDefinitions": [
-    {
-      "name": "llm-server",
-      "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/llm-serving:latest",
-      "memory": 32768,
-      "cpu": 4096,
-      "resourceRequirements": [
-        {
-          "type": "GPU",
-          "value": "1"
-        }
-      ],
-      "portMappings": [
-        {
-          "containerPort": 8080,
-          "protocol": "tcp"
-        }
-      ],
-      "environment": [
-        {"name": "MODEL_NAME", "value": "my-custom-model"},
-        {"name": "MAX_BATCH_SIZE", "value": "4"},
-        {"name": "MAX_SEQUENCE_LENGTH", "value": "4096"}
-      ],
-      "healthCheck": {
-        "command": ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"],
-        "interval": 30,
-        "timeout": 5,
-        "retries": 3
-      },
-      "logConfiguration": {
-        "logDriver": "awslogs",
-        "options": {
-          "awslogs-group": "/ecs/llm-inference",
-          "awslogs-region": "us-east-1",
-          "awslogs-stream-prefix": "llm"
-        }
-      }
-    }
-  ]
-}
-```
-
-### Scaling Based on Token Throughput
-
-```python
-import boto3
-
-cloudwatch = boto3.client('cloudwatch')
-autoscaling = boto3.client('application-autoscaling')
-
-# Publish custom metric: tokens per second
-cloudwatch.put_metric_data(
-    Namespace='LLM/Inference',
-    MetricData=[
-        {
-            'MetricName': 'TokensPerSecond',
-            'Dimensions': [
-                {'Name': 'Service', 'Value': 'llm-inference'},
-                {'Name': 'ClusterName', 'Value': 'production'}
-            ],
-            'Value': current_tokens_per_second,
-            'Unit': 'Count/Second'
-        },
-        {
-            'MetricName': 'QueueDepth',
-            'Dimensions': [
-                {'Name': 'Service', 'Value': 'llm-inference'},
-                {'Name': 'ClusterName', 'Value': 'production'}
-            ],
-            'Value': pending_requests,
-            'Unit': 'Count'
-        }
-    ]
-)
-
-# Scale based on queue depth (better than request count for LLMs)
-autoscaling.put_scaling_policy(
-    PolicyName='queue-depth-scaling',
-    ServiceNamespace='ecs',
-    ResourceId='service/production/llm-inference',
-    ScalableDimension='ecs:service:DesiredCount',
-    PolicyType='StepScaling',
-    StepScalingPolicyConfiguration={
-        'AdjustmentType': 'ChangeInCapacity',
-        'StepAdjustments': [
-            {'MetricIntervalLowerBound': 0, 'MetricIntervalUpperBound': 50, 'ScalingAdjustment': 1},
-            {'MetricIntervalLowerBound': 50, 'MetricIntervalUpperBound': 100, 'ScalingAdjustment': 2},
-            {'MetricIntervalLowerBound': 100, 'ScalingAdjustment': 3}
-        ],
-        'Cooldown': 120
-    }
-)
-```
-
----
-
-## Decision Framework: Choosing Your Deployment Strategy
-
-Use this framework to systematically evaluate deployment options for your use case.
-
-### Quick Reference
-
-| Scenario | Choose | Why |
-|----------|--------|-----|
-| New application, uncertain traffic | **Bedrock On-Demand** | Zero commitment, pay per token |
-| Production app, steady 10K+ req/day | **Evaluate Provisioned** | Likely cost savings, no throttling |
-| Custom/fine-tuned model | **Provisioned Throughput** | Required—no on-demand option |
-| Model not in Bedrock | **SageMaker** | Full flexibility for any model |
-| Need A/B testing model versions | **SageMaker** | Production variants support this |
-| Bulk processing (not real-time) | **Batch Inference** | 50% cost savings |
-| Multi-region high availability | **Inference Profiles** | Automatic failover |
-
-### Decision Tree
+A fictional model needs 140 GB; one accelerator has 80 GB. You cannot `load model → GPU`. You **split** the model. That is **model parallelism**. The exam-relevant flavor is **tensor parallelism**: partition weights/operations of a layer across devices, combine the result.
 
 ```mermaid
-graph TD
-    A[New FM Deployment] --> B{Model available<br/>in Bedrock?}
-
-    B -->|No| C[SageMaker Endpoints]
-    B -->|Yes| D{Custom/fine-tuned<br/>model?}
-
-    D -->|Yes| E[Provisioned Throughput<br/>Required]
-    D -->|No| F{Traffic pattern?}
-
-    F -->|Variable/Unknown| G[On-Demand]
-    F -->|Predictable/Steady| H{Utilization<br/>>40%?}
-
-    H -->|Yes| I{Need SLA<br/>guarantees?}
-    H -->|No| G
-
-    I -->|Yes| E
-    I -->|No| J{Cost optimization<br/>priority?}
-
-    J -->|High| E
-    J -->|Low| G
-
-    G --> K{Bulk processing<br/>acceptable?}
-    K -->|Yes| L[Consider Batch<br/>for offline work]
-    K -->|No| M[On-Demand<br/>Implementation]
-
-    E --> N{Multi-region<br/>HA needed?}
-    N -->|Yes| O[Add Inference<br/>Profiles]
-    N -->|No| P[Provisioned<br/>Implementation]
-
-    C --> Q{Need A/B testing?}
-    Q -->|Yes| R[Production Variants]
-    Q -->|No| S[Single Endpoint]
+flowchart TD
+    Layer[Large transformer layer] --> G1[GPU 1 · part A]
+    Layer --> G2[GPU 2 · part B]
+    G1 --> Out[Combined output]
+    G2 --> Out
 ```
 
-### Trade-off Analysis
+> **Mental shortcut:** Doesn’t fit on one GPU → tensor / model parallelism. **Not** “autoscale more replicas.” Extra copies of a model that cannot load on one device still cannot load.
 
-| Factor | On-Demand | Provisioned | SageMaker | Batch |
-|--------|-----------|-------------|-----------|-------|
-| **Cost Model** | Per token | Hourly | Per instance | Per token (50% off) |
-| **Cost at Low Volume** | Lowest | Higher | Highest | Lowest |
-| **Cost at High Volume** | Higher | Lower | Variable | Lowest |
-| **Latency** | Variable | Consistent | Consistent | Hours |
-| **Throttling Risk** | Yes | No | No | N/A |
-| **Operational Burden** | None | Low | Medium-High | Low |
-| **Model Flexibility** | Bedrock only | Bedrock + custom | Any | Bedrock only |
-| **Scaling** | Automatic | Manual (add units) | Auto-scaling | N/A |
-| **Exam Signal** | "serverless", "pay-per-use" | "guaranteed", "SLA" | "custom", "A/B test" | "bulk", "offline" |
+SageMaker [LMI containers](https://docs.aws.amazon.com/sagemaker/latest/dg/large-model-inference-container-docs.html) set this with `option.tensor_parallel_degree` (often `max`).
 
-### Break-Even Analysis: When to Switch
+### Loading an LLM is expensive
 
-**On-Demand vs Provisioned Throughput:**
+A web app may start in seconds. A large model: start instance → download artifacts → load weights → allocate GPU memory → initialize the inference engine → become healthy. AWS exposes larger **model download and container startup timeouts** on SageMaker LMI endpoints because this can take a long time and a lot of disk.
 
-The crossover point depends on your utilization. At approximately **40-50% utilization**, provisioned becomes more cost-effective:
+**Cold start** for tiny Lambda ≈ initialize a runtime. For a large model it is compute + artifacts + tens of GB of weights + accelerator init + model server. Scale-to-zero saves money; reload time can blow a latency SLO. That tradeoff is why “just serverless / scale to zero” is not automatic for LLM endpoints.
 
-| Monthly Spend (On-Demand) | Likely Better Option |
-|---------------------------|---------------------|
-| < $2,000 | Stay on-demand (flexibility > savings) |
-| $2,000 - $5,000 | Evaluate provisioned (run the numbers) |
-| > $5,000 | Likely provisioned (significant savings) |
+### Token processing is the unit of work
 
-**When to consider SageMaker over Bedrock:**
-- You need a model not available in Bedrock
-- You need to A/B test model versions
-- You need specific instance types for performance tuning
-- You need multi-model endpoints (cost optimization)
-- Compliance requires infrastructure in your VPC
+LLM work is not `one request = one unit`. Prefill processes the prompt; decode emits token 1, token 2, … Long prompts delay **time to first token**. Long answers stretch **inter-token latency**. Size endpoints on **tokens and concurrency**, not generic HTTP RPS.
 
----
+### GPU memory is more than weights
 
-## Exam Tips
+```text
+GPU memory ≈ weights + runtime + activations + KV cache
+```
 
-| When you see... | Think... |
-|-----------------|----------|
-| "least operational overhead" + FM access | Lambda + Bedrock on-demand |
-| "custom model" or "fine-tuned" | SageMaker endpoints (or Provisioned Throughput) |
-| "high availability" or "cross-region failover" | Inference Profiles |
-| "bulk processing" or "offline inference" | Batch Inference (~50% savings) |
-| "cost optimization" with variable query complexity | Model cascading |
-| "predictable production traffic" + cost savings | Provisioned Throughput |
-| "GPU utilization" or "container optimization" | Batch requests, scale on tokens/second |
-| "container, no cluster to manage" | AWS App Runner |
-| "A/B testing" model versions | SageMaker production variants |
-| "multi-model" shared infrastructure | SageMaker multi-model endpoints |
+The **KV cache** stores state for autoregressive generation. Long context + many concurrent generations = memory pressure. An endpoint that *fits the model* can still OOM under load.
 
----
+### GPUs are expensive — batching and continuous batching
 
-## Key Takeaways
+Idle GPU time is wasted money. **Batching** runs multiple requests together to raise throughput. Classic *fixed* batches are awkward for LLMs: generations finish at different lengths (40 vs 500 vs 900 tokens). **Continuous batching** (rolling batch) adds/removes sequences as they complete. LMI containers support continuous batching, tensor parallelism, and quantization for this reason.
 
-> **1. Lambda + Bedrock on-demand is the starting point for most applications.**
-> Zero infrastructure, pay only for tokens used. Accept shared capacity variability and potential cold starts. Perfect for development and variable-traffic production.
+### Quantization
 
-> **2. Provisioned Throughput guarantees capacity for predictable production workloads.**
-> Commit to capacity for consistent latency, no throttling, and lower per-token costs. Required for custom models. Economics favor 40%+ utilization.
+Store/compute weights in fewer bits (e.g. 16-bit → 8-bit / 4-bit). Less memory, sometimes faster, lower infra cost — and possible quality loss. The question is not “can I shrink it?” It is “how much quality can I keep?”
 
-> **3. SageMaker provides full control when Bedrock doesn't meet requirements.**
-> Custom models, specific instance types, A/B testing, multi-model endpoints. Higher operational overhead justified by flexibility.
+### Specialized containers, not a from-scratch GPU scheduler
 
-> **4. Model cascading can reduce costs by 50-70% through intelligent routing.**
-> Most queries don't need your most capable model. Classify complexity, route to appropriate tier, escalate when confidence is low.
+You generally should not reinvent distributed inference, tensor parallelism, continuous batching, model loading, and request serving. **LMI** bundles a model server (vLLM, TensorRT-LLM, and related backends) for SageMaker.
 
-> **5. Inference profiles provide geographic redundancy for high availability.**
-> Automatic cross-region routing to healthy capacity. Not the same as provisioned throughput—solves availability, not capacity guarantees.
+If the stem is “container-based, we already run EKS, custom serving,” **ECS / EKS / Fargate** is the exam’s general-container answer. The *physics* (memory, GPU, tokens, loading) do not change. You just own more of the platform.
 
-> **6. Batch inference saves ~50% for any workload that doesn't require real-time response.**
-> Prepare JSONL in S3, create job, retrieve results. Use for document processing, data enrichment, content generation at scale.
+**Decision rules.**
+
+| If you see | Think |
+|------------|--------|
+| Huge self-hosted LLM on SageMaker | LMI container |
+| Model larger than one accelerator | Tensor / model parallelism |
+| GPU memory pressure under concurrency | Weights vs KV cache vs quantization vs less concurrency |
+| Poor GPU utilization | Batching / continuous batching |
+| Interactive Q&A | Real-time endpoint |
+| Long / large / not interactive | Async or batch |
+| Container platform we already operate | ECS / EKS / Fargate + a proper LLM server |
+
+**Failure mode.** Treat a 70B model like a sklearn pickle: one CPU task, scale on request count, 30-second health check. Or “autoscale” a model that cannot fit on the instance type.
+
+```quickcheck
+Q: A 70B custom model cannot fit on one GPU. Best concept?
+A: Cross-Region inference
+B: Prompt caching
+C: Tensor / model parallelism
+D: Lambda concurrency
+correct: C
+feedback: Partition the model across accelerators. More Regions, cache, or Lambda concurrency do not shrink a single replica’s memory footprint.
+```
+
+```fillin
+Doesn't fit on one GPU → {{tensor parallelism}}.
+```
 
 ---
 
-## Common Mistakes
+## Skill 2.2.3 — Optimize model deployment
 
-| Mistake | Why It Matters |
-|---------|----------------|
-| **Using provisioned throughput for variable traffic** | Paying for unused capacity. On-demand is better for unpredictable workloads. |
-| **Using SageMaker when Bedrock would suffice** | Unnecessary operational overhead. Use managed services when they meet requirements. |
-| **Not implementing model cascading** | Missing 50-70% cost savings when query complexity varies. |
-| **Confusing inference profiles with provisioned throughput** | Different purposes: availability (geographic redundancy) vs. capacity (dedicated resources). |
-| **Using on-demand for bulk processing** | Batch inference saves 50%. Always evaluate for non-real-time workloads. |
-| **Under-provisioning container memory for LLMs** | Models need ~2 bytes per parameter (FP16) plus overhead. OOM errors cause failed requests. |
-| **Scaling containers on request count instead of tokens** | A few long-output requests can saturate capacity. Scale on tokens/second or queue depth. |
-| **Not considering commitment discounts at scale** | 1-month and 6-month commitments offer 15-30% savings on provisioned throughput. |
+**The question this skill answers:** How do I meet quality requirements without using more model and infrastructure than necessary?
+
+**Concept.** Bigger model ≠ better architecture. Use the **cheapest / smallest deployment that reliably satisfies the task**. The blueprint names **appropriate model selection**, **smaller pretrained models for specific tasks**, and **API-based cascading** for routine queries.
+
+**Mental model.** The optimization triangle: quality, cost, latency. You rarely move all three independently. Deployment *is* the business tradeoff.
+
+```text
+             QUALITY
+               ▲
+              / \
+             /   \
+            /     \
+           /       \
+          /         \
+         ─────────────
+       COST        LATENCY
+```
+
+Same firm, different points: ticker classification favors cost + latency; final thesis favors quality; earnings night favors latency + throughput; overnight documents favor cost + throughput.
+
+### Start with the task, not the model
+
+| Copilot task | Difficulty |
+|--------------|------------|
+| Identify ticker | Tiny |
+| Classify document | Small |
+| Extract reported revenue | Small / medium |
+| Summarize transcript | Medium |
+| Compare two quarters | Medium / high |
+| Judge thesis deterioration | High |
+| Portfolio-level synthesis | High |
+
+Sending every one of these to the most expensive reasoning model is a deployment failure, not a quality strategy.
+
+**Right-size.** If Model A is cheap, fast, and 95% on ticker classification, and Model B is expensive, slow, and 96% on the same job, use A. For “has AMD’s competitive positioning deteriorated versus our thesis?” B may earn its keep.
+
+**Rule:** match model capability to task complexity.
+
+### Routing versus cascading
+
+**Routing** chooses *before* inference: classification task → small model; deep thesis → large model.
+
+**Cascading** tries cheap first; escalates if confidence is insufficient: small model → if not good enough → large model.
+
+> **Mental shortcut:** Routing decides before inference. Cascading escalates after an initial attempt.
+
+“What date was AMD’s last earnings call?” → small model or deterministic retrieval. “Why have we become more cautious on AMD?” → stronger model.
+
+### Optimize in this order
+
+A cost problem is often the *model*, not the GPU fleet.
+
+```text
+Task
+ ↓
+Model choice
+ ↓
+Routing / cascading
+ ↓
+Prompt + token usage
+ ↓
+Deployment mode (on-demand / PT / endpoint)
+ ↓
+Infrastructure utilization
+ ↓
+Low-level serving (quantize, batch, parallel)
+```
+
+Moving 80% of requests off a giant model can beat squeezing 10% more tokens/sec from that giant model.
+
+**Context length is a deployment decision.** Sending 100,000 tokens to answer something that needs 8,000 relevant tokens burns cost, prefill latency, and capacity. Retrieval and context construction are serving optimizations. Sometimes the fix is not “buy more throughput.” It is “send less work to the model.”
+
+### Autoscaling versus provisioned capacity
+
+SageMaker can **autoscale** replicas with demand. Remember LLM **load time**: 1 GPU → 8 GPUs is not instant if each replica downloads and loads a huge model. Scaling policy must include load time, traffic shape, and the latency target.
+
+**Provisioned** (Bedrock model units, or warm SageMaker instances) = how much dedicated capacity you *reserve*. **Autoscaling** = how you *adjust* deployed compute. Do not reduce every capacity problem to “just autoscale.” Predictable load often wants warm capacity.
+
+Throughput knobs all have tradeoffs: smaller model, quantization, batching, more replicas, better accelerators, tensor parallelism, shorter prompts, shorter `max_tokens`. Bigger batches raise throughput and can hurt per-request latency. Quantization saves memory and can cost quality. More GPUs cost money. No free optimization.
+
+**Decision rules.**
+
+| If you see | Think |
+|------------|--------|
+| Routine questions eat the expensive model | Smaller model / routing / cascading |
+| Traffic doubled | More *capacity*, not automatically a smarter model |
+| Idle reserved MUs | Maybe on-demand was right |
+| Scale-from-zero misses SLO | Keep warm replicas; account for load time |
+| Huge prompts, tiny needed context | Retrieval / trim tokens, not only more GPUs |
+
+**Failure mode.** “Use the most powerful model for everything.” Or “traffic doubled, so upgrade the FM.” Model *capability* and serving *capacity* are different problems.
+
+```quickcheck
+Q: Ninety percent of queries are straightforward facts. Ten percent need investment reasoning. Best optimization?
+A: Send all to the largest model
+B: Send all to the smallest model
+C: Model cascading / routing
+D: Double every context window
+correct: C
+feedback: 2.2.3 — reserve expensive capability for the 10%. A wastes money. B fails the hard 10%. D increases token work.
+```
+
+---
+
+## End-to-end: AMD after earnings
+
+Walk one request through all three skills.
+
+> “What changed in AMD’s thesis following earnings?”
+
+**2.2.1 — Where does it run?** Interactive, still a variable desk. Application (Lambda / API) → **Bedrock on-demand** for synthesis. If a custom extractor exists, that piece is a **SageMaker** real-time endpoint. Hybrid is allowed.
+
+Usage grows to 1,000 analysts, all day. Re-evaluate on-demand vs **cross-Region inference profiles** (still on-demand, burst / quota) vs **Provisioned Throughput** (sustained dedicated FMs). They are not the same lever.
+
+**2.2.2 — Can we serve the custom model?** LMI container, GPU memory, tensor parallelism if it will not fit, continuous batching for concurrent generations, quantization if quality holds, honest load timeouts, autoscaling that includes cold-start time.
+
+**2.2.3 — Stop wasting the big model.** Ticker and “what date was the call?” never touch the thesis-class FM. Route or cascade. Do not paste the entire research corpus when retrieval already has the two-quarter window.
+
+A harder but realistic mix: 1,000 users, 5,000 normal queries/day, earnings spikes, standard FM for synthesis, custom extractor, ~10 s user latency. Then optimize **independently**: Bedrock capacity path, SageMaker serving path, application routing. That is Task 2.2 as one architecture.
+
+```recall
+Q: Traffic doubled on the copilot. Do you automatically switch to a larger FM?
+A: No. More users are a capacity problem (replicas, PT, inference profiles). A larger FM is a capability choice for harder tasks (2.2.3), not a substitute for throughput.
+```
+
+---
+
+## Architecture decision tables
+
+### Bedrock vs SageMaker
+
+| | Amazon Bedrock | SageMaker AI |
+|--|----------------|--------------|
+| Mental model | Managed FM API | Model hosting platform |
+| GPUs / containers / serving stack | Abstracted | You configure more |
+| On-demand FM | Strong fit | Different abstraction |
+| Dedicated FM capacity | Provisioned Throughput | Endpoint compute |
+| Custom / open hosting | Only if Bedrock supports it | Strong fit |
+| LLM serving knobs | Mostly managed | LMI / container tuning |
+| Ops burden | Lower | Higher |
+
+**Exam shortcut:** Need easy managed FM access → Bedrock. Need control over hosting/infrastructure → SageMaker. Need both → hybrid.
+
+### On-demand vs Provisioned Throughput vs cross-Region
+
+| | On-demand | Cross-Region profile | Provisioned Throughput |
+|--|-----------|----------------------|------------------------|
+| What it is | Shared elastic invoke | On-demand routed across Regions | Reserved model units |
+| Solves | Variable traffic | Burst / quota / availability (on-demand) | Sustained dedicated capacity |
+| With PT? | — | **No** — profiles do not support PT | — |
+| Idle cost | Low | Low (still usage) | You pay for the reservation |
+
+### Scaling techniques
+
+| Technique | Solves |
+|-----------|--------|
+| Smaller model | Excess model cost |
+| Routing | Different task complexities up front |
+| Cascading | Most queries easy, some hard |
+| Quantization | Memory / compute pressure |
+| Tensor parallelism | Model does not fit one accelerator |
+| Continuous batching | Poor GPU utilization |
+| More replicas | Concurrent load (if each replica *can* load) |
+| Provisioned Throughput | Dedicated Bedrock capacity |
+| Cross-Region inference | On-demand burst capacity |
+| Prompt / context reduction | Excess token processing |
+| Warm capacity vs scale-to-zero | Load-time vs idle cost |
+
+---
+
+## Concise AWS service glossary
+
+### GenAI / AI
+
+#### Amazon Bedrock on-demand inference
+
+**What it is.** Invoke a managed FM via Converse / InvokeModel; AWS runs the GPUs.
+
+**Problem it solves.** FM access without owning serving infrastructure.
+
+**Where it sits.** 2.2.1 default for variable copilot traffic.
+
+**Typical use.** Lambda handles the AMD question and calls Bedrock; idle hours cost nothing in GPU reservation.
+
+**Pricing.** Token / usage oriented (current tiers: Flex, Standard, Priority).
+
+**Exam cue.** On-demand invocation; Lambda as the caller, not the host.
+
+**Do not confuse with.** Provisioned Throughput. SageMaker hosting. “Deploy the FM on Lambda.”
+
+#### Amazon Bedrock Provisioned Throughput
+
+**What it is.** Purchased model units: specified throughput at a fixed hourly cost.
+
+**Problem it solves.** Dedicated Bedrock capacity for sustained, predictable load; required to invoke custom Bedrock models.
+
+**Where it sits.** 2.2.1 when on-demand shared capacity is the wrong bet.
+
+**Typical use.** 1,000 analysts, all-day AMD copilot, known token volume.
+
+**Pricing.** Hourly model units, commitment options.
+
+**Exam cue.** Provisioned throughput configurations; dedicated capacity — not “faster model.”
+
+**Do not confuse with.** Cross-Region inference profiles. SageMaker instance counts.
+
+#### Amazon Bedrock inference profiles / cross-Region inference
+
+**What it is.** Route on-demand requests across Regions in a geographic or global profile.
+
+**Problem it solves.** More on-demand throughput / availability (and sometimes cost) during bursts.
+
+**Where it sits.** 2.2.1 earnings-spike capacity without buying PT.
+
+**Typical use.** 4:15 PM AMD print, 50 concurrent summaries.
+
+**Pricing.** On-demand (global profiles may be cheaper; residency differs).
+
+**Exam cue.** Burst / quota / multi-Region on-demand. Not Provisioned Throughput.
+
+**Do not confuse with.** Provisioned Throughput (not supported on inference profiles).
+
+#### Amazon SageMaker AI real-time endpoint
+
+**What it is.** Persistent hosted inference: you pick container, instance, scale.
+
+**Problem it solves.** Custom/open models and serving control, including hybrid with Bedrock.
+
+**Where it sits.** 2.2.1 hosting; 2.2.2 LMI; interactive copilot extractors.
+
+**Typical use.** Fine-tuned financial NER beside Bedrock synthesis.
+
+**Pricing.** Instances (and extras) while the endpoint exists.
+
+**Exam cue.** SageMaker endpoints; hybrid solutions.
+
+**Do not confuse with.** Bedrock invoke. Batch transform. “Serverless GPU LLM” as a default.
+
+#### SageMaker LMI containers
+
+**What it is.** AWS large-model inference images (DJL serving + vLLM / TensorRT-LLM, etc.).
+
+**Problem it solves.** Tensor parallelism, continuous batching, quantization, long load times — without writing a GPU scheduler.
+
+**Where it sits.** 2.2.2 for self-hosted LLMs on SageMaker.
+
+**Typical use.** 70B extractor that needs `tensor_parallel_degree` and rolling batch.
+
+**Pricing.** Underlying endpoint compute.
+
+**Exam cue.** Container-based LLM serving; memory / GPU / token optimizations; specialized loading.
+
+**Do not confuse with.** Bedrock. A generic nginx container.
+
+### Application / compute
+
+#### AWS Lambda (FM invocation)
+
+**What it is.** Event-driven application compute that *calls* a model API.
+
+**Problem it solves.** On-demand copilot backend without servers.
+
+**Where it sits.** 2.2.1: Lambda → Bedrock.
+
+**Typical use.** Validate the AMD query, invoke Converse, return the answer.
+
+**Pricing.** Invocations; 15-minute cap. Not GPU rental.
+
+**Exam cue.** Lambda functions for on-demand invocation.
+
+**Do not confuse with.** Hosting the foundation model.
+
+#### Amazon ECS / EKS / Fargate
+
+**What it is.** Containers you operate, including custom LLM servers.
+
+**Problem it solves.** Container-based deployment when you already run a platform or need a stack SageMaker LMI does not give you.
+
+**Where it sits.** 2.2.2 exam examples: memory, GPU, token processing in containers.
+
+**Typical use.** Team standardizes on EKS GPUs and vLLM instead of a SageMaker endpoint.
+
+**Pricing.** Tasks / nodes.
+
+**Exam cue.** Container-based patterns; more ops than Bedrock or managed SageMaker.
+
+**Do not confuse with.** Bedrock on-demand. Lambda as the GPU host.
+
+### Integration / orchestration
+
+#### SageMaker asynchronous inference / batch transform
+
+**What it is.** Queue large/long jobs (async, up to large payloads) or offline batch when data is already available.
+
+**Problem it solves.** Work that must not sit on an interactive real-time SLO.
+
+**Where it sits.** 2.2.1 modes; overnight 10k-document scoring.
+
+**Typical use.** Nightly AMD filing pass; analysts get results in S3, not a 200 ms chat.
+
+**Pricing.** Compute while processing; async can scale toward zero.
+
+**Exam cue.** Not real-time; large / long / offline.
+
+**Do not confuse with.** Bedrock on-demand chat. Real-time LMI for Q&A.
+
+---
+
+## Level 1 — Recall
+
+```practice
+Q: A research assistant receives 50–100 queries per day with long idle periods. Managed FM, no GPU ops. Best first thought?
+A: SageMaker multi-GPU endpoint
+B: Bedrock on-demand
+C: Bedrock Provisioned Throughput
+D: Dedicated ECS GPU cluster
+correct: B
+feedback: Variable demand. Reserved GPUs and PT waste idle capacity.
+
+Q: Claude is invoked twice per hour from Lambda. Where does inference run?
+A: Inside the Lambda execution environment
+B: Amazon Bedrock
+C: An ECS task that Lambda starts
+D: SageMaker Batch Transform
+correct: B
+feedback: Lambda is application compute. Bedrock serves the FM.
+
+Q: Highly predictable sustained Bedrock traffic and a need for dedicated model capacity.
+A: Larger Lambda
+B: Provisioned Throughput
+C: Tensor parallelism
+D: SageMaker Batch Transform
+correct: B
+feedback: PT is dedicated Bedrock capacity. Tensor parallelism is a self-hosted fit problem. Lambda size is not FM capacity.
+
+Q: A 70B custom model cannot fit on one GPU. Best concept?
+A: Cross-Region inference
+B: Prompt caching
+C: Tensor / model parallelism
+D: Lambda concurrency
+correct: C
+feedback: Split the model across accelerators. Autoscale/Lambda/Regions do not change one device’s memory.
+
+Q: Self-hosted LLM on SageMaker; many concurrent generations; GPUs look idle between requests. Best technique?
+A: Continuous batching
+B: More system prompt text
+C: IAM policy
+D: Cross-Region Bedrock inference
+correct: A
+feedback: LMI continuous / rolling batch raises GPU utilization. D is a Bedrock on-demand burst tool.
+
+Q: Ninety percent straightforward facts, ten percent hard reasoning. Best optimization?
+A: All to largest model
+B: All to smallest model
+C: Cascading / routing
+D: Double context windows
+correct: C
+feedback: 2.2.3 — right-size. D increases token work.
+
+Q: Earnings-hour throttling on Bedrock on-demand. You do not want to buy Provisioned Throughput yet.
+A: Tensor parallelism
+B: Cross-Region inference profile
+C: Attach a SageMaker serverless GPU
+D: Raise temperature
+correct: B
+feedback: Inference profiles increase on-demand capacity across Regions and do not equal PT.
+
+Q: Traffic doubled. First instinct that is usually wrong?
+A: Add serving capacity appropriate to tokens and concurrency
+B: Switch everyone to a larger FM
+C: Check quotas and throttling
+D: Consider PT or more replicas
+correct: B
+feedback: More users ≠ need a smarter model. Capability and capacity are different.
+
+Q: Nightly scoring of 10,000 filings. Interactive SageMaker real-time GPU endpoint is proposed as the only path.
+A: Correct — real-time is always required
+B: Incomplete — batch or async is the usual fit when the client does not need a chat SLO
+C: Use Provisioned Throughput on Lambda
+D: Use Guardrails instead of a model
+correct: B
+feedback: Real-time is for interactive latency. Offline bulk work is batch/async.
+
+Q: Inference profile plus Provisioned Throughput in one Bedrock setup.
+A: Supported — profiles wrap PT
+B: Not currently — profiles do not support Provisioned Throughput; they are on-demand routing
+C: Required for custom models
+D: The same as tensor parallelism
+correct: B
+feedback: AWS documents them as separate. Custom Bedrock models need PT, not profiles.
+```
+
+---
+
+## Level 2 — Architecture scenarios
+
+```practice
+Q: Copilot: 1,000 users, earnings spikes, Claude for synthesis, a custom financial extractor, 10-second chat SLO. Teammate says “put both models on one Lambda.” What is wrong?
+A: Nothing — Lambda hosts both FMs
+B: Lambda should invoke Bedrock for Claude and a SageMaker real-time endpoint for the extractor; Lambda does not host either GPU model
+C: Both must use Provisioned Throughput
+D: Both must use EKS
+correct: B
+feedback: Hybrid 2.2.1. Lambda is the app. C/D may appear later; they are not implied by “two models.”
+
+Q: Custom 70B on SageMaker OOMs on one GPU. Reviewer: “autoscale to 8 instances of the same type.”
+A: Correct — eight copies fix fit
+B: Incomplete — if one replica cannot load, eight copies still cannot; use tensor parallelism, a larger accelerator, and/or quantization
+C: Switch the 70B to Lambda
+D: Use a Bedrock inference profile for the 70B weights
+correct: B
+feedback: Trap: autoscale ≠ model parallelism. D is Bedrock on-demand routing, not self-hosted weights.
+
+Q: Provisioned Throughput purchased “to make Claude faster for ticker lookup.”
+A: Correct — PT reduces TTFT by definition
+B: Misaligned — PT buys capacity, not a smaller/faster model; ticker lookup should be a smaller model / routing (2.2.3), not reserved Opus units
+C: Use tensor parallelism on Bedrock
+D: Disable IAM
+correct: B
+feedback: Trap 5: PT ≠ faster model. Trap 4: most powerful model for everything.
+
+Q: Scale SageMaker LMI to zero overnight to save money. First user at 7:05 AM waits a minute.
+A: Unexpected — LLM cold start is like a 100 ms Lambda init
+B: Expected — load includes artifact download, weight load, GPU init; keep warm capacity or accept the SLO hit
+C: Fix by raising temperature
+D: Fix with cross-Region Bedrock on the SageMaker endpoint
+correct: B
+feedback: 2.2.2 loading/cold start. D does not apply to a SageMaker-hosted model.
+
+Q: Easy AMD date questions and hard thesis questions all go to the largest FM “for quality.” Cost explodes; latency on earnings morning is still poor.
+A: Buy more of the same model
+B: Route/cascade by task; separately fix Bedrock capacity (profile or PT) and token/context size
+C: Move the FM onto Lambda
+D: Add a Guardrail
+correct: B
+feedback: 2.2.3 plus 2.2.1. Quality on hard tasks does not require the giant model on easy tasks. Capacity is a different lever.
+
+Q: Team wants container-based LLM serving, already standardizes on EKS GPUs, and needs continuous batching. SageMaker is politically blocked.
+A: Impossible — only SageMaker can serve LLMs
+B: Valid 2.2.2 path — ECS/EKS/Fargate with a proper LLM server; you own more ops; the memory/GPU/token physics stay the same
+C: Use Bedrock PT as the container
+D: Use Batch Transform for chat
+correct: B
+feedback: Blueprint lists container patterns. SageMaker LMI is the paved AWS path, not the only physics.
+
+Q: Custom Bedrock fine-tune is ready. They try to call it on-demand like Claude.
+A: Works — all Bedrock models are on-demand
+B: Custom Bedrock models require Provisioned Throughput to invoke
+C: They must deploy it to Lambda
+D: They must use SageMaker Batch Transform
+correct: B
+feedback: Current Bedrock rule. Hosting on SageMaker is a different customization path.
+
+Q: GPU utilization is ~25% on a busy chat endpoint. Sequences are 40–800 tokens. Fixed batch size 8.
+A: Add IAM roles
+B: Continuous batching so finished short sequences give way to new ones
+C: Switch to CPU
+D: Provisioned Throughput on Bedrock for this SageMaker box
+correct: B
+feedback: 2.2.2. Fixed batches stall on long generations. D is the wrong product.
+
+Q: Context is 100k tokens of AMD research for a question retrieval already answered in 8k. They buy more PT.
+A: Correct first step
+B: Incomplete — cut tokens first (retrieval/trim); PT buys capacity, not exemption from prefill cost
+C: Tensor-parallel the prompt
+D: Use Textract
+correct: B
+feedback: Context length is a deployment decision (2.2.3).
+
+Q: Need both a managed FM for thesis prose and a GPU-hosted extractor. Someone claims SageMaker is always better because it gives control.
+A: Always true — more control is always better
+B: Control is a cost: use SageMaker where you need hosting; use Bedrock where managed invoke is enough; hybrid is the blueprint pattern
+C: Never use SageMaker
+D: Never use Bedrock
+correct: B
+feedback: Trap 6. Choose control when it solves a requirement.
+```
+
+---
+
+## Explain it aloud
+
+```recall
+Q: Explain invoke versus host in 45 seconds.
+A: Bedrock: application calls an API; AWS runs the FM; you do not load GPUs. SageMaker: you deploy artifacts and a container onto instances you size. Lambda is usually the caller, not the host.
+```
+
+```recall
+Q: On-demand vs cross-Region inference vs Provisioned Throughput.
+A: On-demand = shared elastic invoke. Cross-Region profiles = still on-demand, routed across Regions for burst/availability — they do not wrap PT. PT = reserved model units, hourly, for sustained dedicated capacity (and for custom Bedrock models).
+```
+
+```recall
+Q: Why isn’t a 70B LLM deployed like a small classifier?
+A: Weights may not fit one GPU (tensor parallelism), load time is long, work is tokens not requests, GPU RAM includes KV cache, and generations finish at different lengths (continuous batching). Containers (LMI or ECS/EKS) exist to handle that.
+```
+
+```recall
+Q: Routing vs cascading, and why both are deployment optimization.
+A: Routing picks the model before inference. Cascading tries a cheap model and escalates. Both stop routine AMD lookups from consuming thesis-class capacity. That is 2.2.3, not a prompt trick.
+```
+
+```recall
+Q: Walk the AMD earnings question through 2.2.1–2.2.3.
+A: 2.2.1: Lambda/API invokes Bedrock for synthesis; custom extractor on SageMaker if needed; re-evaluate on-demand vs profile vs PT as traffic grows. 2.2.2: if hosted, LMI, memory, parallelism, batching, load time. 2.2.3: do not send ticker/date questions to the biggest model; trim context; scale capacity separately from model IQ.
+```
+
+---
+
+## Final compressed review
+
+**Task 2.2 = how do I serve the model?**
+
+**2.2.1 — Where / how should it run?** Variable managed FM → Bedrock on-demand (Lambda invokes). Burst on-demand → inference profiles. Predictable dedicated FM → Provisioned Throughput. Custom hosting / GPUs → SageMaker (hybrid allowed).
+
+**2.2.2 — What makes an LLM hard to run?** Memory, GPUs, load time, token workloads, concurrency, batching, parallelism. Think LMI or serious containers — not a 50 MB CPU pattern.
+
+**2.2.3 — How do I run only as much as I need?** Right-size the model to the task, route/cascade, cut tokens, then tune serving capacity. Bigger model is not a capacity plan.
+
+**If you see X, think Y:**
+
+```text
+Unpredictable FM traffic              → Bedrock on-demand
+Peak bursts                           → cross-Region inference profile
+Stable high-volume Bedrock            → Provisioned Throughput
+Custom container / GPU control        → SageMaker AI endpoint
+Huge LLM                              → LMI container
+Doesn't fit one GPU                   → tensor / model parallelism
+GPU memory pressure                   → size / quantize / parallel / less concurrency
+Poor GPU utilization                  → continuous batching
+Routine questions on an expensive FM  → smaller model / routing / cascading
+Interactive low latency               → real-time serving
+Long / offline jobs                   → async or batch
+Managed FM + specialized hosted model → hybrid
+```
+
+One sentence: **match model capability and inference infrastructure to the workload** — managed on-demand when flexibility matters, provision when demand justifies it, host when you need control, and optimize LLM serving around memory, GPUs, tokens, concurrency, and model right-sizing.

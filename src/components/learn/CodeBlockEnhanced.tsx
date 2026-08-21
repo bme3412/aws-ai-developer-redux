@@ -48,6 +48,16 @@ export default function CodeBlockEnhanced({ language, code }: CodeBlockEnhancedP
     );
   }
 
+  if (language === 'text' || language === 'ascii' || language === 'diagram') {
+    return (
+      <div className="my-4 overflow-x-auto rounded-lg border border-gray-200 bg-slate-50">
+        <pre className="m-0 px-4 py-3 text-[13px] sm:text-sm leading-relaxed font-mono text-slate-800 whitespace-pre">
+          {code}
+        </pre>
+      </div>
+    );
+  }
+
   const normalizedLang = langMap[language] || language || 'javascript';
   const displayName = langDisplayNames[normalizedLang] || normalizedLang;
 

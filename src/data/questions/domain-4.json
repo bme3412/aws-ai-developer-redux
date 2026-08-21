@@ -2760,6 +2760,694 @@
         ],
         "timeManagementTip": "No error spikes + quality declining = need quality-specific metrics. Golden dataset evaluation is the standard answer. 15 seconds."
       }
+    },
+    {
+      "id": "d4-q52",
+      "domain": 4,
+      "task": "4.1",
+      "skills": [
+        "4.1.1"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "An investment-research copilot on Amazon Bedrock retrieves earnings transcripts for every analyst question. CloudWatch shows a simple “What was AMD Q2 revenue?” request consumes 14,000 input tokens, while a multi-quarter strategy compare consumes 22,000. The team has not established a per-query-type baseline. Leadership wants to reduce excessive FM input cost without changing the model.",
+      "question": "Which approach should the team take FIRST?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Purchase Amazon Bedrock Provisioned Throughput so each input token is billed at a lower committed rate."
+        },
+        {
+          "id": "b",
+          "text": "Use Amazon Bedrock CountTokens and CloudWatch InputTokenCount/OutputTokenCount by query type, then prune retrieval and conversation history on fact lookups."
+        },
+        {
+          "id": "c",
+          "text": "Increase maxTokens so the model can use the extra retrieved context more effectively."
+        },
+        {
+          "id": "d",
+          "text": "Move the foundation model onto AWS Lambda to eliminate Bedrock token charges."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Token efficiency starts with measurement. CountTokens estimates usage before inference. CloudWatch token metrics expose waste by query type. A 14,000-token revenue lookup is over-retrieval, which pruning, metadata filters, and rerank fix. Provisioned Throughput does not shrink the prompt. Raising maxTokens increases output cost. Lambda does not host the FM.",
+      "incorrectExplanations": {
+        "a": "Reserved capacity makes waste cheaper. It does not identify or remove unnecessary input tokens.",
+        "c": "A larger output cap does not reduce input tokens and usually increases latency and cost.",
+        "d": "Lambda invokes Bedrock. It does not replace FM token pricing."
+      },
+      "services": [
+        "Amazon Bedrock",
+        "Amazon CloudWatch"
+      ],
+      "examTip": "Reduce excessive FM input cost → measure tokens, then prune/compress/retrieve less — not PT.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q53",
+      "domain": 4,
+      "task": "4.1",
+      "skills": [
+        "4.1.2"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "The copilot must extract reported figures, summarize a single earnings call, and compare commentary across eight quarters. Today every request uses the most capable model in the account. An evaluation on the firm’s golden set shows a mid-tier model at 91% accuracy on extraction and single-call summaries. The production quality floor is 90%. Eight-quarter compares fall to 74% on the mid-tier model and 93% on the large model.",
+      "question": "Which architecture meets the quality floor at the LOWEST inference cost?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Keep the large model for every request so quality is uniform."
+        },
+        {
+          "id": "b",
+          "text": "Route extraction and single-call summaries to the mid-tier model. Escalate eight-quarter compares to the large model."
+        },
+        {
+          "id": "c",
+          "text": "Send every request to the cheapest catalog model because cost optimization means minimum price."
+        },
+        {
+          "id": "d",
+          "text": "Fine-tune the large model on 10-Ks so one model becomes cheaper."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Cost-effective model selection is constrained optimization: the cheapest model that reliably meets the requirement. The mid-tier model clears 90% on simple work. Hard compares still need the large model. Uniform large-model spend wastes money. The cheapest catalog model is not shown to meet the floor. Fine-tuning is a customization knob, not this routing problem.",
+      "incorrectExplanations": {
+        "a": "Uniform quality at frontier prices is not optimization when a cheaper model already clears the floor on most traffic.",
+        "c": "Minimum price without a quality floor is not cost optimization.",
+        "d": "Fine-tuning does not replace tiered routing and is the wrong lever for this stem."
+      },
+      "services": [
+        "Amazon Bedrock"
+      ],
+      "examTip": "Simple vs complex queries → model routing / Intelligent Prompt Routing. Judge cost per successful answer.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q54",
+      "domain": 4,
+      "task": "4.1",
+      "skills": [
+        "4.1.3",
+        "4.1.4"
+      ],
+      "type": "multiple-response",
+      "difficulty": "hard",
+      "scenario": "The desk has two workloads. Overnight, 200,000 historical transcripts must be summarized before the open. No user is waiting. During market hours, analysts chat. Forty percent of chat calls share an unchanged 8,000-token methodology prefix. Thirty percent of questions are paraphrases of questions already answered that morning, and the underlying filings have not changed.",
+      "question": "Which combination reduces cost without making interactive chat asynchronous? (Select TWO.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Amazon Bedrock batch inference for the overnight summarization job"
+        },
+        {
+          "id": "b",
+          "text": "Provisioned Throughput sized to the overnight peak and left running 24 hours a day"
+        },
+        {
+          "id": "c",
+          "text": "Prompt caching on the stable methodology prefix plus a semantic cache with a short TTL for equivalent questions"
+        },
+        {
+          "id": "d",
+          "text": "Batch inference for each interactive chat turn so tokens are cheaper"
+        },
+        {
+          "id": "e",
+          "text": "Delete the methodology so every call is under 200 tokens"
+        }
+      ],
+      "correctAnswers": [
+        "a",
+        "c"
+      ],
+      "explanation": "Overnight volume that can wait is batch inference. Interactive chat stays on-demand with prompt caching for the repeated prefix and semantic caching for paraphrases. 24×7 PT sized to a night job pays for idle hours. Batching chat makes it asynchronous. Deleting the methodology is not optimization.",
+      "incorrectExplanations": {
+        "b": "Reserved MUs through the quiet day is unused capacity.",
+        "d": "Interactive users cannot wait for a batch window.",
+        "e": "Removing required instructions trades quality for tokens."
+      },
+      "services": [
+        "Amazon Bedrock",
+        "Amazon ElastiCache"
+      ],
+      "examTip": "Large async workload → batch. Repeated prefix → prompt cache. Equivalent questions → semantic cache.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q55",
+      "domain": 4,
+      "task": "4.1",
+      "skills": [
+        "4.1.4"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "The copilot caches answers to “What was AMD’s latest quarterly revenue?” Analysts praise the speed. The next morning AMD files a new 10-Q. The cached answer still shows last quarter’s figure for six hours.",
+      "question": "Which change is required?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Switch the cache from ElastiCache to a larger Bedrock model so answers are more accurate."
+        },
+        {
+          "id": "b",
+          "text": "Invalidate or expire cached answers when source documents change, and bind TTL to the freshness SLO."
+        },
+        {
+          "id": "c",
+          "text": "Disable all caching because caches are never appropriate for financial data."
+        },
+        {
+          "id": "d",
+          "text": "Increase the semantic similarity threshold to 0.50 so more questions hit the stale entry."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "A cheap stale answer can be worse than an expensive fresh one. Caching remains valid when invalidation follows document change, prompt/model version, or TTL. A stronger model does not expire data. Banning all caches is overkill. Loosening similarity increases wrong-question hits.",
+      "incorrectExplanations": {
+        "a": "Model capability does not refresh last quarter’s print.",
+        "c": "Financial apps can cache with strict invalidation.",
+        "d": "A looser threshold increases incorrect reuse."
+      },
+      "services": [
+        "Amazon ElastiCache",
+        "Amazon Bedrock"
+      ],
+      "examTip": "Caching without invalidation is the trap. Freshness is part of the quality bar.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q56",
+      "domain": 4,
+      "task": "4.1",
+      "skills": [
+        "4.1.2"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "Easy ticker lookups and hard multi-document compares share one Bedrock application. The team does not want to maintain a handwritten intent classifier. Models in the same family are available. Quality and cost both matter.",
+      "question": "Which Bedrock capability dynamically chooses between a small and large model at request time?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Cross-Region inference profiles"
+        },
+        {
+          "id": "b",
+          "text": "Intelligent Prompt Routing"
+        },
+        {
+          "id": "c",
+          "text": "Provisioned Throughput"
+        },
+        {
+          "id": "d",
+          "text": "Model invocation logging"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Intelligent Prompt Routing selects among models in a supported family based on predicted quality and cost. Cross-Region inference is the same FM with more Regional capacity. PT reserves MUs. Invocation logging records bodies.",
+      "incorrectExplanations": {
+        "a": "CRI is same-FM peak capacity, not a small-vs-large router.",
+        "c": "PT is reserved throughput, not model choice.",
+        "d": "Logging is observability, not routing."
+      },
+      "services": [
+        "Amazon Bedrock"
+      ],
+      "examTip": "Do not confuse prompt routing (different models) with CRI (same model, more Regions).",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q57",
+      "domain": 4,
+      "task": "4.2",
+      "skills": [
+        "4.2.1"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "Analysts say the research copilot “feels frozen.” End-to-end generation is about eight seconds, which they will accept for a thorough answer. Nothing appears on screen until the full completion is ready. An Amazon API Gateway REST integration times out on longer answers.",
+      "question": "Which change MOST directly addresses the complaint with the LEAST operational overhead?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Purchase Provisioned Throughput so generation finishes in less than one second."
+        },
+        {
+          "id": "b",
+          "text": "Stream tokens with ConverseStream over a WebSocket or SSE connection so time-to-first-token drops."
+        },
+        {
+          "id": "c",
+          "text": "Process each chat turn with Amazon Bedrock batch inference."
+        },
+        {
+          "id": "d",
+          "text": "Increase temperature so the model produces shorter answers."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "The complaint is blank-screen wait, not total generation time. Streaming improves perceived latency (TTFT). PT is capacity, not a display path. Batch is offline. Temperature is not a length or streaming control.",
+      "incorrectExplanations": {
+        "a": "PT does not paint tokens as they generate and is not a TTFT product.",
+        "c": "Batch inference is asynchronous and worse for a human waiting.",
+        "d": "Temperature controls randomness, not UI responsiveness."
+      },
+      "services": [
+        "Amazon Bedrock",
+        "Amazon API Gateway"
+      ],
+      "examTip": "Users wait too long before seeing anything → streaming / TTFT.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q58",
+      "domain": 4,
+      "task": "4.2",
+      "skills": [
+        "4.2.2"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A Bedrock Knowledge Base over OpenSearch returns conceptually related AMD passages for “Blackwell gross margin pressure” but routinely misses exact strings such as GB200 NVL72 and MI300X. Retrieval latency is acceptable. Answer quality suffers on product-code questions.",
+      "question": "Which retrieval change is MOST appropriate?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Increase maximum output tokens so the model can guess the product code."
+        },
+        {
+          "id": "b",
+          "text": "Enable hybrid search so keyword matching complements vector similarity, then rerank a shortlist."
+        },
+        {
+          "id": "c",
+          "text": "Raise temperature to increase lexical diversity in the completion."
+        },
+        {
+          "id": "d",
+          "text": "Add application servers in a second Availability Zone."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Exact product names and tickers are a hybrid-search problem. Output length, sampling, and extra app servers do not add lexical retrieval.",
+      "incorrectExplanations": {
+        "a": "Generation length does not retrieve a SKU that never entered the prompt.",
+        "c": "Temperature does not run BM25.",
+        "d": "More compute in another AZ is not the index."
+      },
+      "services": [
+        "Amazon OpenSearch Service",
+        "Amazon Bedrock Knowledge Bases"
+      ],
+      "examTip": "Semantic search misses product codes → hybrid search.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q59",
+      "domain": 4,
+      "task": "4.2",
+      "skills": [
+        "4.2.6",
+        "4.2.4"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "AWS X-Ray on the copilot shows vector search p95 of 5.1 seconds and Bedrock generation of 800 ms. Users complain the app is slow. A teammate proposes Provisioned Throughput and a higher temperature “to help the model think faster.”",
+      "question": "What should the team do?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Buy Provisioned Throughput because the foundation model is always the bottleneck."
+        },
+        {
+          "id": "b",
+          "text": "Raise temperature and top-p so decoding uses fewer milliseconds."
+        },
+        {
+          "id": "c",
+          "text": "Treat retrieval as the bottleneck: metadata filters, hybrid search, k, index parameters, and a bounded rerank set."
+        },
+        {
+          "id": "d",
+          "text": "Switch interactive chat to batch inference."
+        }
+      ],
+      "correctAnswers": [
+        "c"
+      ],
+      "explanation": "Profile first. Retrieval dominates this trace. PT and decoding knobs do not accelerate k-NN. Temperature is generation behavior, not GPUs. Batch is the wrong interaction model.",
+      "incorrectExplanations": {
+        "a": "The model hop is already 800 ms.",
+        "b": "Temperature/top-p/top-k are not capacity or search latency.",
+        "d": "Batch does not fix a 5-second retrieve on a live question."
+      },
+      "services": [
+        "AWS X-Ray",
+        "Amazon OpenSearch Service"
+      ],
+      "examTip": "The chatbot feels slow → do not immediately pick a faster model. Trace the hop.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q60",
+      "domain": 4,
+      "task": "4.2",
+      "skills": [
+        "4.2.5"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "After a prompt-template deploy, average input tokens jump from 6,000 to 40,000. p95 latency and Bedrock cost follow. Auto Scaling is adding Lambda concurrency because request count is unchanged but duration is up. Conversation history is appended unbounded. Retrieval k was increased from 5 to 30.",
+      "question": "Which action addresses the ROOT cause?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Raise the Auto Scaling maximum so more Lambdas absorb the 40,000-token prompts."
+        },
+        {
+          "id": "b",
+          "text": "Inspect retrieval k, duplicate chunks, and conversation-history trimming; restore a context budget."
+        },
+        {
+          "id": "c",
+          "text": "Enable response streaming only, because TTFT will hide the token bloat."
+        },
+        {
+          "id": "d",
+          "text": "Increase top-k so the model finishes sooner."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "A sudden prompt-size jump is a retrieval/history/construction defect. Scaling copies the waste. Streaming hides it. top-k is sampling.",
+      "incorrectExplanations": {
+        "a": "More concurrency processes the same bloated prompts in parallel.",
+        "c": "TTFT improvements do not shrink a 40k input.",
+        "d": "Decoding knobs do not assemble the prompt."
+      },
+      "services": [
+        "Amazon CloudWatch",
+        "Amazon Bedrock"
+      ],
+      "examTip": "Prompt size exploded after a deploy → retrieval and prompt construction, not the autoscaler.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q61",
+      "domain": 4,
+      "task": "4.2",
+      "skills": [
+        "4.2.3",
+        "4.2.5"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "Ten concurrent 50,000-token research requests consume more Bedrock capacity than 100 ticker lookups. Auto Scaling on the application tier tracks request count. During earnings, the large requests arrive together and p99 collapses while request/second looks modest.",
+      "question": "How should scaling and capacity planning change?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Continue scaling only on request count because each API call is equal work."
+        },
+        {
+          "id": "b",
+          "text": "Plan and scale on token throughput, concurrent model invocations, and queue depth — not request count alone."
+        },
+        {
+          "id": "c",
+          "text": "Size Provisioned Throughput to the 24-hour average request rate."
+        },
+        {
+          "id": "d",
+          "text": "Disable concurrency limits so all 50,000-token jobs enter the model at once."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "GenAI work is token- and concurrency-shaped. Request count under-counts huge prompts. Daily-average PT misses peaks. Unbounded concurrency creates 429s.",
+      "incorrectExplanations": {
+        "a": "Two requests can differ by two orders of magnitude in tokens.",
+        "c": "Averages hide the earnings spike.",
+        "d": "You need backpressure, not a stampede."
+      },
+      "services": [
+        "Amazon CloudWatch",
+        "AWS Auto Scaling",
+        "Amazon Bedrock"
+      ],
+      "examTip": "Capacity for GenAI must consider tokens and concurrency, not just request count.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q62",
+      "domain": 4,
+      "task": "4.3",
+      "skills": [
+        "4.3.1",
+        "4.3.3"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "Security asks who invoked Amazon Bedrock from an intern notebook, and research asks what prompt produced a leaked figure. The team already has CloudWatch runtime metrics for InvocationCount and InvocationLatency.",
+      "question": "Which pair of controls answers BOTH questions?",
+      "options": [
+        {
+          "id": "a",
+          "text": "AWS X-Ray for both the principal and the prompt body"
+        },
+        {
+          "id": "b",
+          "text": "AWS CloudTrail for the caller identity, and Bedrock model invocation logging for the prompt and completion"
+        },
+        {
+          "id": "c",
+          "text": "CloudWatch runtime metrics, because they include prompt text"
+        },
+        {
+          "id": "d",
+          "text": "Knowledge Base logging only, because retrieve events include IAM user names and full completions"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "CloudTrail records which principal called InvokeModel/Retrieve. Invocation logging (off by default) records bodies to CloudWatch Logs or S3. X-Ray is hop timing. Runtime metrics are aggregates. KB logging is ingest/retrieve, not the FM body or the IAM caller of InvokeModel.",
+      "incorrectExplanations": {
+        "a": "X-Ray shows latency trees, not prompt payloads or a complete IAM audit.",
+        "c": "Metrics do not store prompts.",
+        "d": "KB logging is a different switch and does not replace CloudTrail plus invocation logs."
+      },
+      "services": [
+        "AWS CloudTrail",
+        "Amazon Bedrock",
+        "Amazon CloudWatch"
+      ],
+      "examTip": "Who → CloudTrail. What was said → invocation logging (off by default). Which hop → X-Ray.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q63",
+      "domain": 4,
+      "task": "4.3",
+      "skills": [
+        "4.3.2",
+        "4.3.4"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "An agentic research assistant still returns HTTP 200. Error rate is unchanged. CloudWatch shows model invocation volume up 8× and estimated cost tripled. Average tool calls per query moved from 2.1 to 17.8 after a prompt change.",
+      "question": "What should the team inspect NEXT?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Increase Amazon EC2 CPU credits for the web tier"
+        },
+        {
+          "id": "b",
+          "text": "Agent traces and tool-call patterns for a retry/search loop"
+        },
+        {
+          "id": "c",
+          "text": "Retrain the embedding model"
+        },
+        {
+          "id": "d",
+          "text": "Disable invocation logging and agent tracing to reduce cost"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Cost and invocation spikes with a healthy error rate are classic agent loops. enableTrace plus tool metrics (calls/query, retries) diagnose it. CPU, embeddings, and disabling logs do not.",
+      "incorrectExplanations": {
+        "a": "Web-tier CPU does not multiply Bedrock InvokeModel.",
+        "c": "Embedding quality is not this symptom.",
+        "d": "You need more telemetry, not less."
+      },
+      "services": [
+        "Amazon CloudWatch",
+        "AWS X-Ray",
+        "Amazon Bedrock"
+      ],
+      "examTip": "Expensive agent, errors unchanged → traces and tool-call patterns.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q64",
+      "domain": 4,
+      "task": "4.3",
+      "skills": [
+        "4.3.5"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "Amazon OpenSearch Service reports 99.99% availability, 18 ms p50 k-NN latency, and zero indexing errors. Analysts say the copilot cites last quarter’s AMD print all morning after a 10-Q was uploaded at 6 a.m. Knowledge Base sync metrics were not reviewed.",
+      "question": "Which signal is MOST relevant?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Lambda memory utilization"
+        },
+        {
+          "id": "b",
+          "text": "Index freshness along the ingest path (parse, chunk, embed, searchable)"
+        },
+        {
+          "id": "c",
+          "text": "Foundation model temperature"
+        },
+        {
+          "id": "d",
+          "text": "API Gateway 5xx rate"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Vector-store operational health is not retrieval quality. A green cluster can serve stale or mis-tagged chunks. Freshness and KB ingest logs are the tape.",
+      "incorrectExplanations": {
+        "a": "Lambda memory does not age the index.",
+        "c": "Temperature does not ingest a 10-Q.",
+        "d": "HTTP 5xx can be zero while RAG is stale."
+      },
+      "services": [
+        "Amazon OpenSearch Service",
+        "Amazon CloudWatch",
+        "Amazon Bedrock Knowledge Bases"
+      ],
+      "examTip": "High availability + outdated answers → index freshness, not CPU.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q65",
+      "domain": 4,
+      "task": "4.3",
+      "skills": [
+        "4.3.6"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "Prompt v18 replaces v17. Infrastructure dashboards are flat. Analysts report more invented figures. The team wants to know whether hallucination and groundedness actually regressed.",
+      "question": "Which approach is MOST appropriate?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Alarm on HTTP 500s from Amazon API Gateway"
+        },
+        {
+          "id": "b",
+          "text": "Run v17 and v18 against a golden evaluation dataset and compare hallucination and groundedness scores"
+        },
+        {
+          "id": "c",
+          "text": "Increase Provisioned Throughput"
+        },
+        {
+          "id": "d",
+          "text": "Inspect Amazon EC2 CPU credits"
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "This is an AI-quality regression. Golden datasets (Bedrock evaluations or an equivalent pipeline) plus custom CloudWatch quality metrics detect it. HTTP 500s, PT, and CPU do not score groundedness.",
+      "incorrectExplanations": {
+        "a": "The app can return 200 with a hallucinated number.",
+        "c": "Capacity does not measure truth.",
+        "d": "CPU is not an eval harness."
+      },
+      "services": [
+        "Amazon Bedrock Model Evaluations",
+        "Amazon CloudWatch"
+      ],
+      "examTip": "Prompt change + suspected hallucination → golden set, not infrastructure monitors.",
+      "source": "domain"
+    },
+    {
+      "id": "d4-q66",
+      "domain": 4,
+      "task": "4.3",
+      "skills": [
+        "4.3.1",
+        "4.3.2"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "Average latency is 3.3 seconds. p99 is 15 seconds. Token use is stable. Leadership wants a single CloudWatch statistic to prove the copilot is “fast enough.”",
+      "question": "Which statement is correct?",
+      "options": [
+        {
+          "id": "a",
+          "text": "The mean is sufficient because most users are fine."
+        },
+        {
+          "id": "b",
+          "text": "Alarm on p95/p99, then use traces to find the slow hop; the mean hides a bad tail."
+        },
+        {
+          "id": "c",
+          "text": "Invocation logs should be the detector of the latency spike."
+        },
+        {
+          "id": "d",
+          "text": "Raising temperature will pull p99 down."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Percentiles are the production signal. Metrics detect; traces diagnose. Invocation logs help inspect a specific slow request after you know there is a problem. Temperature is not a latency control.",
+      "incorrectExplanations": {
+        "a": "Ten percent of users at 15 seconds is not healthy.",
+        "c": "Logs diagnose; they are a poor primary alarm.",
+        "d": "Sampling variability is not p99."
+      },
+      "services": [
+        "Amazon CloudWatch",
+        "AWS X-Ray"
+      ],
+      "examTip": "Metric → detect. Trace/log → diagnose. Watch the tail.",
+      "source": "domain"
     }
   ]
 }

@@ -10,6 +10,12 @@ export interface Section {
   content: string;
 }
 
+/** Pull official skill ids like 1.4.2 out of "Skill 1.4.2 — …" headings. */
+export function extractSkillId(title: string): string | null {
+  const match = title.match(/\bSkill\s+(\d+\.\d+\.\d+)\b/i);
+  return match ? match[1] : null;
+}
+
 export function generateSlug(text: string): string {
   return text
     .toLowerCase()

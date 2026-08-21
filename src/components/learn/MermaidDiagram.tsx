@@ -64,7 +64,7 @@ export default function MermaidDiagram({ chart, className = '' }: MermaidDiagram
   return (
     <div
       ref={containerRef}
-      className={`my-4 p-4 bg-white border border-gray-200 rounded-lg overflow-x-auto ${className}`}
+      className={`my-4 p-2 sm:p-4 bg-white border border-gray-200 rounded-lg overflow-x-auto -mx-1 sm:mx-0 ${className}`}
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );

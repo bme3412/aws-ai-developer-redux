@@ -1,832 +1,653 @@
-# AI Governance and Compliance
+# Implement AI Governance and Compliance Mechanisms
 
-**Domain 3 | Task 3.3 | ~35 minutes**
+**Domain 3 · Task 3.3 · Skills 3.3.1–3.3.4**
 
----
+Task 3.2 *protects* the data. Task 3.3 *proves and sustains* trustworthy operation. A regulator asks: show the intended use, the 10-K paragraph that grounded yesterday’s NVDA summary, who approved the deployment, and whether the assistant has drifted since launch. If you cannot, the summary does not matter.
 
-## Why This Matters
+Governance answers four questions that security alone does not:
 
-AI governance isn't about bureaucracy—it's about building AI systems you can trust, explain, and defend. When your model makes a decision that affects a customer, can you explain why? When an auditor asks how you ensure compliance, can you show them? When something goes wrong, can you trace back to understand what happened?
-
-The regulatory landscape for AI is evolving rapidly. The EU AI Act, state-level AI regulations, industry-specific requirements—organizations deploying AI face increasing scrutiny. But governance isn't just about avoiding penalties. It's about building confidence: confidence from your customers that AI treats them fairly, confidence from your leadership that AI systems are under control, confidence from your team that they're building something responsible.
-
-Good governance means documentation, lineage tracking, audit logging, and continuous monitoring. It means knowing not just what your AI does, but why it does it, where its data comes from, and who's responsible when issues arise. AWS provides tools for each of these requirements. Your job is to weave them into a coherent governance framework.
-
----
-
-## Under the Hood: How Governance Actually Works
-
-Understanding the governance landscape helps you design systems that satisfy auditors and regulators.
-
-### The Governance Stack
-
-AI governance operates at multiple levels:
+```text
+WHAT IS IT FOR?     documentation — model cards, inventories
+WHERE DID DATA GO?  lineage — Glue Catalog, tags, citations, CloudTrail
+WHO SAID YES?       oversight — policies, boards, SCPs, Audit Manager
+STILL APPROVED?     continuous assurance — drift, misuse, EventBridge loops
+```
 
 ```mermaid
-graph TD
-    subgraph "Organizational Level"
-        A[AI Ethics Board]
-        B[Risk Assessment]
-        C[Policy Framework]
-    end
-
-    subgraph "System Level"
-        D[Model Documentation]
-        E[Data Lineage]
-        F[Access Controls]
-    end
-
-    subgraph "Operational Level"
-        G[Audit Logging]
-        H[Monitoring]
-        I[Incident Response]
-    end
-
-    A --> D
-    B --> E
-    C --> F
-    D --> G
-    E --> H
-    F --> I
+flowchart TD
+    Q1["What is this model and what is it for?"] --> MC[Model cards + inventory]
+    Q2["Where did the data come from?"] --> LIN[Catalog + lineage + citations]
+    Q3["Who decided this was acceptable?"] --> GOV[Policy + Registry + SCPs]
+    Q4["Is it still behaving as approved?"] --> MON[Monitor + Guardrails + alarms]
+    MC --> EV[Evidence the auditor can export]
+    LIN --> EV
+    GOV --> EV
+    MON --> EV
 ```
 
-### What Auditors Actually Look For
+A useful compression: **compliance is a claim; governance is the system that makes the claim true; evidence is what makes it auditable.** Nearly every service in this task generates, organizes, or acts on evidence. “The auditor asks…” / “demonstrate to the regulator…” means: which *artifact*, produced automatically so it does not rot.
 
-| Question | Evidence Needed |
-|----------|-----------------|
-| "What data trained this model?" | Data lineage in SageMaker |
-| "Who approved this model?" | Model registry + approval workflow |
-| "What decisions did it make?" | CloudTrail + invocation logs |
-| "How do you ensure fairness?" | Bias metrics + Model Cards |
-| "Who has access?" | IAM policies + access logs |
-| "What happens when it fails?" | Incident runbooks + monitoring |
+You will rarely be quizzed on legal text. You will be asked which AWS mechanism satisfies a requirement *shaped like* the **EU AI Act** (risk-tiered docs and transparency), **GDPR** (minimization, explanation, erasure), **HIPAA** / **SR 11-7** model-risk management, **NIST AI RMF** (Govern, Map, Measure, Manage), or **ISO/IEC 42001**.
 
-### The Regulatory Landscape
+Read the article as those four questions. **3.3.1** produces the compliance pack. **3.3.2** traces sources into generated answers. **3.3.3** is the operating model at org scale. **3.3.4** keeps the envelope after launch.
 
-| Regulation | Scope | Key Requirements |
-|------------|-------|------------------|
-| **EU AI Act** | EU operations | Risk classification, documentation, human oversight |
-| **State AI Laws** | US state-specific | Disclosure, bias testing, opt-out rights |
-| **HIPAA** | Healthcare | PHI protection, audit trails |
-| **SOC 2** | Enterprise | Controls, monitoring, access management |
+> **Exam tip:** CloudTrail is who clicked. Invocation logs are what was said. Glue Catalog + output tags are which *pile* a generated fact came from. Clarify is why a *tabular* score moved. Do not swap those drawers.
 
 ---
 
-## Decision Framework: Building a Governance Program
+## Skill 3.3.1 — Compliance frameworks for FM deployments
 
-Use this framework to establish appropriate governance for your AI systems.
+Four artifacts, produced as the work runs, not reconstructed in a wiki the week of the audit: **model cards**, **Glue lineage**, **tags**, **decision logs**.
 
-### Quick Reference
+### SageMaker Model Cards — programmatic documentation
 
-| Risk Level | Documentation | Monitoring | Review Frequency |
-|------------|---------------|------------|------------------|
-| Low (internal tools) | Basic Model Card | Standard CloudWatch | Quarterly |
-| Medium (customer-facing) | Full Model Card + lineage | Enhanced + bias monitoring | Monthly |
-| High (regulated domain) | Complete audit trail | Continuous + alerting | Weekly + incident-driven |
+A **model card** is the canonical document: what it is, what data trained or grounded it, how it was evaluated, where it may and may not be used, who is accountable. **SageMaker Model Cards** are an API resource, not a Confluence page. Intended uses and out-of-scope uses, risk rating, training details, metrics, ethical caveats, owner/approver. Create and update them **in CI/CD** — documentation generated *as part of the ML workflow*.
 
-### Decision Tree
+Lifecycle status: `draft` → `pending review` → `approved` → `archived`. Export **PDF** for the risk committee.
 
-```mermaid
-graph TD
-    A[Governance Design] --> B{Regulatory<br/>requirements?}
+For a Bedrock FM you did not train, the card still documents *your application*: intended use (“summarizes public filings; not advice”), eval results, guardrail version, risk rating. Governance attaches to **deployment and use**, not only to training.
 
-    B -->|HIPAA/PCI/etc| C[Maximum Governance]
-    B -->|None specific| D{Customer<br/>facing?}
+Do not mash the neighbors:
 
-    D -->|Yes| E{Decision<br/>impact?}
-    D -->|No| F[Standard Governance]
+| Stem | Pick |
+|------|------|
+| Documentation for the risk committee / intended use / limitations | **Model Card** |
+| Block deploy until someone approves; version the artifact | **Model Registry** approval status |
+| Fleet-wide view: which models lack cards or monitors | **SageMaker Model Dashboard** |
+| Least-privilege personas in the ML platform | **SageMaker Role Manager** |
 
-    E -->|High stakes| G[Enhanced Governance]
-    E -->|Low stakes| H[Standard + Monitoring]
-
-    C --> I[Full audit trail<br/>Model Cards<br/>Lineage<br/>Bias monitoring<br/>Human oversight]
-
-    G --> J[Model Cards<br/>Lineage<br/>Enhanced logging<br/>Regular bias checks]
-
-    H --> K[Model Cards<br/>Standard logging<br/>Periodic review]
-
-    F --> L[Basic documentation<br/>CloudTrail<br/>Quarterly review]
+```quickcheck
+Q: A regulator wants intended use, evaluation results, and approval history for the blotter assistant, kept current in CI/CD. Which artifact?
+A: A wiki page the intern updates after launch
+B: SageMaker Model Card (status + PDF), updated in the pipeline; Registry if the stem is the *deploy gate*
+C: CloudTrail LookupEvents
+D: Macie findings
+correct: B
+feedback: Cards are programmatic evidence. Registry is the promotion gate. Trail is who called an API. Macie is S3 content discovery.
 ```
 
-### Governance Components by Risk
+### Glue — make the data known, then track what touched it
 
-| Component | Low Risk | Medium Risk | High Risk |
-|-----------|----------|-------------|-----------|
-| **Model Cards** | Basic | Detailed | Comprehensive + updates |
-| **Data Lineage** | Optional | Required | Full traceability |
-| **Audit Logging** | CloudTrail | + Invocation logs | + Full I/O logging |
-| **Bias Testing** | Initial | Quarterly | Continuous |
-| **Human Review** | None | Sampling | High-risk decisions |
-| **Approval Workflow** | Informal | Documented | Multi-level |
+“What data trained or grounded this model, and what transformations did it undergo?”
 
-### Trade-off Analysis
+| Piece | Job |
+|-------|-----|
+| **Glue Data Catalog** | Technical metadata: databases, tables, schemas, locations. Crawlers infer schema from S3 / JDBC. |
+| **Glue ETL jobs** | Pipeline lineage: what they read and wrote; bookmarks; job-run history → dataset version ↔ code version. |
+| **SageMaker ML Lineage** | ML-artifact graph: dataset → processing → training → model → endpoint. |
+| **DataZone / SageMaker Catalog** | Business metadata, glossaries, **subscription / approval** to share an asset. |
 
-| Governance Level | Implementation Cost | Operational Overhead | Audit Readiness | Flexibility |
-|------------------|--------------------|--------------------|-----------------|-------------|
-| Minimal | Low | Low | Poor | High |
-| Standard | Medium | Medium | Good | Medium |
-| Comprehensive | High | High | Excellent | Lower |
+Registration in the catalog is the foundational act of making a source *governable*. Then you can tag it, Lake-Formation it (3.2), and point KB syncs at a known table.
 
----
+**Source lineage** on this exam is often **input inventory + output sticker**, least ops: register curated vs scraped piles in the **Glue Data Catalog**, and **tag FM outputs** with source metadata so a reviewer sees `source=curated` / the S3 URI on the generated quiz card. CloudTrail of “who approved” is people, not credibility. Clarify SHAP is the wrong kind of “why.” Joining invocation logs to S3 keys is extra ops.
 
-## Model Documentation: Model Cards and Beyond
-
-Models are complex artifacts. They have capabilities and limitations that aren't obvious from their code or weights. They perform differently on different types of inputs. They have biases inherited from training data. Without documentation, this knowledge exists only in the heads of the people who built them—and those people move on, forget, or simply can't remember every detail.
-
-Model cards are the solution: standardized documentation that travels with the model through its lifecycle.
-
-### SageMaker Model Cards
-
-SageMaker Model Cards provide a structured way to document AI models. They capture the essential information that anyone working with the model needs to know:
-
-**Model Purpose and Intended Use**
-What is this model supposed to do? What use cases is it designed for? What use cases is it NOT designed for? Clear boundaries prevent misuse.
-
-**Training Data Description**
-What data was used to train this model? What time period does it cover? What populations are represented? What's missing? Training data shapes model behavior—understanding the data helps predict where the model will succeed and fail.
-
-**Performance Metrics**
-How well does the model perform? Not just overall accuracy, but performance across different conditions, different user groups, different input types. A model that performs 95% overall but only 70% for a specific demographic has a fairness problem that overall metrics hide.
-
-**Known Limitations**
-Every model has limitations. Document them. The model struggles with domain-specific jargon. It performs poorly on very long inputs. It sometimes hallucinates specific types of information. These aren't failures—they're known characteristics that users need to understand.
-
-**Ethical Considerations**
-What are the potential harms from this model? What bias risks exist? What safeguards are in place? Thoughtful ethical consideration demonstrates responsible AI development.
-
-```typescript
-import { SageMakerClient, CreateModelCardCommand } from '@aws-sdk/client-sagemaker';
-
-const modelCard = await sagemaker.send(new CreateModelCardCommand({
-  ModelCardName: 'customer-sentiment-classifier-v2',
-  Content: JSON.stringify({
-    model_overview: {
-      model_description: 'Classifies customer feedback into positive, negative, or neutral sentiment',
-      model_creator: 'ML Platform Team',
-      problem_type: 'Text Classification',
-      algorithm_type: 'Fine-tuned BERT',
-      model_artifact: ['s3://models/sentiment/v2/model.tar.gz']
-    },
-    intended_uses: {
-      purpose_of_model: 'Route customer feedback to appropriate teams based on sentiment',
-      intended_uses: [
-        'Classify support ticket sentiment for routing',
-        'Analyze product review sentiment for reporting'
-      ],
-      factors_affecting_model_efficiency: [
-        'Sarcasm and irony are often misclassified',
-        'Non-English text returns low confidence scores',
-        'Very short messages (<10 words) have reduced accuracy'
-      ],
-      risk_rating: 'Medium',
-      explanations_for_risk_rating: 'Misclassification could delay response to urgent negative feedback'
-    },
-    training_details: {
-      training_observations: 'Trained on 500K customer feedback samples from 2022-2023',
-      training_job_details: {
-        training_data_details: {
-          datasets: [{
-            name: 'Customer Feedback Corpus',
-            description: '500K samples, manually labeled, English only',
-            source_type: 'Internal'
-          }]
-        }
-      }
-    },
-    evaluation_details: [{
-      metric_type: 'accuracy',
-      value: 0.92,
-      evaluation_observation: 'Measured on held-out test set of 50K samples'
-    }, {
-      metric_type: 'f1_score',
-      value: 0.89,
-      evaluation_observation: 'Macro-averaged across sentiment classes'
-    }],
-    additional_information: {
-      ethical_considerations: 'Model may reflect biases in historical labeling. Regular fairness audits recommended.',
-      limitations: [
-        'Not suitable for legal or medical sentiment analysis',
-        'Requires minimum 10 words for reliable predictions',
-        'English language only'
-      ]
-    }
-  }),
-  ModelCardStatus: 'Draft'
-}));
+```recall
+Q: Reviewers must verify whether a generated quiz fact came from a 10-K or a scrape, least operational overhead. What pair?
+A: Glue Data Catalog on the input datasets + tags on the FM outputs. Not CloudTrail of the Approve click, not Clarify, not a homemade join of invocation logs.
 ```
 
-### Programmatic Model Card Lifecycle
+### Metadata tagging — attribution that scales
 
-Model cards aren't static documents — they have a lifecycle. As models evolve through development, evaluation, and deployment, their model cards should be updated programmatically as part of CI/CD:
+Taxonomy on resources: `data-classification`, `data-owner`, `source-system`, `retention-period`, `approved-use`. Enables ABAC, cost allocation, Config rules (“any untagged bucket feeding a KB”). **Organizations tag policies** keep the vocabulary consistent across accounts. Catalog / **LF-Tags** classify tables and columns so “approved for training” is queryable, not tribal.
 
-```typescript
-// Automated model card updates in deployment pipeline
-async function updateModelCardForDeployment(
-  modelCardName: string,
-  evaluationResults: EvalResults,
-  deploymentTarget: string
-): Promise<void> {
-  // 1. Get current model card
-  const currentCard = await sagemaker.send(new DescribeModelCardCommand({
-    ModelCardName: modelCardName
-  }));
+When the stem says *systematically* attribute sources across a large estate: **catalog + tags**, because tags scale where enumerating ARNs does not.
 
-  const content = JSON.parse(currentCard.Content);
+### CloudWatch Logs — decision records
 
-  // 2. Update with latest evaluation results
-  content.evaluation_details.push({
-    metric_type: 'pre_deployment_eval',
-    value: evaluationResults.overallScore,
-    evaluation_observation: `Pre-deployment evaluation for ${deploymentTarget}. ` +
-      `Pass rate: ${evaluationResults.passRate}%, ` +
-      `Hallucination rate: ${evaluationResults.hallucinationRate}%`,
-    datasets: [evaluationResults.datasetName]
-  });
+A decision log is each consequential turn: input, retrieved context, model + version, guardrail interventions, output, disposition (shown / escalated / blocked). **CloudWatch Logs** is the collection point: app logs, Bedrock **invocation logs**, guardrail telemetry. **Logs Insights** for “blocked outputs for user X in March.”
 
-  // 3. Add deployment record
-  content.additional_information.deployment_history = [
-    ...(content.additional_information.deployment_history || []),
-    {
-      target: deploymentTarget,
-      date: new Date().toISOString(),
-      eval_score: evaluationResults.overallScore,
-      approver: evaluationResults.approver
-    }
-  ];
+Emit **JSON** with correlation IDs (request, session, model version, guardrail version). That is **traceability of individual outcomes**. Log-group retention = audit window. These logs are Task 3.2 data: KMS, IAM, Lifecycle; export to S3 + Object Lock when WORM is mandated.
 
-  // 4. Update status
-  await sagemaker.send(new UpdateModelCardCommand({
-    ModelCardName: modelCardName,
-    Content: JSON.stringify(content),
-    ModelCardStatus: 'Approved'  // Draft → PendingReview → Approved → Archived
-  }));
-}
+```text
+Model cards     document the model
+Glue + catalog  document the data and pipeline lineage
+Tags            bind classification and ownership
+CW Logs         record the runtime decisions
 ```
 
-**Model card statuses and transitions:**
+Together they produce, automatically, the evidence a compliance framework requires.
 
-| Status | Meaning | Next Steps |
-|--------|---------|------------|
-| **Draft** | Being authored, not ready for review | Complete documentation, submit for review |
-| **PendingReview** | Submitted for governance review | Governance team reviews, approves or returns |
-| **Approved** | Cleared for deployment | Deploy model, monitor in production |
-| **Archived** | No longer in active use | Retained for audit trail, not deployable |
-
-**Exam tip:** The exam tests whether you know model cards are *programmatic* — they can be created, updated, and queried via API, not just filled out manually in a console.
-
-### Model Registry: Version Tracking
-
-Model cards attach to specific model versions in the Model Registry. This creates a complete history: which model version was deployed when, what its documented capabilities were at deployment time, and how it evolved over time.
-
-```typescript
-// Register model version with associated model card
-await sagemaker.send(new CreateModelPackageCommand({
-  ModelPackageGroupName: 'sentiment-classifiers',
-  ModelPackageDescription: 'Sentiment classifier v2.1 - improved sarcasm handling',
-  InferenceSpecification: {
-    Containers: [{
-      Image: '123456789012.dkr.ecr.us-east-1.amazonaws.com/sentiment:v2.1',
-      ModelDataUrl: 's3://models/sentiment/v2.1/model.tar.gz'
-    }],
-    SupportedContentTypes: ['application/json'],
-    SupportedResponseMIMETypes: ['application/json']
-  },
-  ModelApprovalStatus: 'PendingManualApproval',
-  CustomerMetadataProperties: {
-    'model-card-name': 'customer-sentiment-classifier-v2',
-    'model-card-version': '3'
-  }
-}));
-```
-
-The `PendingManualApproval` status ensures models go through a review process before deployment. Compliance teams review the model card, approve (or reject) the deployment, and their decision is recorded.
-
----
-
-## Data Lineage: Knowing Where Data Comes From
-
-Data lineage tracks the journey of data through your systems: where it originated, how it transformed, and where it ended up. For GenAI, this is critical for several reasons:
-
-- **Compliance**: Regulations often require knowing the source of data used in AI decisions
-- **Debugging**: When outputs are wrong, trace back to understand if the problem is in the data
-- **Impact analysis**: When source data changes, understand what's affected downstream
-- **Attribution**: When RAG retrieves documents, know where those documents came from
-
-### AWS Glue Data Lineage
-
-AWS Glue automatically tracks data lineage for ETL jobs. As data flows through Glue transformations, lineage records capture source, transformation, and destination.
-
-```
-                    Glue Data Lineage View
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│ Source S3   │ --> │  Glue ETL   │ --> │ Destination │
-│ Bucket      │     │  Transform  │     │ S3/Catalog  │
-│             │     │             │     │             │
-│ raw/docs/   │     │ Clean text  │     │ processed/  │
-│ 2024-01-15  │     │ Extract     │     │ chunks.json │
-└─────────────┘     │ metadata    │     └─────────────┘
-                    └─────────────┘
-```
-
-When you query the lineage, you see:
-- Which source files contributed to which outputs
-- What transformations were applied
-- When the transformation ran
-- Who initiated it
-
-### Glue Data Catalog: Central Metadata Repository
-
-The Glue Data Catalog is your source of truth for data assets. Register datasets with descriptions, schemas, and classifications. Tag with sensitivity levels, ownership, and compliance requirements.
-
-```typescript
-// Register a data source in Glue Catalog
-const catalogTable = new glue.CfnTable(this, 'CustomerFeedbackTable', {
-  catalogId: this.account,
-  databaseName: 'genai_data',
-  tableInput: {
-    name: 'customer_feedback',
-    description: 'Customer feedback for sentiment analysis training',
-    owner: 'ml-platform-team',
-    parameters: {
-      'classification': 'json',
-      'sensitivity': 'confidential',
-      'pii_types': 'email,name',
-      'retention_days': '365',
-      'data_owner': 'customer-experience@company.com'
-    },
-    storageDescriptor: {
-      location: 's3://data-lake/customer-feedback/',
-      inputFormat: 'org.apache.hadoop.mapred.TextInputFormat',
-      outputFormat: 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat',
-      columns: [
-        { name: 'feedback_id', type: 'string' },
-        { name: 'customer_id', type: 'string' },
-        { name: 'feedback_text', type: 'string' },
-        { name: 'submitted_at', type: 'timestamp' },
-        { name: 'sentiment_label', type: 'string' }
-      ]
-    }
-  }
-});
-```
-
-The catalog becomes a governance asset. Before using data for GenAI, check its catalog entry: What's the sensitivity? Who owns it? Is there PII? What are the retention requirements?
-
-### Source Attribution in RAG Systems
-
-When your RAG system retrieves documents and generates responses, track which sources contributed to each answer. This enables:
-
-- **User verification**: Show users where information came from
-- **Claim validation**: Check if citations actually support claims
-- **Source auditing**: Track which documents are frequently cited
-
-Bedrock Knowledge Bases return source attributions automatically:
-
-```typescript
-const response = await bedrockAgentRuntime.retrieveAndGenerate({
-  input: { text: userQuestion },
-  retrieveAndGenerateConfiguration: {
-    type: 'KNOWLEDGE_BASE',
-    knowledgeBaseConfiguration: {
-      knowledgeBaseId: 'KB12345',
-      modelArn: 'arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
-    }
-  }
-});
-
-// Response includes citations
-const citations = response.citations;
-citations.forEach(citation => {
-  console.log('Claim:', citation.generatedResponsePart.textResponsePart.text);
-  console.log('Sources:', citation.retrievedReferences.map(ref => ({
-    document: ref.location.s3Location.uri,
-    excerpt: ref.content.text
-  })));
-});
-```
-
-Log these citations for audit purposes. When questions arise about where information came from, you have a complete record.
-
-### Attribution Metadata in FM-Generated Content
-
-When FM-generated content enters business processes (reports, customer communications, decision records), embed attribution metadata so the content can be traced back to its AI origin:
-
-```typescript
-interface AIGeneratedContent {
-  content: string;
-  attribution: {
-    modelId: string;
-    modelVersion: string;
-    generatedAt: string;
-    promptVersion: string;
-    knowledgeSources: string[];     // S3 URIs, KB IDs
-    confidenceScore?: number;
-    guardrailsApplied: string[];
-    humanReviewed: boolean;
-  };
-}
-
-function tagGeneratedContent(
-  response: BedrockResponse,
-  context: RequestContext
-): AIGeneratedContent {
-  return {
-    content: response.text,
-    attribution: {
-      modelId: context.modelId,
-      modelVersion: response.modelVersion,
-      generatedAt: new Date().toISOString(),
-      promptVersion: context.promptTemplateVersion,
-      knowledgeSources: context.retrievedDocuments.map(d => d.sourceUri),
-      confidenceScore: context.groundednessScore,
-      guardrailsApplied: context.guardrailIds,
-      humanReviewed: false
-    }
-  };
-}
-```
-
-This enables **data source tracking** (Skill 3.3.2 in the exam guide): when FM-generated content is used downstream, you can always trace it back to the model, prompt, and knowledge sources that produced it.
-
----
-
-## Audit Logging: Recording Everything That Matters
-
-Audit logging creates an immutable record of what happened in your GenAI system. When auditors ask "who accessed this data?" or "what model was used for this decision?", you have answers.
-
-### CloudTrail: API-Level Auditing
-
-CloudTrail automatically logs all AWS API calls. Every Bedrock invocation, every SageMaker deployment, every S3 access—all recorded with who, what, when, and from where.
-
-```typescript
-// CloudTrail trail for GenAI audit
-const auditTrail = new cloudtrail.Trail(this, 'GenAIAuditTrail', {
-  trailName: 'genai-governance-trail',
-  bucket: auditBucket,
-  isMultiRegionTrail: true,
-  includeGlobalServiceEvents: true,
-  enableFileValidation: true  // Detect log tampering
-});
-
-// Include Bedrock data events
-auditTrail.addEventSelector({
-  readWriteType: cloudtrail.ReadWriteType.ALL,
-  includeManagementEvents: true,
-  dataResources: [{
-    type: 'AWS::Bedrock::Guardrail',
-    values: ['arn:aws:bedrock:*']
-  }]
-});
-```
-
-Enable log file validation. This creates digest files that can detect if someone tampered with logs. For compliance purposes, you need to prove logs haven't been modified.
-
-Store logs in locked-down S3 buckets with object lock enabled. Even administrators shouldn't be able to delete or modify audit logs.
-
-### CloudWatch Logs: Application-Level Decisions
-
-CloudTrail captures API calls, but your application makes decisions that APIs don't see. What prompts were used? What guardrails triggered? What outputs were generated?
-
-Log these application-level events to CloudWatch Logs:
-
-```typescript
-// Structured logging for GenAI decisions
-const logEvent = {
-  timestamp: new Date().toISOString(),
-  requestId: context.requestId,
-  userId: event.userId,
-  action: 'model_invocation',
-  details: {
-    modelId: 'anthropic.claude-3-sonnet',
-    promptVersion: 'customer-support-v3',
-    guardrailId: 'safety-guardrail-1',
-    guardrailTriggered: false,
-    inputTokens: 150,
-    outputTokens: 350,
-    latencyMs: 1250
-  }
-};
-
-console.log(JSON.stringify(logEvent));
-```
-
-Structured JSON logs enable powerful querying with CloudWatch Logs Insights:
-
-```sql
--- Find all guardrail triggers for a specific user
-fields @timestamp, details.userId, details.guardrailTriggered
-| filter details.action = 'model_invocation'
-| filter details.guardrailTriggered = true
-| sort @timestamp desc
-```
-
-### Log Retention and Compliance
-
-Different regulations require different retention periods:
-
-| Regulation | Typical Retention | Log Types |
-|------------|------------------|-----------|
-| GDPR | Varies (often 6 years) | Data access, processing decisions |
-| HIPAA | 6 years | PHI access, system activity |
-| SOC 2 | 1 year minimum | Security events, access logs |
-| Financial | 7 years | Transaction decisions, customer interactions |
-
-Configure S3 lifecycle policies to match requirements:
-
-```typescript
-auditBucket.addLifecycleRule({
-  id: 'RetainForCompliance',
-  enabled: true,
-  transitions: [{
-    storageClass: s3.StorageClass.GLACIER,
-    transitionAfter: Duration.days(90)  // Move to cheaper storage
-  }],
-  expiration: Duration.days(2555)  // 7 years for financial compliance
-});
-
-// Enable Object Lock for tamper-proofing
-const cfnBucket = auditBucket.node.defaultChild as s3.CfnBucket;
-cfnBucket.objectLockEnabled = true;
-cfnBucket.objectLockConfiguration = {
-  objectLockEnabled: 'Enabled',
-  rule: {
-    defaultRetention: {
-      mode: 'COMPLIANCE',  // Cannot be overridden, even by root
-      years: 7
-    }
-  }
-};
+```fillin
+A Model Card documents. The Model Registry {{gates deployment}}. The Dashboard shows which models are missing either.
 ```
 
 ---
 
-## Governance Systems: Organization-Wide Controls
+## Skill 3.3.2 — Trace sources into generated answers
 
-Individual controls aren't enough—you need governance at the organizational level. AWS provides tools for enforcing policies across accounts and continuously monitoring compliance.
+GenAI adds a dimension classical ML lacks: attributing *this completion* to *these documents*.
 
-### AWS Organizations and Service Control Policies
+### Catalog as system of record
 
-AWS Organizations lets you apply policies across all accounts in your organization. Service Control Policies (SCPs) are guardrails that even account administrators can't override.
+Every feed — KB corpora, text-to-SQL tables, fine-tune JSONL — should exist in the **Glue Data Catalog** with schema, location, classification, owner. Crawlers keep schemas current. Catalog **versioning** answers “what did the data look like *when* we trained.” Downstream KB syncs, Glue jobs, Athena agent queries then reference **cataloged** entities. Ungoverned S3 prefixes are invisible to the auditor.
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "RequireGuardrailsForBedrock",
-      "Effect": "Deny",
-      "Action": "bedrock:InvokeModel",
-      "Resource": "*",
-      "Condition": {
-        "Null": {
-          "bedrock:GuardrailArn": "true"
-        }
-      }
-    },
-    {
-      "Sid": "PreventCloudTrailDisable",
-      "Effect": "Deny",
-      "Action": [
-        "cloudtrail:StopLogging",
-        "cloudtrail:DeleteTrail"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "RequireVPCEndpoints",
-      "Effect": "Deny",
-      "Action": "bedrock:InvokeModel",
-      "Resource": "*",
-      "Condition": {
-        "StringNotEquals": {
-          "aws:SourceVpce": ["vpce-prod-1", "vpce-prod-2"]
-        }
-      }
-    }
-  ]
-}
+### Attribution on the output
+
+Two mechanisms:
+
+1. **RAG citations.** Knowledge Bases return retrieved chunks and source URIs with the answer. Show them to the user. **Log them with the decision record.** That is per-response provenance — the expected answer when the stem asks how to verify *where an answer came from*. Ingest metadata (author, system, classification, effective date) rides on chunks and can **filter retrieval** to approved, current sources — a governance control, not just UX.
+2. **Provenance of the artifact.** Watermark / label as AI-generated (image models embed watermarks; text is application labeling + stored generation metadata). Guardrails **contextual grounding** rejects answers the sources do not support. Attribution names the source; grounding enforces that the text follows from it.
+
+Glue Catalog / job lineage is the **lake ETL** chain. Model **weights** have no footnote. If you need a source, you **retrieved** it (or tagged the generated card).
+
+```quickcheck
+Q: Trace an FM answer back to the documents that grounded it, and prove those objects were not altered since ingest. Two trails?
+A: CloudWatch metrics + Macie
+B: Citation / retrieved-reference records on the response (content trail) + CloudTrail (and S3 integrity / Object Lock) on who mutated the KB or bucket
+C: SageMaker Clarify SHAP
+D: SCP alone
+correct: B
+feedback: Citations are which chunk. Trail is who changed the store. Clarify does not emit an S3 URI. Metrics have no document.
 ```
 
-These SCPs enforce:
-- All Bedrock invocations must use guardrails
-- CloudTrail logging cannot be disabled
-- Bedrock calls must come through approved VPC endpoints
+### CloudTrail on the traceability chain
 
-Even if a developer has administrator access in their account, they can't violate these organization-wide policies.
+Tamper-evident **who** registered a catalog table, who edited a KB or guardrail, who invoked, who changed IAM or a model card.
 
-### AWS Config: Continuous Compliance
+| Feature | When the stem wants it |
+|---------|------------------------|
+| Management events | Control plane (on by default) |
+| **Data events** | `InvokeModel`, S3 GetObject — **enable** |
+| **Log file integrity validation** | Cryptographic proof the trail files were not altered |
+| **CloudTrail Lake** | SQL-queryable, immutable store, multi-year — audit without building a log pipeline |
+| Organization trail | One trail, all accounts |
 
-AWS Config continuously evaluates resource configurations against rules you define. When resources drift out of compliance, Config detects and alerts (or auto-remediates).
-
-```typescript
-// Config rule: Bedrock guardrails must have PII filtering enabled
-new config.ManagedRule(this, 'GuardrailPIIRule', {
-  identifier: 'CUSTOM_GUARDRAIL_PII_CHECK',
-  configRuleName: 'bedrock-guardrails-require-pii',
-  inputParameters: {
-    requiredPiiTypes: ['SSN', 'CREDIT_DEBIT_CARD_NUMBER']
-  }
-});
-
-// Config rule: S3 buckets must have encryption
-new config.ManagedRule(this, 'S3EncryptionRule', {
-  identifier: config.ManagedRuleIdentifiers.S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED,
-  configRuleName: 's3-encryption-required'
-});
-
-// Auto-remediation for non-compliant resources
-new config.CfnRemediationConfiguration(this, 'S3EncryptionRemediation', {
-  configRuleName: 's3-encryption-required',
-  targetId: 'AWS-EnableS3BucketEncryption',
-  targetType: 'SSM_DOCUMENT',
-  automatic: true,
-  parameters: {
-    BucketName: { ResourceValue: { Value: 'RESOURCE_ID' } },
-    SSEAlgorithm: { StaticValue: { Values: ['AES256'] } }
-  }
-});
-```
-
-Config rules run continuously. As soon as someone creates an unencrypted bucket or a guardrail without PII filtering, Config detects it. Auto-remediation can fix issues without human intervention.
-
-### Compliance Dashboards
-
-CloudWatch dashboards aggregate compliance status across your GenAI infrastructure:
-
-```typescript
-const complianceDashboard = new cloudwatch.Dashboard(this, 'ComplianceDashboard', {
-  dashboardName: 'GenAI-Compliance-Status'
-});
-
-complianceDashboard.addWidgets(
-  new cloudwatch.SingleValueWidget({
-    title: 'Guardrail Trigger Rate (24h)',
-    metrics: [guardrailTriggerMetric],
-    width: 6
-  }),
-  new cloudwatch.SingleValueWidget({
-    title: 'Compliance Status',
-    metrics: [configComplianceMetric],
-    width: 6
-  }),
-  new cloudwatch.GraphWidget({
-    title: 'API Invocations by Model',
-    left: [claudeInvocations, titanInvocations],
-    width: 12
-  }),
-  new cloudwatch.LogQueryWidget({
-    title: 'Recent Guardrail Triggers',
-    logGroupNames: ['/aws/bedrock/guardrails'],
-    queryString: `fields @timestamp, @message
-      | filter action = 'GUARDRAIL_INTERVENED'
-      | sort @timestamp desc
-      | limit 20`,
-    width: 24
-  })
-);
-```
-
-Governance teams get visibility without digging through raw logs. Executives see compliance status at a glance. Issues surface before they become incidents.
+Discriminator from 3.2, reused here: CloudTrail = who did what to which **resource**. Invocation / decision logs = what **content** flowed. You need both: Trail shows the KB was not quietly swapped; citations show which 10-K produced the sentence.
 
 ---
 
-## Continuous Monitoring: Detecting Drift and Misuse
+## Skill 3.3.3 — Organizational governance systems
 
-Governance isn't a one-time setup—it's continuous monitoring. Models drift, usage patterns change, and new risks emerge. Monitoring detects these issues early.
+Zoom out from one model to the *operating model*. Controls without oversight are a toolbox.
 
-### Drift Detection
+### The framework components
 
-Model outputs can degrade over time as the world changes and the model's training becomes stale. Monitor output quality metrics and alert when performance drops.
-
-```typescript
-// Track output quality scores over time
-const qualityMetric = new cloudwatch.Metric({
-  namespace: 'GenAI/Quality',
-  metricName: 'OutputQualityScore',
-  dimensionsMap: { Model: 'claude-3-sonnet' },
-  statistic: 'Average',
-  period: Duration.hours(1)
-});
-
-new cloudwatch.Alarm(this, 'QualityDriftAlarm', {
-  metric: qualityMetric,
-  threshold: 0.8,  // Alert if quality drops below 80%
-  comparisonOperator: cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD,
-  evaluationPeriods: 6,  // 6 consecutive hours below threshold
-  alarmDescription: 'Model output quality has degraded - investigate for drift'
-});
+```text
+Policies        acceptable use, risk tiers, approved models/regions, data rules
+Accountability  board / committee, model owner, risk officer — named RACI
+Risk-tiered review   rights/finance/health → HITL + stricter monitors; internal FAQ → lighter path
+Inventory       you cannot govern what you have not enumerated (Dashboard, cards, tags, Config)
+Lifecycle gates approval before build, before deploy, periodic re-review (card status, Registry, pipeline)
+Culture         people know the policy and the escalation
 ```
 
-### Bias Monitoring
+Proportionality (EU AI Act / NIST RMF) is a favorite: do not put a credit-adjacent assistant on the same path as a ticker glossary bot.
 
-Track outcomes across user segments. Are certain groups getting different treatment? Statistical disparities warrant investigation.
+### Map policy → principle → mechanism → evidence
 
-```typescript
-// Track response patterns by user segment
-const segmentMetrics = ['response_time', 'guardrail_trigger_rate', 'quality_score'];
+AWS responsible-AI dimensions, each with a concrete hook:
 
-segmentMetrics.forEach(metric => {
-  ['segment_a', 'segment_b', 'segment_c'].forEach(segment => {
-    new cloudwatch.Metric({
-      namespace: 'GenAI/Fairness',
-      metricName: metric,
-      dimensionsMap: { UserSegment: segment }
-    });
-  });
-});
+| Dimension | Mechanism | Evidence |
+|-----------|-----------|----------|
+| Fairness | Clarify bias + bias-drift monitor | Metrics vs baseline |
+| Explainability | Clarify attributions, model cards | SHAP / card fields |
+| Privacy / security | Task 3.2 | VPC, Macie, Lifecycle… |
+| Safety | Guardrails, HITL | Intervention logs |
+| Veracity | Grounding, eval jobs | Grounding fail rate, eval reports |
+| Transparency | Cards, citations, AI-generated labels | PDF card, citation log |
+| Governance | Review process itself | Registry status, board minutes |
 
-// Dashboard comparing segments
-dashoard.addWidgets(
-  new cloudwatch.GraphWidget({
-    title: 'Quality Score by User Segment',
-    left: segmentQualityMetrics,
-    width: 12
-  })
-);
+“Align FM implementations with organizational policies, regulatory requirements, and responsible AI principles” wants that **mapping**, not a single logo.
+
+### Enforcement at org scale — prevent, detect, evidence, decide
+
+Consistency is structural, not a memo.
+
+| Layer | Service |
+|-------|---------|
+| **Prevent** — no team can bypass | **SCPs** / Organizations: Bedrock only in approved regions, only approved families, required tags. **Control Tower** landing zones. |
+| **Detect** | **Config** conformance packs: encryption on, logging on, no public buckets |
+| **Evidence** | **Audit Manager** continuously gathers Config snapshots, CloudTrail, control evidence into **framework-mapped** assessment reports |
+| **Pose / decide** | **Security Hub** aggregates findings; the **governance board** still decides |
+
+```quickcheck
+Q: Distinguish Config, Audit Manager, and CloudTrail in one sentence each.
+A: Config: is the resource still compliant. Audit Manager: automated evidence pack mapped to a standard. CloudTrail: who called which API when.
+B: All three store prompts
+C: Audit Manager is a VPC endpoint
+D: Config replaces SCPs
+correct: A
+feedback: Prevent is SCP. Detect is Config. Evidence pack is Audit Manager. Who is Trail. None of them is invocation logging.
 ```
 
-### Misuse Detection
-
-Unusual patterns might indicate misuse: prompt injection attempts, data exfiltration, or unauthorized use.
-
-```typescript
-// Anomaly detection for unusual usage patterns
-const anomalyAlarm = new cloudwatch.Alarm(this, 'UsageAnomalyAlarm', {
-  metric: new cloudwatch.MathExpression({
-    expression: 'ANOMALY_DETECTION_BAND(m1, 2)',
-    usingMetrics: {
-      m1: invocationsMetric
-    }
-  }),
-  threshold: 1,
-  evaluationPeriods: 1,
-  alarmDescription: 'Unusual invocation pattern detected'
-});
+```fillin
+Automated audit evidence collection mapped to a framework is {{AWS Audit Manager}}. Config only flags the resource; it does not assemble the assessment report.
 ```
-
-### Token-Level Redaction and Output Policy Filters
-
-Official 3.3.4 goes beyond "alert on drift." Production governance also needs **token-level redaction** and **AI output policy filters** so sensitive spans never land in logs, tickets, or downstream systems.
-
-| Control | What it does | Typical AWS pieces |
-|---------|--------------|--------------------|
-| **Token-level redaction** | Strip or mask PII/secrets **inside** prompts, completions, and invocation logs before storage | Guardrails PII ANONYMIZE, Comprehend detect_pii_entities, Lambda post-process |
-| **Response logging policy** | Decide what is retained: metadata only vs full prompt/completion, with CMK and retention | Bedrock invocation logging to S3/CloudWatch, S3 Lifecycle |
-| **AI output policy filters** | Block or rewrite outputs that violate org policy even if the model produced them | Guardrails denied topics + word filters, Lambda policy checks, API Gateway response filter |
-
-```typescript
-// Log redacted completions only — required when invocation logs may contain PII
-function redactForAudit(text: string, piiOffsets: { begin: number; end: number }[]) {
-  let redacted = text;
-  for (const span of [...piiOffsets].sort((a, b) => b.begin - a.begin)) {
-    redacted = redacted.slice(0, span.begin) + '[REDACTED]' + redacted.slice(span.end);
-  }
-  return redacted;
-}
-```
-
-If auditors need "what the model said" without storing SSNs, redaction is the answer—not "disable logging" and not "rely on the prompt to avoid PII."
 
 ---
 
+## Skill 3.3.4 — Continuous monitoring and advanced controls
+
+Approval at deploy is a snapshot. Two things move: the **world** (data / concept / quality / **bias drift**) and the **usage** (jailbreaks, new abuse, app changes). Continuous monitoring converts “approved once” into “still inside the envelope.”
+
+### Drift and bias — SageMaker vs FM
+
+For **SageMaker endpoints**, **Model Monitor** has four jobs. Keep them straight:
+
+| Monitor | Compares | Needs |
+|---------|----------|--------|
+| **Data quality** | Live inputs vs training baseline | Captured traffic |
+| **Model quality** | Accuracy etc. vs baseline | **Ground-truth labels** |
+| **Bias drift** | Fairness metrics vs baseline | Clarify + live traffic |
+| **Feature attribution drift** | Which features drive predictions | Clarify (SHAP) |
+
+Schedule on captured traffic → violations to **CloudWatch** → alarms / EventBridge.
+
+**Clarify** itself: pre-training bias (class imbalance), post-training bias (outcome gaps), SHAP explainability. Bias *drift* is those metrics **operationalized in Model Monitor**.
+
+```text
+“Bias emerging in production over time”     → Model Monitor + Clarify bias drift
+“Explain why the model predicted X”         → Clarify attributions
+“Check the training set before we train”    → Clarify pre-training
+```
+
+FMs often have **no label stream**. Watch **LLM quality signals**: Bedrock **model evaluation** (automatic metrics, human eval, LLM-as-judge on production samples), guardrail intervention rate, grounding-failure rate, user thumbs, token/topic mix as input-drift proxies. A doubling of blocked prompts *is* the drift/misuse signal.
+
+A bank asking whether a credit-adjacent assistant has developed demographic bias since launch: **Model Monitor + Clarify bias drift against the launch baseline** (or, for a pure FM, scheduled eval + sliced metrics — not a one-time card).
+
+### Misuse and policy filters
+
+**Guardrails** are the inline **AI output policy filter**: prompt-attack, denied topics, content filters, PII. Intervention events *are* detection telemetry.
+
+**Token-level redaction** = mask the violating span, do not nuke the whole reply. Guardrails **mask** mode (`{SSN}`) is the managed form; Comprehend offsets are the custom form. Governance value: the answer stays useful; the token never reaches the user or the log.
+
+**Response logging** (invocation + structured app logs with model version and guardrail verdict) is the substrate for sampling audits and incident reconstruction.
+
+Patterns across requests, not one call: CloudWatch **anomaly detection** on invocation spikes, token burn, off-hours, per-user block rate. **GuardDuty** for stolen creds around the infra. Layering: Guardrails per request; log analytics for behavior.
+
+### Close the loop — alert → remediate, keep a human when risk is high
+
+Canonical wiring:
+
+```text
+CloudWatch alarm or Model Monitor violation
+        ↓
+  EventBridge rule
+        ↓
+  notify SNS  /  ticket ITSM  /  Lambda: stricter guardrail version, flag off, throttle
+        /  contain: revoke Bedrock, drain endpoint, Registry rollback
+```
+
+Model Monitor → **SageMaker Pipelines** retrain → evaluate → **Registry re-approve** → redeploy. Keep the human gate on high-risk models.
+
+GenAI analog: guardrail block-rate doubles → alert → **human reviews a sample** → new guardrail or prompt version **pinned**.
+
+“Automated remediation” → EventBridge + Lambda / Step Functions. “Human oversight for high-risk” → **deliberately not** fully automatic. Knowing when *not* to automate is the competency.
+
+```quickcheck
+Q: Guardrail block rate doubles overnight. Design the loop, then name the step you keep human.
+A: CloudWatch alarm → EventBridge → SNS + Lambda can pin a stricter guardrail or throttle; a reviewer inspects sampled logs before a production prompt/guardrail version change for a high-risk desk
+B: Disable CloudTrail
+C: Delete the model card
+D: Raise temperature
+correct: A
+feedback: 3.3.4 wants EventBridge wiring plus a retained HITL on policy changes. Metrics without EventBridge is a dashboard, not a loop.
+```
+
+Regulatory readiness as an **ongoing state**: Audit Manager evidence current; CloudTrail Lake immutable; cards and Dashboard show coverage; Monitor / eval within tolerance; guardrail versions + intervention logs; alarm history. An audit is an **export**, not a scramble.
+
 ---
 
-## Key Services Summary
+## When to use which
 
-| Service | Governance Role | When to Use |
-|---------|----------------|-------------|
-| **SageMaker Model Cards** | Model documentation | Document capabilities, limitations, ethical considerations |
-| **SageMaker Model Registry** | Version tracking | Track model versions with approval workflows |
-| **Glue Data Catalog** | Metadata management | Register data sources with classifications |
-| **Glue Data Lineage** | Transformation tracking | Trace data flow through ETL pipelines |
-| **CloudTrail** | API auditing | Log all AWS API calls for compliance |
-| **CloudWatch Logs** | Application auditing | Log application decisions and events |
-| **AWS Organizations** | Policy enforcement | SCPs for organization-wide guardrails |
-| **AWS Config** | Compliance monitoring | Continuous evaluation against rules |
-
----
-
-## Exam Tips
-
-| When you see... | Think... |
-|-----------------|----------|
-| "document model capabilities" or "model documentation" | SageMaker Model Cards (programmatic, with lifecycle statuses) |
-| "track data lineage" or "data sources" | Glue Data Lineage and Data Catalog |
-| "source attribution" or "where did this answer come from" | Bedrock KB citations + attribution metadata tagging |
-| "audit logging" | CloudTrail for API calls, CloudWatch Logs for application events |
-| "organizational governance" | AWS Organizations with SCPs |
-| "continuous compliance" | AWS Config with rules and auto-remediation |
-| "token-level redaction" or "PII in invocation logs" | Guardrails ANONYMIZE + redact before CloudWatch/S3 |
-| "output policy filter" | Guardrails denied topics + Lambda/API Gateway response filter |
-| "model approval workflow" | SageMaker Model Registry with PendingManualApproval status |
-| "trace AI-generated content back to source" | Attribution metadata embedded in FM outputs |
+| Requirement | Reach for |
+|-------------|-----------|
+| Programmatic, exportable model docs + approval status | **Model Cards** |
+| Gate deploy; version artifacts | **Model Registry** |
+| Fleet view / missing monitors | **Model Dashboard** |
+| Register sources; schemas | **Glue Data Catalog** + crawlers |
+| Pipeline lineage | Glue job tracking |
+| ML artifact graph | SageMaker **ML Lineage** |
+| Business share / subscribe | **DataZone** / SageMaker Catalog |
+| Systematic classification at scale | Tags, tag policies, **LF-Tags** |
+| Source lineage on generated quiz/content, least ops | Catalog **inputs** + **tags on outputs** |
+| Per-response RAG provenance | KB **citations** logged with the decision |
+| Tamper-evident who/what/when | CloudTrail (integrity; **Lake** for long SQL) |
+| Reconstruct the turn (content) | CW Logs + **invocation logging** |
+| Org-wide cannot-bypass | **SCPs** / Control Tower |
+| Resource still compliant | **Config** conformance packs |
+| Automated evidence mapped to a standard | **Audit Manager** |
+| Data / quality / bias / attribution drift on an endpoint | **Model Monitor** (+ **Clarify** for bias & SHAP) |
+| Explain this prediction | Clarify attributions |
+| Inline output policy / PII mask | **Guardrails** (token-level redaction = mask) |
+| FM quality without labels | Bedrock **eval** / LLM-as-judge |
+| Alert → automated action | Alarm → **EventBridge** → Lambda / Step Functions / SNS |
 
 ---
 
-## Common Mistakes to Avoid
+## AWS service glossary
 
-1. **No model documentation** before deployment—creates compliance and knowledge gaps
-2. **Not knowing where training data comes from**—lineage is essential for compliance
-3. **Disabling CloudTrail to save costs**—audit logs are non-negotiable for governance
-4. **Manual compliance checks** instead of automated Config rules—doesn't scale
-5. **No monitoring for drift or bias** after deployment—governance is continuous
+### Documentation / inventory
+
+#### SageMaker Model Cards
+
+**What it is.** API-managed model documentation: intended use, data, metrics, limits, owner, lifecycle status; PDF export.
+
+**Problem it solves.** Auditor asks what this deployment is for — and it must not be a stale wiki.
+
+**Where it sits.** 3.3.1 evidence pack. Update in CI/CD.
+
+**Typical use.** Blotter card: “public filings only; not advice”; pending-review → approved.
+
+**Pricing.** Generally no extra charge for the card resource.
+
+**Exam cue.** Documentation. Bedrock apps still get a card for *use*. CI/CD, not after-the-fact.
+
+**Do not confuse with.** Model Registry (deploy gate). Dashboard (fleet). Clarify (bias/SHAP).
+
+#### SageMaker Model Registry / Model Dashboard
+
+**What it is.** Registry = versioned artifacts + approval. Dashboard = coverage of cards and monitors.
+
+**Problem it solves.** Block prod until approved; see gaps across dozens of models.
+
+**Where it sits.** Gates (3.3.3) and inventory.
+
+**Typical use.** Pipeline cannot deploy `Rejected`. Dashboard flags endpoints with no Model Monitor.
+
+**Pricing.** SageMaker platform.
+
+**Exam cue.** Approval status vs documentation vs visibility.
+
+**Do not confuse with.** Model Cards.
+
+### Lineage / catalog
+
+#### AWS Glue Data Catalog
+
+**What it is.** Central technical metadata: tables, schemas, S3 locations. Crawlers fill it.
+
+**Problem it solves.** Make every KB / fine-tune / lake source *known*.
+
+**Where it sits.** 3.3.1 / 3.3.2 system of record for data.
+
+**Typical use.** Register `curated-10k` vs `scraped-blogs`; reviewers look up origin.
+
+**Pricing.** Catalog storage + crawler DPU.
+
+**Exam cue.** Input inventory half of source lineage. Least ops with output tags.
+
+**Do not confuse with.** CloudTrail (people). Clarify (features). Invocation-log joins.
+
+#### SageMaker ML Lineage Tracking
+
+**What it is.** Auto graph of ML entities: data → train → model → endpoint.
+
+**Problem it solves.** Trace this endpoint to the exact training job.
+
+**Where it sits.** ML-artifact lineage, beside Glue’s *pipeline* lineage.
+
+**Typical use.** Which dataset version trained the credit ranker now in prod.
+
+**Pricing.** SageMaker.
+
+**Exam cue.** SageMaker-hosted models. Not RAG citations.
+
+**Do not confuse with.** KB retrievedReferences. Glue crawlers.
+
+#### Amazon DataZone / SageMaker Catalog
+
+**What it is.** Business catalog: glossaries, publish, subscribe, approve access.
+
+**Problem it solves.** Controlled sharing, not just technical schema.
+
+**Where it sits.** Business governance.
+
+**Typical use.** Risk team subscribes to `filings_curated` after owner approval.
+
+**Pricing.** DataZone domain / users.
+
+**Exam cue.** Subscription workflow. Glue is technical; this is business.
+
+**Do not confuse with.** Glue Data Catalog.
+
+### Org / evidence
+
+#### AWS Organizations SCPs / Control Tower
+
+**What it is.** Org-level prevent: deny APIs no member IAM can override. Control Tower = governed accounts.
+
+**Problem it solves.** Bedrock only in `us-east-1`; only approved model families; required tags.
+
+**Where it sits.** 3.3.3 prevent layer.
+
+**Typical use.** SCP `Deny bedrock:*` outside allowlisted regions.
+
+**Pricing.** Organizations is free; Control Tower has setup.
+
+**Exam cue.** Cannot-bypass. Config cannot prevent; it detects.
+
+**Do not confuse with.** IAM in one account. Audit Manager.
+
+#### AWS Config
+
+**What it is.** Continuous resource compliance; conformance packs.
+
+**Problem it solves.** Encryption still on? Logging still on? Public block still set?
+
+**Where it sits.** Detect layer of 3.3.3.
+
+**Typical use.** Flag KB source buckets without tags or encryption.
+
+**Pricing.** Config items / rules.
+
+**Exam cue.** Posture now. Not the assessment report (Audit Manager). Not who (Trail).
+
+**Do not confuse with.** Audit Manager. CloudTrail. GuardDuty.
+
+#### AWS Audit Manager
+
+**What it is.** Automated evidence collection mapped to audit frameworks; assessment reports.
+
+**Problem it solves.** Regulatory readiness as an export, not a scramble.
+
+**Where it sits.** Evidence layer of 3.3.3 / 3.3.4.
+
+**Typical use.** Continuous pack from Config + CloudTrail for a SOC/AI control set.
+
+**Pricing.** Per assessment / evidence.
+
+**Exam cue.** “Automated audit evidence collection.” The exam’s readiness-reporting pick.
+
+**Do not confuse with.** Config (the raw compliance bit). Security Hub (finding rollup).
+
+#### AWS CloudTrail (Lake, integrity)
+
+**What it is.** API audit log. Lake = queryable immutable store. Integrity validation = tamper evidence on log files.
+
+**Problem it solves.** Who changed the KB, the card, the IAM policy.
+
+**Where it sits.** 3.3.2 / 3.3.3.
+
+**Typical use.** Org trail + data events for InvokeModel.
+
+**Pricing.** Ingest; Lake store.
+
+**Exam cue.** Who/when/which resource. Not prompt body. Not source URI on a quiz card.
+
+**Do not confuse with.** Invocation logging. Glue lineage.
+
+### Continuous
+
+#### SageMaker Model Monitor + Clarify
+
+**What it is.** Scheduled monitors on endpoint traffic vs baseline. Clarify = bias metrics + SHAP.
+
+**Problem it solves.** Drift after launch: data, quality, **bias**, attribution.
+
+**Where it sits.** 3.3.4 for SageMaker-hosted models.
+
+**Typical use.** Bias-drift alarm on a credit-adjacent ranker vs launch baseline.
+
+**Pricing.** Processing jobs + Clarify.
+
+**Exam cue.** Production *over time* = Monitor + Clarify bias drift. One-shot “why this score” = Clarify SHAP. Pre-train data check = Clarify pre-training.
+
+**Do not confuse with.** Glue lineage. Bedrock eval (FM, often unlabeled).
+
+#### Amazon Bedrock Guardrails / Evaluations
+
+**What it is.** Inline policy filter (incl. mask = token-level redaction). Eval jobs / LLM-as-judge for unlabeled FM quality.
+
+**Problem it solves.** Per-request policy; scheduled quality without ground truth.
+
+**Where it sits.** 3.3.4 misuse + FM drift proxies. Also 3.1 / 5.1.
+
+**Typical use.** Alarm on intervention rate; pin a new guardrail version after review.
+
+**Pricing.** Guardrail units; eval jobs.
+
+**Exam cue.** “AI output policy filter.” Rising block rate *is* the signal.
+
+**Do not confuse with.** Model Monitor (endpoints + labels). Audit Manager.
+
+#### Amazon EventBridge + CloudWatch alarms
+
+**What it is.** The wire from detection to notify / constrain / contain.
+
+**Problem it solves.** Drift or block-rate spike must not die on a dashboard.
+
+**Where it sits.** 3.3.4 remediation loop.
+
+**Typical use.** Alarm → EventBridge → Lambda pins stricter guardrail; SNS to the board channel; HITL before prompt v-next.
+
+**Pricing.** Events / alarm.
+
+**Exam cue.** “Automated remediation” includes EventBridge. High-risk keeps a human on the Registry / prompt pin.
+
+**Do not confuse with.** Config (detect only). The FM itself.
+
+---
+
+## Practice questions
+
+Pick an answer on every stem. The explanation appears after you choose — later questions stay unspoiled until you answer them.
+
+```practice
+Q: A regulator asks for documentation of a production model’s intended use, evaluation results, and approval history, kept current in CI/CD. Which artifact?
+A: SageMaker Model Card updated in the pipeline (Registry if they also need a deploy gate)
+B: Glue crawler
+C: GuardDuty
+D: S3 inventory
+correct: A
+feedback: Cards are the compliance document. Registry is the promotion lock. Crawlers catalog data, not intended use.
+
+Q: Generated quiz items mix curated 10-Ks and scraped blogs. Reviewers must see source credibility with least ops. Select the right idea.
+A: CloudTrail of Approve clicks
+B: Glue Data Catalog on the input datasets + tags on FM outputs
+C: Clarify SHAP on each quiz item
+D: Invocation logs joined by hand to S3 keys
+correct: B
+feedback: Source lineage = inventory + sticker. Trail is people. Clarify is feature bias. Log-join is extra ops.
+
+Q: Trace an FM answer to the grounding docs and prove the bucket was not quietly swapped. Two trails?
+A: Citations / retrievedReferences on the response + CloudTrail (integrity) on KB/S3 mutations
+B: Macie + temperature
+C: SCP + Word filter
+D: Model Dashboard only
+correct: A
+feedback: Content provenance vs control-plane tamper evidence. You need both.
+
+Q: A bank must show a credit-adjacent assistant has not developed demographic bias since launch. Combination and baseline?
+A: One model card written at launch
+B: SageMaker Model Monitor with Clarify bias drift vs the launch / training baseline
+C: CloudTrail Lake SQL
+D: Object Lock
+correct: B
+feedback: Bias *over time* is Monitor + Clarify. A card is a snapshot. Trail is who. Lock is WORM.
+
+Q: Config vs Audit Manager vs CloudTrail?
+A: Config = resource still compliant; Audit Manager = framework-mapped evidence pack; CloudTrail = who called which API
+B: All three are invocation logging
+C: Audit Manager prevents API calls
+D: Config stores prompts
+correct: A
+feedback: Detect / evidence / who. SCPs prevent. Invocation logging is content.
+
+Q: Block deployment of a new blotter ranker until the risk officer approves. Documentation already exists.
+A: Model Card PDF only
+B: Model Registry approval status as the pipeline gate
+C: Glue job bookmark
+D: ContainsPiiEntities
+correct: B
+feedback: Cards document. Registry gates. The stem split those jobs.
+
+Q: Org-wide: nobody may call Bedrock outside two regions, including new accounts. What cannot be bypassed by member IAM?
+A: A wiki policy
+B: SCP (optionally Control Tower)
+C: A Lambda in one account
+D: A model card field
+correct: B
+feedback: 3.3.3 prevent layer. Config would only detect after the call path exists.
+
+Q: Automated evidence collection mapped to an audit standard, continuously. Which service?
+A: AWS Audit Manager
+B: Amazon Macie
+C: SageMaker Role Manager
+D: Step Functions Express
+correct: A
+feedback: That is Audit Manager’s job. Macie is sensitive S3 content. Role Manager is personas.
+
+Q: FM chatbot, no labels. Quality may be decaying. What do you watch?
+A: Model quality monitor that requires ground truth you do not have
+B: Bedrock evaluation / LLM-as-judge samples, guardrail intervention rate, grounding failures
+C: LF-Tags
+D: DataZone glossary
+correct: B
+feedback: Unlabeled GenAI uses eval + policy telemetry as drift proxies. Model quality monitor wants labels.
+
+Q: “AI output policy filter” plus token-level redaction so the rest of the answer survives.
+A: Delete the whole completion in Lambda always
+B: Guardrails (content / topic / PII) with **mask** mode for spans
+C: CloudTrail Lake
+D: Model Dashboard
+correct: B
+feedback: 3.3.4 names Guardrails as the policy filter; mask is token-level redaction.
+
+Q: Guardrail block rate doubles overnight. Automated loop plus the human step.
+A: Ignore it
+B: CloudWatch alarm → EventBridge → SNS/Lambda (stricter version, throttle); reviewer samples logs before pinning a new prod prompt/guardrail on a high-risk desk
+C: Disable invocation logging
+D: Raise maxTokens
+correct: B
+feedback: EventBridge is the wire. High-risk policy change stays HITL.
+
+Q: Fleet of models; leadership wants missing cards and missing monitors in one place.
+A: SageMaker Model Dashboard
+B: Amazon Comprehend
+C: VPC endpoint policy
+D: S3 Transfer Acceleration
+correct: A
+feedback: Dashboard is inventory/coverage. Cards are per-model docs.
+
+Q: Business users must request access to a curated filings asset and wait for owner approval. Technical schema already lives in Glue.
+A: Another crawler
+B: DataZone / SageMaker Catalog subscription workflow
+C: InvokeModel
+D: Textract
+correct: B
+feedback: Glue = technical. DataZone = business publish/subscribe.
+```
+
+---
+
+## Final compressed review
+
+### What are the four questions?
+
+1. **What is it for?** Model Card (CI/CD, status, PDF). Registry gates deploy. Dashboard shows gaps.
+2. **Where did the data go?** Glue Catalog + crawlers; Glue jobs / SageMaker lineage; tags; RAG **citations** in the decision log. Least-ops generated-content lineage = catalog inputs + tag outputs.
+3. **Who said yes, against what standard?** Policies, risk-tiered review, RACI. SCPs prevent; Config detects; Audit Manager evidences; board decides. Map policy → RAI dimension → mechanism → artifact.
+4. **Still inside the envelope?** Model Monitor + Clarify (data/quality/bias/attribution). FMs: eval + guardrail rates. Alarm → EventBridge → notify/constrain/contain. Keep HITL on high-risk pins.
+
+### What requirement words should trigger what choices?
+
+“Documentation / intended use” → **Model Card**. “Block until approved” → **Registry**. “Missing monitors” → **Dashboard**. “Register datasets / schemas” → **Glue Catalog**. “Source lineage, least ops” → **catalog + output tags**. “Where did this answer come from” → **KB citations**. “Who changed the KB” → **CloudTrail** (+ integrity / Lake). “What was said” → **invocation / decision logs**. “No team can bypass” → **SCP**. “Still encrypted?” → **Config**. “Evidence pack for the auditor” → **Audit Manager**. “Bias since launch” → **Monitor + Clarify drift**. “Why this score” → **Clarify SHAP**. “Output policy / mask spans” → **Guardrails**. “Auto remediate” → **EventBridge**.
+
+### What mistakes is AWS trying to tempt you into making?
+
+Wiki cards after the fact. Registry when they asked for a PDF for the committee (or the reverse). CloudTrail as source lineage. Clarify as a 10-K footnote. Homemade invocation-log joins on a least-ops stem. Config as the assessment report. Audit Manager as a prevent control. Model quality monitor when you have no labels. Fully automating a high-risk prompt change. Treating a launch-time card as bias monitoring.
+
+If you can walk the desk out loud — card in CI/CD, catalog of curated vs scraped, citations on the NVDA answer, SCP on region, Audit Manager export, Monitor on the ranker, EventBridge on block-rate with a human pin — you are doing Task 3.3.
+
+Fairness, transparency, and accountability as *principles* (not just artifacts) are next: [3.4 Responsible AI](/learn/3/responsible-ai). Privacy of the bytes is [3.2](/learn/3/data-security-privacy).

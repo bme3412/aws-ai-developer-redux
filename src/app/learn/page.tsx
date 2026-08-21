@@ -1,77 +1,58 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { getDomains } from '@/lib/domains';
-import { isArticleRead, markArticleRead, unmarkArticleRead } from '@/lib/progress';
+import { countCompletedSkills, formatSkillCompletedAt } from '@/lib/progress';
+import { useTaskStamps } from '@/hooks/useTaskStamps';
+import StampCheckbox, { StampToast } from '@/components/learn/StampCheckbox';
 import { DomainBadge } from '@/components/layout/DomainBadge';
-import { BookOpen, ArrowRight, CheckCircle, Circle } from 'lucide-react';
+import { BookOpen, ArrowRight } from 'lucide-react';
 
 export default function LearnPage() {
   const domains = getDomains();
-  const [completedArticles, setCompletedArticles] = useState<Set<string>>(new Set());
+  const { completed, burstId, toast, toggleTask } = useTaskStamps();
+  const [skillCounts, setSkillCounts] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    // Load completed articles from localStorage
-    const completed = new Set<string>();
-    domains.forEach(domain => {
-      domain.tasks.forEach(task => {
-        const articleKey = `${domain.id}-${task.articleSlug}`;
-        if (isArticleRead(articleKey)) {
-          completed.add(articleKey);
-        }
-      });
+  const domainTaskKeys = useMemo(() => {
+    const map: Record<number, string[]> = {};
+    domains.forEach((domain) => {
+      map[domain.id] = domain.tasks.map((task) => `${domain.id}-${task.articleSlug}`);
     });
-    setCompletedArticles(completed);
+    return map;
   }, [domains]);
 
-  const toggleComplete = (e: React.MouseEvent, domainId: number, articleSlug: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const articleKey = `${domainId}-${articleSlug}`;
-    const newCompleted = new Set(completedArticles);
-
-    if (completedArticles.has(articleKey)) {
-      // Remove from completed
-      unmarkArticleRead(articleKey);
-      newCompleted.delete(articleKey);
-    } else {
-      // Mark as completed
-      markArticleRead(articleKey, 1);
-      newCompleted.add(articleKey);
-    }
-
-    setCompletedArticles(newCompleted);
-  };
+  useEffect(() => {
+    const counts: Record<string, number> = {};
+    domains.forEach((domain) => {
+      domain.tasks.forEach((task) => {
+        counts[task.id] = countCompletedSkills(task.skills.map((s) => s.id));
+      });
+    });
+    setSkillCounts(counts);
+  }, [domains]);
 
   const getDomainProgress = (domainId: number) => {
-    const domain = domains.find(d => d.id === domainId);
+    const domain = domains.find((d) => d.id === domainId);
     if (!domain) return { completed: 0, total: 0, percent: 0 };
 
+    const keys = domainTaskKeys[domainId] ?? [];
+    const done = keys.filter((key) => completed[key]).length;
     const total = domain.tasks.length;
-    const completed = domain.tasks.filter(task =>
-      completedArticles.has(`${domainId}-${task.articleSlug}`)
-    ).length;
 
     return {
-      completed,
+      completed: done,
       total,
-      percent: total > 0 ? Math.round((completed / total) * 100) : 0,
+      percent: total > 0 ? Math.round((done / total) * 100) : 0,
     };
   };
 
-  const totalProgress = {
-    completed: completedArticles.size,
-    total: domains.reduce((sum, d) => sum + d.tasks.length, 0),
-  };
-  const overallPercent = totalProgress.total > 0
-    ? Math.round((totalProgress.completed / totalProgress.total) * 100)
-    : 0;
+  const totalTasks = domains.reduce((sum, d) => sum + d.tasks.length, 0);
+  const totalCompleted = Object.keys(completed).length;
+  const overallPercent = totalTasks > 0 ? Math.round((totalCompleted / totalTasks) * 100) : 0;
 
   return (
     <div className="flex">
-      {/* Main Content */}
       <div className="flex-1 max-w-4xl mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Learn</h1>
@@ -79,12 +60,11 @@ export default function LearnPage() {
             Concept articles organized by exam domain. Focus on D1 and D2 for maximum impact.
           </p>
 
-          {/* Overall Progress */}
           <div className="mt-4 p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-lg border border-gray-200">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-gray-700">Overall Progress</span>
               <span className="text-sm font-semibold text-gray-900">
-                {totalProgress.completed}/{totalProgress.total} topics ({overallPercent}%)
+                {totalCompleted}/{totalTasks} topics ({overallPercent}%)
               </span>
             </div>
             <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
@@ -96,9 +76,8 @@ export default function LearnPage() {
           </div>
         </div>
 
-        {/* Domain Cards */}
         <div className="space-y-8">
-          {domains.map(domain => {
+          {domains.map((domain) => {
             const progress = getDomainProgress(domain.id);
             const domainColorClasses: Record<number, { progress: string; bg: string }> = {
               1: { progress: 'from-blue-500 to-indigo-500', bg: 'bg-blue-50' },
@@ -111,7 +90,6 @@ export default function LearnPage() {
 
             return (
               <div key={domain.id} className="rounded-lg border border-gray-200 overflow-hidden">
-                {/* Domain Header */}
                 <div className="p-4 bg-gray-50 border-b border-gray-200">
                   <div className="flex items-center justify-between">
                     <DomainBadge
@@ -127,7 +105,6 @@ export default function LearnPage() {
                   </div>
                   <h2 className="text-lg font-semibold text-gray-900 mt-3">{domain.name}</h2>
 
-                  {/* Domain Progress Bar */}
                   <div className="mt-3">
                     <div className="flex items-center justify-between text-xs mb-1">
                       <span className="text-gray-500">Progress</span>
@@ -144,32 +121,31 @@ export default function LearnPage() {
                   </div>
                 </div>
 
-                {/* Task List */}
                 <div className="divide-y divide-gray-200 bg-white">
-                  {domain.tasks.map(task => {
+                  {domain.tasks.map((task) => {
                     const articleKey = `${domain.id}-${task.articleSlug}`;
-                    const isCompleted = completedArticles.has(articleKey);
+                    const completedAt = completed[articleKey];
 
                     return (
                       <Link
                         key={task.id}
                         href={`/learn/${domain.id}/${task.articleSlug}`}
                         className={`flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors group ${
-                          isCompleted ? 'bg-green-50/40' : ''
+                          completedAt ? 'bg-green-50/40' : ''
                         }`}
                       >
-                        {/* Checkbox */}
-                        <button
-                          onClick={(e) => toggleComplete(e, domain.id, task.articleSlug)}
-                          className="flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-full"
-                          aria-label={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
-                        >
-                          {isCompleted ? (
-                            <CheckCircle className="w-6 h-6 text-green-500 hover:text-green-600 transition-colors" />
-                          ) : (
-                            <Circle className="w-6 h-6 text-gray-300 hover:text-gray-400 transition-colors" />
-                          )}
-                        </button>
+                        <StampCheckbox
+                          completedAt={completedAt}
+                          bursting={burstId === articleKey}
+                          onToggle={() =>
+                            toggleTask(articleKey, {
+                              taskId: task.id,
+                              domainTaskKeys: domainTaskKeys[domain.id] ?? [],
+                              domainId: domain.id,
+                            })
+                          }
+                          ariaLabel={completedAt ? `Mark Task ${task.id} incomplete` : `Mark Task ${task.id} complete`}
+                        />
 
                         <div className={`w-10 h-10 rounded-lg ${colors.bg} flex items-center justify-center flex-shrink-0`}>
                           <BookOpen className="w-5 h-5 text-gray-600" />
@@ -182,12 +158,14 @@ export default function LearnPage() {
                             )}
                           </div>
                           <h3 className={`text-sm font-medium truncate ${
-                            isCompleted ? 'text-gray-500' : 'text-gray-800'
+                            completedAt ? 'text-gray-500' : 'text-gray-800'
                           }`}>
                             {task.name}
                           </h3>
                           <p className="text-xs text-gray-500 mt-0.5">
+                            {skillCounts[task.id] ? `${skillCounts[task.id]}/` : ''}
                             {task.skills.length} skills
+                            {completedAt ? ` · ${formatSkillCompletedAt(completedAt)}` : ''}
                           </p>
                         </div>
                         <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-colors" />
@@ -200,6 +178,7 @@ export default function LearnPage() {
           })}
         </div>
       </div>
+      <StampToast message={toast} />
     </div>
   );
 }

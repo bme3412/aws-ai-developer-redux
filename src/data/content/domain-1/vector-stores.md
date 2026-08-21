@@ -1,537 +1,150 @@
-# Vector Stores
+# Vector Store Solutions
 
-**Domain 1 | Task 1.4 | ~40 minutes**
+**Domain 1 · Task 1.4 · Skills 1.4.1–1.4.5**
+
+> **1.4.1** Create vector-database architectures for FM augmentation (Bedrock Knowledge Bases, OpenSearch Neural plugin, RDS + S3, DynamoDB beside a vector store).  
+> **1.4.2** Build metadata frameworks that make retrieval precise (S3 object metadata, custom attributes, domain tags).  
+> **1.4.3** Scale the index (OpenSearch sharding, multi-index domains, hierarchical indexing).  
+> **1.4.4** Connect the index to real sources (document systems, knowledge bases, internal wikis).  
+> **1.4.5** Keep the index current (incremental updates, change detection, sync, scheduled refresh).
+
+This task is not “add RAG.” It tests whether you can pick **the shelf that holds the vectors**, label the boxes, partition the warehouse, hook it to the filing cabinet, and keep the copies honest.
+
+Walk this scenario as you read:
+
+> The research desk has tens of millions of earnings-call paragraphs plus 10-Ks, 8-Ks, and analyst notes in S3. Sometimes a PM pastes a Jensen line and asks who else sounded like that. That is infrequent archive search. A live blotter that must match ticker `NVDA` *and* meaning, all day, is a different shelf. IR will drop a new 10-K at 8:01am and delete yesterday’s FAQ at 8:02am. Technology analysts must never retrieve healthcare-only notes.
+
+By the end you should be able to name which AWS product is the right *kind of shelf*, which labels must exist before k-NN runs, when one giant index is the wrong architecture, what the source of truth is, and which pipe updates the derived copy.
 
 ---
 
-## Why This Matters
+## What Task 1.4 actually tests
 
-Vector stores are the memory layer that makes RAG possible. Without them, your AI has no way to find relevant information from your documents—it's just a language model making things up based on training data. With the right vector store, your RAG system feels almost magical: users ask questions in natural language and get accurate answers grounded in your actual documentation.
+An **embedding** is a list of numbers that stands in for meaning. Similar sentences land near each other. A **vector store** keeps those lists and answers “what is closest to this?” (k-nearest neighbors).
 
-But choosing the wrong vector store creates problems that compound over time. Pick something too simple and you'll hit walls when you need hybrid search or advanced filtering. Pick something too complex and you're managing infrastructure instead of building features. The choice matters, and it's harder to change later than most architectural decisions because your data is embedded in a specific format with specific metadata schemas.
-
-Understanding how vector search actually works—not just which AWS service to use—helps you make better decisions about indexing strategies, chunking approaches, and performance tuning. The exam tests this conceptual understanding, not just service names.
-
----
-
-## The Mathematics of Meaning
-
-Traditional search engines match keywords. You search for "automobile repair" and they find documents containing those exact words. Vector search is fundamentally different: it finds documents with similar meaning, even when they use completely different vocabulary.
-
-### How Embeddings Capture Meaning
-
-When you pass text through an embedding model like Amazon Titan Embeddings V2, it converts that text into a list of numbers called a vector. Titan V2 produces vectors with up to 1024 dimensions—meaning each piece of text becomes a point in a 1024-dimensional mathematical space.
-
-The magic happens because of how embedding models are trained. They process billions of documents, learning that "automobile repair" appears in similar contexts as "car mechanic," "vehicle maintenance," and "auto shop." During training, the model adjusts its internal weights so that semantically similar phrases produce similar vectors—they end up close together in that high-dimensional space.
-
-This isn't keyword matching. The phrase "how do I fix my car" might share zero words with a document titled "Automotive Maintenance Guide: Engine Troubleshooting," but their embeddings could be very close because they're about the same concept. The embedding model learned these relationships implicitly from massive amounts of text.
-
-### Distance Metrics: Measuring Similarity
-
-Once you have vectors, you need a way to measure how "close" they are. Several distance metrics exist, each with different mathematical properties:
-
-**Cosine Similarity** is the most common choice for text embeddings. It measures the angle between two vectors, ignoring their length. Two vectors pointing in the same direction have cosine similarity of 1.0, regardless of whether one is twice as long. This makes cosine similarity robust to variations in text length—a short question and a long document can still be highly similar if they're about the same topic. In most vector stores, you'll see this configured as `cosinesimil` or `cosine`.
-
-**Euclidean Distance (L2)** measures the straight-line distance between two points in space. Unlike cosine similarity, it considers vector magnitude. This matters when the embedding model encodes information in the vector's length, not just its direction. L2 distance is often used for image embeddings but is less common for text. Smaller values mean more similar.
-
-**Dot Product** is computationally efficient and works well when vectors are normalized (all the same length). It's essentially cosine similarity without the normalization step. If your embedding model already normalizes outputs, dot product gives identical rankings to cosine similarity but computes faster.
-
-For Titan Embeddings V2, cosine similarity is the recommended default. The model outputs normalized vectors, so dot product would work identically, but cosine is the standard configuration in AWS documentation and examples.
-
-```fillin
-For Titan Embeddings V2, {{cosine similarity}} is the recommended default distance metric.
+```text
+Where do vectors live?          →  1.4.1  pick the backend
+What metadata lives beside them? →  1.4.2  filterable labels + ACLs
+How does the index scale?       →  1.4.3  shards, many indexes, hierarchy
+What feeds the index?           →  1.4.4  derived copy of S3 / wiki / DMS
+How does it stay correct?       →  1.4.5  upsert, replace, delete, reindex
 ```
-
----
-
-## Under the Hood: How Vector Similarity Actually Works
-
-Understanding the internals helps you debug retrieval issues and make better architecture decisions.
-
-### The Similarity Calculation
-
-When you search for the k nearest neighbors, here's what happens:
 
 ```mermaid
-graph TD
-    subgraph "Query Processing"
-        A[User Query Text] --> B[Embedding Model]
-        B --> C[Query Vector<br/>1024 floats]
-    end
-
-    subgraph "Similarity Computation"
-        C --> D[For each candidate vector]
-        D --> E[Compute cosine similarity]
-        E --> F[dot product / magnitudes]
-    end
-
-    subgraph "Result Assembly"
-        F --> G[Sort by similarity]
-        G --> H[Return top-k]
-    end
-
-    I[(Stored Vectors)] --> D
+flowchart TD
+    W[Workload: QPS, corpus size, filters, SQL vs search vs archive] --> S[Pick the store]
+    S --> M[Design filterable metadata + ACLs]
+    M --> X[Partition: shards vs many indexes vs hierarchy]
+    X --> F[Connect S3 / wiki / DMS as source of truth]
+    F --> U[Incremental ingest, delete, embedder version]
 ```
 
-### Cosine Similarity Math
+> **Exam tip:** Three logos can do k-NN. The stem asks who still bills you when nobody is searching — and whether you are even looking at an index.
 
-For two vectors A and B:
+---
 
-```
-cosine_similarity = (A · B) / (||A|| × ||B||)
-                  = Σ(Ai × Bi) / (√Σ(Ai²) × √Σ(Bi²))
-```
+## Skill 1.4.1 — Pick the backend from the workload
 
-In practice, with **normalized vectors** (length = 1), this simplifies to just the dot product:
+A **vector store** is the shelf that holds embeddings and answers “what is closest to this query vector?” k-nearest neighbors. Several AWS products can do that. The skill is not naming them. It is matching **this workload** to **this kind of shelf**.
 
-```
-cosine_similarity = A · B = Σ(Ai × Bi)
-```
+Start from how the desk actually searches, not from “OpenSearch is for search.”
 
-This is why Titan Embeddings has the `normalize: True` option—it makes similarity computation faster by eliminating the magnitude calculation.
+| What the workload looks like | Why that changes the shelf |
+|------------------------------|----------------------------|
+| A PM pastes a Jensen line twice a week across tens of millions of paragraphs | Huge corpus, **infrequent** lookup, you want almost no idle bill |
+| 200 analysts filter `ticker = NVDA` all day, mix keyword `H100` with meaning | **Hot** QPS, hybrid search, aggregations — a staffed search engine |
+| The facts already live in Postgres and you need SQL joins next to k-NN | Keep vectors **beside the tables** (pgvector), not a second search cluster |
+| Items are already DynamoDB records and you need “similar to this item” | A **DynamoDB vector index** on those items — not Lambda cosine over scans |
+| You want managed RAG (ingest, retrieve, cite) without operating an index | **Bedrock Knowledge Bases** as the RAG layer on top of a store |
 
-### Why HNSW Is Fast: A Deeper Look
+Five questions decide the row: **how often** people search, **how large** the corpus is, **how tight** the latency budget is, **what you already store** (SQL vs objects vs items), and **which search features** you actually need (keyword + vector, filters, aggregations). Then pick. The flowchart below is that interview, not a product tour.
 
-Without HNSW, finding the k nearest vectors among N vectors requires N similarity computations. With 10 million vectors, that's 10 million dot products per query—slow.
-
-HNSW reduces this to approximately **log(N)** comparisons by building a navigable graph:
+The one trap that is never a backend: scanning DynamoDB in Lambda and computing cosine yourself. That is an O(N) loop, not an index.
 
 ```mermaid
-graph TD
-    subgraph "Search Path (10M vectors, ~24 hops)"
-        A[Start at top layer entry point] --> B[Navigate toward query region]
-        B --> C[Drop to next layer]
-        C --> D[Navigate more precisely]
-        D --> E[Drop to bottom layer]
-        E --> F[Local neighborhood search]
-        F --> G[Return k nearest]
-    end
-
-    H[Query Vector] --> A
+flowchart TD
+    A[Need k-NN] --> B{DynamoDB + Lambda cosine?}
+    B -->|Yes| T[Trap — not an index]
+    B -->|No| C{SQL joins to data already in Postgres?}
+    C -->|Yes| RDS[Aurora / RDS + pgvector]
+    C -->|No| D{Frequent / hybrid / aggregations / LTR?}
+    D -->|Yes| OS[OpenSearch Service or Serverless]
+    D -->|No| E{Huge, infrequent, cheapest, no cluster?}
+    E -->|Yes| S3V[S3 Vectors]
+    E -->|No| F{Operational items already in DynamoDB?}
+    F -->|Yes| DDB[DynamoDB vector index]
+    F -->|No| G{Relationships as first-class?}
+    G -->|Yes| NEP[Neptune Analytics]
+    G -->|No| KB[Bedrock Knowledge Base as the RAG layer]
 ```
 
-| Corpus Size | Exact Search Comparisons | HNSW Comparisons | Speedup |
-|-------------|-------------------------|------------------|---------|
-| 1,000 | 1,000 | ~30 | 33x |
-| 100,000 | 100,000 | ~50 | 2,000x |
-| 10,000,000 | 10,000,000 | ~70 | 140,000x |
+### Amazon S3 Vectors — warehouse with a doorbell
 
-```recall
-Q: Why is HNSW search called "approximate" nearest neighbor?
-A: The graph navigation might miss vectors that are actually closer but weren't on the traversal path. It trades a small accuracy loss (95-99% recall) for massive speed gains.
-```
+**S3 Vectors** is a different bucket type whose payload is vectors, not PDFs. Inside a **vector bucket** you create **vector indexes**. You pay for storage and the queries you run. AWS runs it. Writes are strongly consistent. Infrequent queries come back in under a second; hotter indexes around ~100 ms. IAM uses the `s3vectors` namespace, not `s3`.
 
-### Why Recall Is "Approximate"
-
-HNSW doesn't guarantee finding the absolute nearest neighbors. The graph navigation might miss vectors that are actually closer but weren't on the traversal path.
-
-In practice:
-- Well-tuned HNSW achieves 95-99% recall
-- The "missed" vectors are usually nearly as good as the true nearest
-- For RAG, this trade-off is almost always worth it
-
-### What Affects Search Quality
-
-| Factor | Impact on Quality | Impact on Speed |
-|--------|-------------------|-----------------|
-| Higher dimensions | ↑ Better semantic capture | ↓ Slower |
-| Higher ef_search | ↑ More thorough search | ↓ Slower |
-| Higher M (connections) | ↑ Better graph connectivity | ↓ More memory |
-| Pre-filtering | → Depends on filter selectivity | ↑ Faster (smaller search space) |
-| Normalized vectors | → No change | ↑ Faster (simpler math) |
-
-```quickcheck
-Q: Which HNSW parameter do you tune most often to optimize query latency vs accuracy?
-A: ef_search
-B: M (connections per node)
-correct: A
-feedback: ef_search controls search-time thoroughness and directly affects query latency. M is set at index creation time.
-```
-
----
-
-## Decision Framework: Choosing Your Vector Store
-
-Use this framework to select the right vector store for your use case.
-
-### Quick Reference
-
-| Scenario | Choose | Why |
-|----------|--------|-----|
-| New RAG project, want simplicity | **Bedrock Knowledge Bases** | Fully managed, minimal ops |
-| Need hybrid search (semantic + keyword) | **OpenSearch** or **Bedrock KB HYBRID** | Built-in hybrid support |
-| Already using PostgreSQL | **Aurora pgvector** | Familiar SQL, no new infra |
-| Billions of vectors | **OpenSearch (managed)** | Scales horizontally |
-| Complex filtering + aggregations | **OpenSearch** | Full query DSL available |
-| Join vectors with relational data | **Aurora pgvector** | SQL joins work natively |
-| Prototyping quickly | **Bedrock Knowledge Bases** | Fastest time to working RAG |
-
-```recall
-Q: What should you choose for a new RAG project that needs minimal operational overhead?
-A: Bedrock Knowledge Bases — fully managed, handles parsing, chunking, embedding, storage, and sync automatically.
-```
-
-### Decision Tree
-
-```mermaid
-graph TD
-    A[New Vector Store Needed] --> B{What scale?}
-
-    B -->|< 1M vectors| C{Need hybrid search?}
-    B -->|1M - 100M vectors| D{Operational preference?}
-    B -->|> 100M vectors| E[OpenSearch Service<br/>with sharding]
-
-    C -->|No| F{Already using PostgreSQL?}
-    C -->|Yes| G{Want managed?}
-
-    F -->|Yes| H[Aurora pgvector]
-    F -->|No| I[Bedrock Knowledge Bases]
-
-    G -->|Yes| I
-    G -->|No| J[OpenSearch Service]
-
-    D -->|Minimal ops| K{Need advanced<br/>filtering?}
-    D -->|Full control| J
-
-    K -->|Basic filters| I
-    K -->|Complex queries| J
-
-    I --> L{Using OpenSearch<br/>Serverless backend?}
-    L -->|Yes| M[Ensure VECTORSEARCH<br/>collection type]
-```
-
-### Trade-off Analysis
-
-| Factor | Bedrock KB | OpenSearch | Aurora pgvector |
-|--------|-----------|------------|-----------------|
-| **Setup Time** | Minutes | Hours | Hours |
-| **Operational Burden** | None | Medium-High | Low (if existing) |
-| **Max Scale** | ~10M vectors | Billions | ~100M vectors |
-| **Hybrid Search** | Built-in | Built-in | Manual implementation |
-| **SQL Joins** | No | No | Yes |
-| **Cost Model** | Per query + storage | Cluster/OCU-based | Instance-based |
-| **Chunking Control** | Limited presets | Full control | Full control |
-| **Index Tuning** | Limited | Full control | Full control |
-| **Exam Signal** | "simplest", "managed" | "scale", "hybrid" | "PostgreSQL", "SQL" |
-
-```fillin
-On the exam, "simplest" or "minimal operational overhead" signals → {{Bedrock Knowledge Bases}}. "Scale" or "hybrid search" signals → OpenSearch.
-```
-
-### Chunking Strategy Selection
-
-| Content Type | Recommended Strategy |
-|--------------|---------------------|
-| FAQs, short documents | Fixed-size (300-500 tokens) |
-| Technical documentation | Hierarchical |
-| Legal/compliance docs | Hierarchical |
-| Dense prose (no headers) | Semantic |
-| Mixed format documents | Hierarchical |
-| Rapid prototyping | Fixed-size |
-
----
-
-### Dimension Trade-offs
-
-Titan Embeddings V2 offers configurable dimensions: 256, 512, or 1024. This flexibility exists because embedding dimensions directly impact both quality and cost.
-
-Higher dimensions capture more nuanced semantic relationships. A 1024-dimensional vector can represent subtle differences between concepts that might collapse together in 256 dimensions. Think of it like image resolution: more pixels capture more detail, but require more storage and processing.
-
-But higher dimensions aren't free. Each vector requires 4 bytes per dimension (32-bit floats), so a 1024-dim vector uses 4KB of storage. With millions of documents, this adds up. More importantly, distance calculations scale with dimension count—comparing 1024-dimensional vectors takes four times longer than comparing 256-dimensional vectors.
-
-AWS recommends 512 dimensions as a balanced default. Testing shows 512 dims retain about 99% of the semantic quality of 1024 dims for most use cases, while using half the storage. If you're memory-constrained or working with billions of vectors, 256 dimensions (which retain about 97% quality) might be worth the trade-off. If you're doing fine-grained semantic distinctions—say, differentiating between legal clauses with subtle differences—1024 dimensions might be worth the extra cost.
-
-You configure dimensions when generating embeddings, not when storing them:
-
-```python
-import boto3
-import json
-
-bedrock = boto3.client('bedrock-runtime')
-
-response = bedrock.invoke_model(
-    modelId='amazon.titan-embed-text-v2:0',
-    body=json.dumps({
-        'inputText': 'How do I reset my password?',
-        'dimensions': 512,  # Options: 256, 512, 1024
-        'normalize': True   # Recommended for cosine similarity
-    })
-)
-
-result = json.loads(response['body'].read())
-embedding = result['embedding']  # List of 512 floats
-```
-
-```quickcheck
-Q: What is the recommended default dimension for Titan Embeddings V2?
-A: 512 dimensions
-B: 1024 dimensions
-correct: A
-feedback: 512 dims retain ~99% of semantic quality while using half the storage. AWS recommends it as a balanced default.
-```
-
----
-
-## Approximate Nearest Neighbor Search
-
-Finding the k most similar vectors to a query sounds simple, but becomes a computational nightmare at scale. With exact search, comparing a query against 10 million vectors requires 10 million distance calculations. Even if each calculation takes a microsecond, that's 10 seconds per query—completely unusable for real-time applications.
-
-Approximate Nearest Neighbor (ANN) algorithms solve this by accepting a small accuracy trade-off for massive speed improvements. They might not find the mathematically perfect top-k matches, but they find very good matches in milliseconds instead of seconds. For RAG applications, this trade-off is almost always worth it—the difference between the "best" match and the "nearly best" match rarely affects answer quality.
-
-### HNSW: The Default Choice
-
-**HNSW** (Hierarchical Navigable Small World graphs) is the most popular ANN algorithm for production vector search. Understanding how it works helps you tune it properly.
-
-HNSW builds a multi-layered graph structure. At the bottom layer (Layer 0), every vector exists as a node with connections to nearby vectors. Upper layers progressively thin out, keeping only some vectors but with longer-range connections. The structure looks like this:
-
-| Layer | Nodes | Density | Connections |
-|-------|-------|---------|-------------|
-| Layer 2 | A, B | Sparse | Long jumps between distant nodes |
-| Layer 1 | A, B, C, D | Medium | Moderate-range connections |
-| Layer 0 | A-J (all vectors) | Dense | Short connections to nearest neighbors |
-
-When searching for the nearest neighbors to a query vector:
-
-1. Start at the highest layer with just a few widely-spaced nodes
-2. Find the node closest to your query at this layer
-3. Use that node's long-range connections to jump toward the query region
-4. Drop down to the next layer, which has more nodes
-5. Repeat: find closer nodes, use their connections to navigate
-6. At the bottom layer, explore the local neighborhood thoroughly
-7. Return the k nearest vectors found
-
-This hierarchical navigation is why HNSW is so fast. For a million vectors, you might visit only a few thousand nodes to find excellent matches. The top layers let you quickly navigate to the right region; the bottom layer finds the precise matches.
-
-### HNSW Parameters
-
-Three parameters control HNSW behavior, each with important trade-offs:
-
-**M** (connections per node) determines how many edges each node has. Higher M means more connections, which improves search accuracy because you have more paths to navigate. But it also increases memory usage (more edges to store) and slows down index building (more connections to create). Default values range from 12-16. Use higher M (32-64) for higher recall requirements; use lower M (8-12) for memory-constrained environments.
-
-**ef_construction** controls how thoroughly the algorithm explores when building the index. Higher values create a better-connected graph that searches more accurately. But building takes longer. This is a one-time cost, so if you're not frequently rebuilding indexes, err toward higher values (256-512). For frequently updated indexes, lower values (128) reduce ingestion latency.
-
-**ef_search** controls search-time thoroughness. Higher values explore more nodes, finding better matches but taking longer. This is the parameter you tune most often because it directly affects query latency. Start with ef_search roughly equal to k (the number of results you want), then increase until accuracy plateaus.
-
-```recall
-Q: What's the difference between ef_construction and ef_search in HNSW?
-A: ef_construction controls how thoroughly the graph is built (one-time cost at index creation). ef_search controls how thoroughly each query explores the graph (per-query cost you tune for latency).
-```
-
-Here's how these parameters appear in an OpenSearch index mapping:
-
-```json
-{
-  "settings": {
-    "index.knn": true,
-    "index.knn.algo_param.ef_search": 100
-  },
-  "mappings": {
-    "properties": {
-      "content_embedding": {
-        "type": "knn_vector",
-        "dimension": 1024,
-        "method": {
-          "name": "hnsw",
-          "space_type": "cosinesimil",
-          "engine": "nmslib",
-          "parameters": {
-            "ef_construction": 256,
-            "m": 16
-          }
-        }
-      },
-      "content": { "type": "text" },
-      "metadata": {
-        "properties": {
-          "department": { "type": "keyword" },
-          "created_date": { "type": "date" }
-        }
-      }
-    }
-  }
-}
-```
-
-### IVF: The Alternative
-
-**IVF** (Inverted File Index) takes a different approach. Instead of building a graph, it clusters vectors into groups (called Voronoi cells or "lists"). Each cluster has a centroid, and vectors are assigned to the cluster whose centroid is closest.
-
-During search, you first find the closest centroids to your query, then search only within those clusters. If you have 1000 clusters and search 10 of them, you've reduced your search space by 100x.
-
-IVF has different trade-offs than HNSW:
-
-| Aspect | HNSW | IVF |
-|--------|------|-----|
-| Query speed | Faster | Slower |
-| Index build time | Slower | Faster |
-| Memory usage | Higher | Lower |
-| Update handling | Good (incremental) | Poor (requires retraining) |
-| Best for | Real-time, dynamic data | Large static datasets |
-
-```fillin
-HNSW handles updates well because it can add new vectors {{incrementally}} — just insert them into the graph. IVF requires periodic index rebuilds.
-```
-
-The update handling difference is critical. HNSW can add new vectors incrementally—just insert them into the graph. IVF's clusters are based on the data distribution when the index was built. If you add many new vectors, the clusters become imbalanced and search quality degrades. You need to periodically rebuild the index (recompute centroids), which takes time.
-
-**Use HNSW** (the default) for production RAG applications where documents are added, updated, and deleted regularly. **Consider IVF** for massive datasets (billions of vectors) that rarely change, or when memory is severely constrained.
-
-Aurora pgvector supports both algorithms:
-
-```sql
--- Enable the pgvector extension
-CREATE EXTENSION IF NOT EXISTS vector;
-
--- Create a table with a vector column
-CREATE TABLE documents (
-    id SERIAL PRIMARY KEY,
-    content TEXT,
-    embedding vector(1024),
-    department TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
--- IVF index: faster to build, lower memory, poor for updates
-CREATE INDEX documents_ivf_idx ON documents
-USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);
-
--- HNSW index: slower to build, higher memory, good for updates
-CREATE INDEX documents_hnsw_idx ON documents
-USING hnsw (embedding vector_cosine_ops)
-WITH (m = 16, ef_construction = 64);
-```
-
-### k-Nearest Neighbors
-
-The "k" in k-NN is simply how many results you want. If k=5, you get the 5 vectors most similar to your query. For RAG applications, k typically ranges from 3 to 10—enough context to answer questions, but not so much that you overwhelm the language model's context window or include marginally relevant documents.
-
-The right k depends on your use case. For straightforward factual questions, k=3 might be plenty. For complex questions requiring synthesis across multiple sources, k=10 gives the model more material to work with. Some systems dynamically adjust k based on query complexity or retrieve extra candidates for reranking (retrieve 20, rerank down to 5).
-
----
-
-## AWS Vector Store Options
-
-AWS offers three main paths for vector storage, each optimized for different scenarios. The right choice depends on your team's existing infrastructure, scale requirements, and feature needs.
-
-### Bedrock Knowledge Bases
-
-Bedrock Knowledge Bases is the fully managed option that handles the entire RAG pipeline. You point it at document sources (S3, Confluence, SharePoint, web pages), choose an embedding model, and it handles everything else: parsing documents, chunking them, generating embeddings, storing vectors, and keeping everything synchronized when sources change.
-
-This is where most RAG projects should start. The service eliminates entire categories of operational work: you don't manage indexes, tune parameters, or build sync pipelines. It just works.
-
-Behind the scenes, Bedrock KB uses OpenSearch Serverless as its default vector store (you can also bring your own OpenSearch, Aurora pgvector, or Pinecone). But you don't interact with the vector store directly—you use the Retrieve and RetrieveAndGenerate APIs:
+This is the official pick when the stem is **huge scale + infrequent lookup + no infrastructure + most cost-effective** (50 million medical images; tens of millions of call paragraphs a PM searches twice a week).
 
 ```python
 import boto3
 
-bedrock_agent = boto3.client('bedrock-agent-runtime')
-
-# Simple retrieval
-response = bedrock_agent.retrieve(
-    knowledgeBaseId='YOUR_KB_ID',
-    retrievalQuery={'text': 'What is the return policy for electronics?'},
-    retrievalConfiguration={
-        'vectorSearchConfiguration': {
-            'numberOfResults': 5,
-            'overrideSearchType': 'HYBRID'  # Combine semantic + keyword
-        }
-    }
+s3vectors = boto3.client("s3vectors")
+s3vectors.put_vectors(
+    vectorBucketName="desk-vectors",
+    indexName="transcripts",
+    vectors=[{
+        "key": "nvda-fy26-q1-p12",
+        "data": {"float32": embedding},
+        "metadata": {"ticker": "NVDA", "year": 2025, "document_type": "earnings_call"},
+    }],
 )
-
-for result in response['retrievalResults']:
-    print(f"Score: {result['score']:.3f}")
-    print(f"Content: {result['content']['text'][:200]}...")
-    print(f"Source: {result['location']['s3Location']['uri']}")
-    print("---")
+hits = s3vectors.query_vectors(
+    vectorBucketName="desk-vectors",
+    indexName="transcripts",
+    queryVector={"float32": query_embedding},
+    topK=8,
+    filter={"ticker": "NVDA"},
+)
 ```
 
-When to use Bedrock Knowledge Bases:
-- You want minimal operational overhead
-- Your document count is under a few million
-- Standard chunking strategies work for your content
-- You don't need custom index configurations
+S3 Vectors can sit **behind a Bedrock Knowledge Base**. You can also **export a snapshot** of an S3 vector index into OpenSearch Serverless when QPS climbs. That export is a **point-in-time copy**, not a live sync — later updates need their own strategy (1.4.5).
 
-When to consider alternatives:
-- You need fine-grained control over indexing parameters
-- Your scale exceeds Bedrock KB's limits
-- You need features Bedrock KB doesn't support (custom scoring, complex aggregations)
+### OpenSearch — the staffed search desk
 
-### OpenSearch Service
+**OpenSearch Service** (managed cluster) and **OpenSearch Serverless** are search engines that also do k-NN. Keyword, filters, aggregations, faceting, and **hybrid** (BM25 + vector) live here. **Learning to Rank** reorders hits for what an analyst actually clicks.
 
-OpenSearch is the power-user option. It's a distributed search engine that happens to support vector search through its k-NN plugin. You get all of OpenSearch's capabilities: hybrid search combining keywords and vectors, complex boolean filtering, custom scoring functions, aggregations, and fine-grained sharding control.
+Serverless still bills **OCUs** (OpenSearch Compute Units) to keep the desk ready. Frequent, low-latency, high-QPS search is what that bill is for: 200 analysts during market hours. It is the expensive wrong shape for occasional reference lookup.
 
-This power comes with operational cost. You're managing a cluster (or paying for OpenSearch Serverless), tuning index settings, building ingestion pipelines, and handling the complexity that comes with distributed systems.
+**VECTORSEARCH** is the Serverless collection type for embeddings. **SEARCH** collections use inverted indexes and perform poorly for k-NN. **TIMESERIES** is logs. The exam loves “slow vector queries” caused by the wrong collection type.
 
-The vector search capabilities are excellent:
-
-```python
-from opensearchpy import OpenSearch
-
-client = OpenSearch(
-    hosts=[{'host': 'your-domain.us-east-1.es.amazonaws.com', 'port': 443}],
-    http_auth=('username', 'password'),
-    use_ssl=True
-)
-
-# Hybrid search: combine vector similarity with keyword matching
-query = {
-    "size": 10,
-    "query": {
-        "hybrid": {
-            "queries": [
-                {
-                    "bool": {
-                        "should": [
-                            {"match": {"content": "password reset procedure"}},
-                            {"match": {"title": "password reset"}}
-                        ]
-                    }
-                },
-                {
-                    "knn": {
-                        "content_embedding": {
-                            "vector": query_vector,  # Your query embedding
-                            "k": 10
-                        }
-                    }
-                }
-            ]
-        }
-    },
-    # Filter results by metadata
-    "post_filter": {
-        "bool": {
-            "must": [
-                {"term": {"department": "IT"}},
-                {"range": {"created_date": {"gte": "2024-01-01"}}}
-            ]
-        }
-    }
-}
-
-results = client.search(index='documents', body=query)
+```quickcheck
+Q: OpenSearch Serverless is returning slow k-NN queries. The collection type is SEARCH. What is the fix?
+A: Switch to a VECTORSEARCH collection
+B: Add more Lambda concurrency in front of it
+C: Change the collection type to TIMESERIES
+correct: A
+feedback: VECTORSEARCH collections are optimized for k-NN. SEARCH collections are keyword indexes. TIMESERIES is for logs.
 ```
 
-### OpenSearch Neural Plugin
+#### Neural plugin — embed inside OpenSearch
 
-The exam guide calls out **OpenSearch Service with the Neural plugin** for Bedrock integration. The Neural plugin runs embeddings and hybrid ranking **inside OpenSearch** instead of you embedding in Lambda and stuffing k-NN queries by hand.
+Skill 1.4.1 names **OpenSearch Service with the Neural plugin** for Bedrock integration and **topic-based segmentation**.
 
-What it gives you:
-- **Neural search** — OpenSearch calls a Bedrock embedding model (or a locally deployed model) at query time
-- **Hybrid search** — BM25 keyword + vector similarity with a single query
-- **Topic-based segmentation** — separate indexes or pipelines per domain, then search across them
+The Neural plugin runs embeddings **inside OpenSearch** instead of you embedding in Lambda and stuffing k-NN queries by hand:
+
+- Text query → OpenSearch calls a Bedrock embedding model → semantic pipeline
+- Often combined with keyword in one hybrid query
+- Topic-based segmentation = separate indexes or ingest pipelines per domain (equities vs fixed income vs compliance), then search the right one
 
 ```json
 {
   "query": {
     "hybrid": {
       "queries": [
-        { "match": { "content": "password reset" } },
+        { "match": { "content": "Blackwell supply" } },
         {
           "neural": {
             "content_embedding": {
-              "query_text": "password reset",
+              "query_text": "Blackwell supply",
               "model_id": "bedrock.titan-embed-text-v2",
               "k": 10
             }
@@ -543,126 +156,13 @@ What it gives you:
 }
 ```
 
-Use the Neural plugin when you **own the OpenSearch cluster** and want Bedrock embeddings without a separate embedding Lambda. Use Bedrock Knowledge Bases when you do not want to operate OpenSearch at all.
+Use the Neural plugin when you **own the OpenSearch cluster** and want Bedrock embeddings without a separate embedding Lambda. Use Bedrock Knowledge Bases when you do not want to operate OpenSearch at all. Hybrid **score fusion** and rerank live in [1.5](/learn/1/retrieval-mechanisms).
 
----
+### Aurora / RDS PostgreSQL + pgvector — the SQL shop
 
-### OpenSearch Serverless Collection Types
+**pgvector** adds a vector column and distance operators to PostgreSQL. Nearness *and* `JOIN` to revenue, ticker, patient id. You run instances (RDS) or Aurora and pay at 3am.
 
-OpenSearch Serverless removes cluster management but requires choosing the right collection type. This is an exam favorite because the wrong choice causes real problems.
-
-**VECTORSEARCH collections** are optimized specifically for k-NN operations. They use HNSW indexes with tuned settings, allocate resources appropriately for vector workloads, and integrate with Bedrock Knowledge Bases. If your use case involves embeddings and semantic search—which includes all RAG applications—this is the correct collection type.
-
-**SEARCH collections** are optimized for traditional full-text and keyword search. They use standard inverted indexes. While you can technically store vectors here, performance will be poor because the infrastructure isn't optimized for high-dimensional similarity calculations. The exam loves questions where the wrong collection type is causing "slow vector queries"—the fix is switching to VECTORSEARCH.
-
-**TIMESERIES collections** are optimized for time-stamped data like logs and metrics. They use time-based partitioning for efficient temporal queries. Not relevant for RAG or vector search.
-
-```python
-import boto3
-
-aoss_client = boto3.client('opensearchserverless')
-
-# Create a vector search collection for RAG
-response = aoss_client.create_collection(
-    name='product-knowledge-vectors',
-    type='VECTORSEARCH',  # Critical for semantic search!
-    description='Vector store for product documentation RAG'
-)
-
-# You also need security policies
-aoss_client.create_security_policy(
-    name='product-kb-encryption',
-    type='encryption',
-    policy=json.dumps({
-        "Rules": [{"ResourceType": "collection", "Resource": ["collection/product-knowledge-vectors"]}],
-        "AWSOwnedKey": True
-    })
-)
-
-aoss_client.create_access_policy(
-    name='product-kb-access',
-    type='data',
-    policy=json.dumps([{
-        "Rules": [
-            {"ResourceType": "index", "Resource": ["index/product-knowledge-vectors/*"], "Permission": ["aoss:*"]},
-            {"ResourceType": "collection", "Resource": ["collection/product-knowledge-vectors"], "Permission": ["aoss:*"]}
-        ],
-        "Principal": ["arn:aws:iam::123456789012:role/KnowledgeBaseRole"]
-    }])
-)
-```
-
-```quickcheck
-Q: Which OpenSearch Serverless collection type must you use for RAG / semantic search?
-A: VECTORSEARCH
-B: SEARCH
-C: TIMESERIES
-correct: A
-feedback: VECTORSEARCH collections are optimized for k-NN operations. SEARCH collections use standard inverted indexes and perform poorly for vector queries.
-```
-
-OpenSearch Serverless uses **OCUs** (OpenSearch Compute Units) for capacity. You have separate indexing OCUs and search OCUs. The minimum is 2 total OCUs (1 indexing + 1 search), and the service scales automatically based on workload. Each OCU costs roughly $0.24/hour, so even minimum capacity runs about $350/month—factor this into cost planning.
-
-For Bedrock Knowledge Bases using OpenSearch Serverless as the vector store, AWS manages the collection automatically. You don't configure OCUs or collection types; the service handles it.
-
-### Aurora PostgreSQL with pgvector
-
-If your team already runs PostgreSQL, adding vector search capabilities to your existing database is often simpler than introducing an entirely new data store. The pgvector extension adds vector types and similarity search to PostgreSQL, letting you query vectors with familiar SQL.
-
-The appeal is integration with relational data. You can join vector similarity results with user tables, transaction history, or any other data in your database. This is powerful for applications where context depends on both semantic similarity and relational relationships:
-
-```sql
--- Find similar products that are in stock and match user preferences
-SELECT
-    p.product_id,
-    p.name,
-    p.price,
-    1 - (p.embedding <=> query_embedding) AS similarity
-FROM products p
-JOIN inventory i ON p.product_id = i.product_id
-JOIN user_preferences up ON up.category = p.category
-WHERE
-    i.quantity > 0
-    AND up.user_id = 12345
-ORDER BY p.embedding <=> query_embedding
-LIMIT 10;
-```
-
-The `<=>` operator computes cosine distance (1 - cosine similarity), `<->` computes L2 distance, and `<#>` computes negative inner product.
-
-pgvector limitations:
-- Scale is bounded by what PostgreSQL can handle (millions of vectors, not billions)
-- No built-in hybrid search (you need to implement keyword matching separately)
-- Fewer vector-specific optimizations than dedicated vector databases
-- Index building for HNSW can be slow and memory-intensive
-
-When to use Aurora pgvector:
-- Your team already runs PostgreSQL and values operational simplicity
-- You need joins between vector results and relational data
-- Your scale is in the millions, not billions, of vectors
-- You prefer SQL over specialized vector APIs
-
-When to consider alternatives:
-- You need hybrid search out of the box
-- Your scale is approaching billions of vectors
-- You need advanced features like multi-tenancy, filtering optimizations, or custom scoring
-
-```recall
-Q: What do the pgvector operators <=>, <->, and <#> compute?
-A: <=> is cosine distance, <-> is L2 (Euclidean) distance, <#> is negative inner product.
-```
-
-### The Selection Decision
-
-For most new RAG projects, start with Bedrock Knowledge Bases. It handles the entire pipeline, integrates well with other Bedrock features, and requires minimal operational investment. You can always migrate later if you outgrow it.
-
-Choose OpenSearch when you genuinely need its capabilities: hybrid search, complex filtering, custom scoring, or billion-vector scale. Don't choose it "just in case"—you're trading operational simplicity for features you might never use.
-
-Choose Aurora pgvector when PostgreSQL is already central to your architecture and you want vector search without adding another data store. The SQL integration can be valuable, but you're giving up some vector-specific features.
-
-### Amazon RDS + S3 Document Repositories
-
-Official 1.4.1 also lists **Amazon RDS with Amazon S3 document repositories**. The pattern is: S3 holds the source files (PDFs, HTML, wikis); RDS (often PostgreSQL with pgvector, sometimes Aurora) holds embeddings plus foreign keys back to the S3 object.
+Official 1.4.1 also lists **Amazon RDS with Amazon S3 document repositories**: S3 holds the source files (PDFs, HTML, wikis); RDS holds embeddings plus foreign keys back to the S3 object.
 
 ```
 S3 object (document, version, metadata)
@@ -672,16 +172,35 @@ RDS/Aurora row: embedding, s3_uri, title, acl, updated_at
 k-NN in RDS → fetch bytes or a signed URL from S3 only for the hits
 ```
 
-Use this when documents must stay in S3 (lifecycle, versioning, Object Lock) but you want SQL joins on the vector results. Aurora pgvector is the managed flavor of the same idea; "RDS + S3" is the exam wording when the stem already has RDS.
+Use this when documents must stay in S3 (lifecycle, versioning, Object Lock) but you want SQL joins on the vector results. “RDS + S3” is the exam wording when the stem already has RDS. Aurora pgvector is the managed flavor of the same idea.
 
-### DynamoDB with a Vector Database (Metadata + Embeddings)
+```sql
+SELECT chunk_id, s3_uri,
+       1 - (embedding <=> query_embedding) AS similarity
+FROM call_chunks
+JOIN fundamentals USING (ticker)
+WHERE ticker = 'NVDA'
+  AND fiscal_year >= 2025
+ORDER BY embedding <=> query_embedding
+LIMIT 8;
+```
 
-DynamoDB **does not** run k-NN. The official pairing is **DynamoDB for metadata and embedding pointers next to a real vector store**.
+`<=>` is cosine distance, `<->` is L2, `<#>` is negative inner product.
 
-| Store | Holds | Does not hold |
-|-------|-------|----------------|
-| OpenSearch / Aurora pgvector / Bedrock KB | Vectors, similarity search | Authoritative document bytes |
-| **DynamoDB** | Item metadata, ACLs, embedding IDs, conversation state | Vector similarity |
+```recall
+Q: When is Aurora / RDS pgvector the right vector store?
+A: When you already live in PostgreSQL and need k-NN plus SQL joins/filters on the same row. Not when the stem says no infrastructure and infrequent cheapest search.
+```
+
+### DynamoDB — three different jobs, one logo
+
+DynamoDB is no longer “key-value only.” Split the stem:
+
+| Pattern | What it is | Exam fate |
+|---------|------------|-----------|
+| **Lambda cosine over a table** | Page items, compute similarity in your code | **Always a trap.** Not an index. |
+| **Native vector index** | ANN over an embedding attribute on items that already live in DynamoDB | Right when operational state is already here. Wrong for a huge, rarely queried archive. |
+| **Metadata beside a vector store** | `doc_id →` ticker, ACL, URL after k-NN returns ids | The pairing the skill guide still names: DynamoDB **with** a vector database |
 
 ```
 Query → vector DB (top-k IDs)
@@ -690,447 +209,592 @@ Query → vector DB (top-k IDs)
       → send surviving chunks to the FM
 ```
 
-This is the correct answer when the scenario needs **low-latency metadata lookups** or **per-item ACLs** alongside semantic search. It is the wrong answer when someone proposes DynamoDB as the similarity engine.
+There is also a DynamoDB → OpenSearch **zero-ETL** path when you need richer full-text on top of the operational table.
 
----
+> **Important:** An official sample still offers “DynamoDB + Lambda similarity.” That option is wrong even though native vector indexes now exist. Read the *option*, not the logo. Lambda cosine is never the engine. Native DynamoDB k-NN is still the wrong shelf for “50 million, infrequent, cheapest, no cluster.”
 
----
+### Neptune Analytics — GraphRAG
 
-## Document Chunking Strategies
+Use it when **relationships** matter as much as similarity: `NVDA → uses → TSMC → CoWoS`. Do not reach for it when the job is “who else sounded like Jensen.”
 
-You can't just embed entire documents. A single embedding for a 100-page manual would be too vague to match specific queries—it would represent the "average meaning" of all 100 pages, matching many queries weakly rather than specific queries strongly. Additionally, embedding models have token limits (typically 512-8192 tokens), so long documents literally can't be processed in one pass.
+### Bedrock Knowledge Bases — the librarian, not always the warehouse
 
-Chunking—splitting documents into smaller pieces—is essential. But how you chunk dramatically affects retrieval quality.
+A Knowledge Base is the **RAG layer**: connect a data source, chunk, embed, retrieve (and optionally generate). The vectors underneath may be **Bedrock-managed** or a store you name (OpenSearch Serverless, Aurora, S3 Vectors, Neptune, Pinecone, Redis, MongoDB Atlas, …).
 
-### Fixed-Size Chunking
+> “KB = always a pointer, never a store” is no longer true. A Knowledge Base is the RAG layer. The infrastructure underneath may be managed or explicit.
 
-The simplest approach: split documents every N tokens with some overlap between chunks. Bedrock Knowledge Bases defaults to 512 tokens maximum with 20% overlap (about 100 tokens).
+Skill 1.4.1’s “hierarchical organization” here means: multiple data sources, S3 prefixes, and parent/child structure the KB can maintain. **Hierarchical chunking** (parent ~1000 tokens, child ~500) is the retrieval tactic — that lesson is [1.5](/learn/1/retrieval-mechanisms).
 
-The overlap ensures that concepts spanning chunk boundaries appear in at least one complete chunk. Without overlap, a sentence split across two chunks might not match queries about its topic in either chunk.
-
-```python
-# Conceptual fixed-size chunking
-def fixed_size_chunk(text, max_tokens=512, overlap_percent=0.2):
-    words = text.split()
-    overlap = int(max_tokens * overlap_percent)
-    chunks = []
-
-    for i in range(0, len(words), max_tokens - overlap):
-        chunk = ' '.join(words[i:i + max_tokens])
-        chunks.append(chunk)
-
-    return chunks
-```
-
-Fixed-size chunking is fast and predictable but naive. It ignores document structure completely—you might slice a sentence in half, separate a heading from its content, or split a code block across chunks. For simple documents or rapid prototyping, it works fine. For production with complex documents, you usually want something smarter.
+When the stem says **minimal operational overhead**, **two-week production RAG**, **no search experience**, start with a Knowledge Base and a managed vector store. When the stem needs shard formulas, Neural plugin pipelines, or billion-scale hybrid, you are in OpenSearch.
 
 ```fillin
-Chunk overlap ensures that concepts {{spanning chunk boundaries}} appear in at least one complete chunk.
+Infrequent, huge, cheapest, no cluster → {{S3 Vectors}}. Frequent semantic + keyword / hybrid → OpenSearch. Existing SQL + vectors → Aurora / RDS pgvector.
 ```
 
-### Semantic Chunking
+### DocumentDB / MemoryDB / Kendra — adjacent, not the default
 
-Semantic chunking uses an embedding model to identify natural meaning boundaries. It computes embeddings for sentences or paragraphs, then splits where semantic similarity between adjacent segments drops significantly.
+DocumentDB / MongoDB Atlas or MemoryDB appear when the application **already lives there**. They are not the default for a 50-million-vector archive.
 
-The intuition: within a coherent topic, adjacent sentences have similar embeddings. When the topic shifts, embeddings diverge. By detecting these divergence points, you split at natural boundaries rather than arbitrary token counts.
-
-Bedrock Knowledge Bases supports semantic chunking with configurable parameters:
-- **Buffer size**: How many surrounding sentences to consider when computing similarity
-- **Max token size**: Maximum chunk size (range: 20-8,192 tokens)
-- **Breakpoint threshold**: Similarity drop required to trigger a split (95% recommended)
-
-Semantic chunking costs more because it runs the embedding model during ingestion, not just during retrieval. For large document collections, this adds significant cost and time. But for documents where structure varies (different authors, formats, or topics interleaved), semantic chunking often produces better retrieval quality.
-
-### Hierarchical Chunking
-
-Hierarchical chunking is the production-grade approach, often the recommended default for complex documents. It creates multiple chunk sizes simultaneously, maintaining parent-child relationships.
-
-**Parent chunks** are larger (around 1000 tokens) and capture broader context. **Child chunks** are smaller (around 500 tokens) and capture specific details. During retrieval, the system searches child chunks (which are more specific) but can optionally return parent chunks (which provide more context).
-
-This solves a fundamental tension: small chunks match specific queries precisely but lack context, while large chunks provide context but match imprecisely. Hierarchical chunking gives you both. When a child chunk matches, you know the specific passage *and* have the surrounding context available.
-
-```python
-# Conceptual hierarchical chunking structure
-{
-    "parent_chunk": {
-        "id": "parent_001",
-        "content": "Full section about password policies...",  # ~1000 tokens
-        "children": ["child_001", "child_002", "child_003"]
-    },
-    "child_chunks": [
-        {
-            "id": "child_001",
-            "content": "Password requirements: minimum 12 characters...",  # ~300 tokens
-            "parent": "parent_001"
-        },
-        {
-            "id": "child_002",
-            "content": "Password expiration: passwords must be changed every 90 days...",
-            "parent": "parent_001"
-        }
-    ]
-}
-```
-
-Bedrock Knowledge Bases supports hierarchical chunking with configurable parent and child sizes. The default overlap between chunks is about 70 tokens, ensuring boundary concepts appear in multiple chunks.
-
-### Choosing a Strategy
-
-**For development and testing**: Fixed-size chunking is fast to iterate with. You're focused on other parts of the system; good-enough chunking is fine.
-
-**For production with varied documents**: Hierarchical chunking is the robust default. It handles technical manuals, legal documents, and mixed-format content well.
-
-**For uniformly dense prose**: Semantic chunking works well when documents don't have clear structural hierarchy—think dense paragraphs without headers or sections.
-
-**The critical constraint**: You cannot change chunking strategy after creating a data source in Bedrock Knowledge Bases. The strategy is baked into how documents are processed and stored. If you want to try a different strategy, you create a new data source and re-ingest everything. Choose wisely upfront, or plan for potential re-ingestion.
-
-```quickcheck
-Q: Which chunking strategy is the best default for production with complex, structured documents?
-A: Hierarchical chunking
-B: Fixed-size chunking
-C: Semantic chunking
-correct: A
-feedback: Hierarchical chunking creates parent (broad context) and child (specific detail) chunks, handling technical manuals and mixed-format content well.
-```
+**Amazon Kendra** is enterprise **document search** (files, FAQs, access control) — not the RAG vector store the blotter uses to ground an FM. If the stem is “search the intranet,” Kendra can win. If the stem is “retrieve chunks for generation,” it is a distractor.
 
 ---
 
-## Metadata and Filtering
+## Skill 1.4.2 — Metadata is half the index
 
-Pure vector search returns documents based solely on semantic similarity. But real applications need more constraints: results from a specific department, documents the user has permission to access, content from a particular date range. Metadata filtering adds these constraints.
+A vector without metadata is only half an index. The number list is meaning. The labels are ticker, year, document type, ACL. You need both.
 
-### How Metadata Filtering Works
+**Semantic condition:** meaning ≈ “Blackwell supply constrained.”  
+**Metadata condition:** `ticker == NVDA AND fiscal_year >= 2025 AND document_type == earnings_call`.
 
-Each vector in your store can have associated metadata—key-value pairs describing attributes of the source document:
+```text
+Filter (ticker, ACL, date, type)  →  shrink the search space
+Vector search                    →  closest meaning among what remains
+Top K                            →  hits the blotter actually sees
+```
+
+The official insurance-style item is two steps, not one:
+
+1. **Ingest** `policy_type` and `state` as metadata (S3 sidecar `.metadata.json`).
+2. **Query** with `retrievalConfiguration.filter` on Retrieve / RetrieveAndGenerate.
+
+Tagging without filtering still returns Texas home-insurance chunks for a California auto question. Filtering without tags has nothing to constrain. A bigger embedding model will not separate “auto claim” in CA from “auto claim” in TX — those sentences are semantically similar. Two hundred Knowledge Bases (one per type×state) is operational theater.
+
+### Sidecar files on S3
+
+```
+filings/
+  NVDA-FY26-10K.pdf
+  NVDA-FY26-10K.pdf.metadata.json
+```
 
 ```json
 {
-    "embedding": [0.12, 0.45, 0.78, ...],
-    "content": "Our refund policy allows returns within 30 days...",
-    "metadata": {
-        "department": "customer-service",
-        "document_type": "policy",
-        "last_updated": "2024-06-15",
-        "access_level": "public",
-        "region": "us-east"
-    }
+  "metadataAttributes": {
+    "ticker": "NVDA",
+    "document_type": "10-K",
+    "fiscal_year": 2025,
+    "access_level": "internal",
+    "desk": "tech-research"
+  }
 }
 ```
 
-When querying, you can filter on these metadata fields, limiting which vectors are considered for similarity matching.
+S3 object metadata and tags can carry timestamps, authorship, and domain classification. Custom attributes on the vector (or in the sidecar) are what Bedrock KB actually filters on. Plan the schema **before** bulk ingest — adding a filter field later usually means re-processing.
 
-### Pre-Filtering vs Post-Filtering
+### Filterable vs display / lineage
 
-**Pre-filtering** applies constraints before vector search. The system first narrows down to vectors matching your metadata criteria, then performs similarity search only on that subset.
+S3 Vectors (and similar stores) split metadata. Put **query predicates** in filterable fields (ticker, year, document_type, region, permission_group). Put **display / lineage** in non-filterable (long source description, display title, large provenance payload). Filterable fields have different limits and costs. Do not stuff a 4k provenance blob into the filter set.
 
-Pre-filtering is efficient because you're searching a smaller set. If you filter to just "customer-service" documents (maybe 10% of your corpus), similarity search is 10x faster. However, if your filters are very selective and few documents match, you might not have enough candidates to find good semantic matches.
+Filter syntax is **backend-specific**. Learn the idea (metadata predicate AND vector similarity), not one universal JSON blob. Bedrock Knowledge Base retrieval filters support equality, comparison, inclusion, and logical combinations — not every operator on every store.
 
-**Post-filtering** runs vector search first across all documents, then filters the results. This guarantees you consider all potentially relevant documents, but is inefficient—you compute similarity for vectors you'll discard.
+### Pre-filter vs post-filter
 
-Post-filtering has a dangerous failure mode: if most of your top semantic matches fail the filter, you end up with few or no results. Request k=10 results, find 8 great semantic matches that fail the filter, and you return only 2 results (or none).
+**Pre-filtering** narrows candidates, then runs k-NN. Faster, and the result set is already authorized.
 
-Most production systems use pre-filtering because the efficiency gains outweigh the risks. If your filters are reasonable (not excluding 99% of documents), pre-filtering works well.
+**Post-filtering** (retrieve 50, Lambda-drop the wrong state) wastes retrieval budget. If the true CA auto chunks were #51–#60 semantically, you return nothing useful.
 
 ```recall
-Q: What is the key advantage of pre-filtering over post-filtering in vector search?
-A: Pre-filtering narrows the candidate set before similarity computation, making search faster. Post-filtering risks returning few/no results if top semantic matches fail the filter.
+Q: Retrieval returns Texas home-insurance docs for a California auto question. Embeddings look fine. What two steps fix it?
+A: (1) Add policy_type and state as metadata at ingest (`.metadata.json`). (2) Apply those filters on Retrieve/RetrieveAndGenerate. Not post-filter in Lambda, not 200 KBs, not a bigger embedder.
 ```
 
-### Access Control Through Metadata
+### ACLs constrain retrieval, not just the answer
 
-The killer use case for metadata filtering is access control. Tag documents with access levels, department ownership, or explicit user/group permissions. Then filter based on who's asking:
+Do not vector-search the whole corpus and redact afterward. Derive the allowed scope from the user identity, put that in the metadata filter, then search.
 
-```python
-# User from Engineering with "internal" clearance
-user_metadata_filter = {
-    "andAll": [
-        {"equals": {"key": "access_level", "value": "internal"}},
-        {"in": {"key": "department", "value": ["engineering", "company-wide"]}}
-    ]
-}
+Document A: `allowed_groups = ["tech-research"]`. Document B: healthcare only. A technology analyst asking “what is management saying about AI demand?” must never retrieve B. Bedrock S3 data sources can carry document-level ACL metadata and incremental sync.
 
-response = bedrock_agent.retrieve(
-    knowledgeBaseId='KB_ID',
-    retrievalQuery={'text': 'How do I access the internal API documentation?'},
-    retrievalConfiguration={
-        'vectorSearchConfiguration': {
-            'numberOfResults': 5,
-            'filter': user_metadata_filter
-        }
-    }
-)
-```
-
-With this pattern, users can only retrieve documents they're authorized to access—even if unauthorized documents are perfect semantic matches for their query. The filtering happens in the vector store, before results return to the application.
-
-This isn't optional for enterprise deployments. Without metadata-based access control, your RAG system becomes a security vulnerability—anyone who can query it can potentially extract information from any document in the corpus.
-
-### Implementing Metadata in Bedrock Knowledge Bases
-
-For Bedrock Knowledge Bases with S3 data sources, metadata comes from companion `.metadata.json` files:
-
-```
-my-docs/
-  policies/
-    refund-policy.pdf
-    refund-policy.pdf.metadata.json
-    shipping-policy.pdf
-    shipping-policy.pdf.metadata.json
-```
-
-Each metadata file contains attributes for its associated document:
-
-```json
-{
-    "metadataAttributes": {
-        "department": "customer-service",
-        "document_type": "policy",
-        "effective_date": "2024-01-01",
-        "access_level": "public"
-    }
-}
-```
-
-During ingestion, Bedrock KB associates this metadata with the document's chunks. During retrieval, you can filter on any of these attributes.
-
-### Schema Design
-
-Plan your metadata schema before bulk ingestion. Adding new filter fields later typically requires re-processing all documents—the new field doesn't exist on already-ingested vectors.
-
-Think through:
-- What filters will users need? (department, date range, document type)
-- What access control constraints exist? (user roles, data classification levels)
-- What operational filters help? (source system, ingestion batch, content version)
-
-Design for the queries you'll run, but keep the schema manageable. Every additional metadata field increases storage and can complicate queries. Don't add fields "just in case"—add fields you know you'll filter on.
+> **Exam tip:** Authorization constrains retrieval, not merely the answer text. Filter first. k-NN second.
 
 ---
 
-## Advanced Index Architecture
+## Skill 1.4.3 — Scale the index, do not just add hardware
 
-At scale, how you structure your vector indexes dramatically affects both performance and operational complexity.
+One giant index is not always the answer. 150 million legal chunks across 40 practice areas, where **each query targets exactly one area**, should not scan 150 million vectors.
 
-### Sharding in OpenSearch
+**Shards** partition an OpenSearch index so more data spreads across more workers. **Replicas** are copies for availability and read capacity. Sharding **parallelizes** the same search. It does not shrink the search space. If every query still evaluates all 150 million vectors, 40 shards instead of 3 just distributes the same work.
 
-OpenSearch distributes vectors across shards—units of storage that can live on different nodes. Each shard handles part of the data and contributes to query processing.
+**Multi-index** is the 1.4.3 exam move when queries have a known domain: 40 indexes, router sends “immigration” to the immigration index (~3.75 million vectors). Smaller search space, domain-specific tuning, isolation, different retention and security, independent scaling.
 
-The sharding strategy matters:
-- **Too few shards**: Individual shards become large, slowing searches and limiting parallelism
-- **Too many shards**: Overhead of managing many small shards, coordination costs during queries
-
-A reasonable starting point is to keep shard size between 10-50GB. For a 100GB vector index, 5-10 shards works well. OpenSearch can query shards in parallel, so more shards (up to a point) means faster queries at the cost of coordination overhead.
-
-For HNSW indexes, each shard maintains its own graph. When you query, OpenSearch searches all shards in parallel, then merges and re-ranks results. This means a query across 10 shards does 10 graph traversals, which is fast because HNSW is efficient, but still more work than querying a single shard.
-
-### Multi-Index Strategies
-
-Instead of one giant index, consider multiple smaller indexes organized by some logical dimension:
-- **By document type**: Separate indexes for policies, procedures, FAQs, and product manuals
-- **By department**: HR documents in one index, engineering docs in another
-- **By time**: Monthly or yearly indexes for time-sensitive content
-
-Multi-index architectures help because:
-1. Queries route to relevant indexes only, shrinking the search space
-2. Different indexes can have different settings (chunk sizes, refresh rates)
-3. Access control can be implemented at the index level
-4. Old indexes can be archived or deleted without affecting current content
-
-OpenSearch lets you query across multiple indexes, so you can still do broad searches when needed.
-
-### Index Lifecycle Management
-
-Time-based indexes work well for content that becomes less relevant over time. Current year's documents in hot storage with aggressive refresh, previous years in cheaper storage with less frequent updates.
-
-OpenSearch Index Lifecycle Management (ILM) automates transitions:
-
-```json
-{
-    "policy": {
-        "phases": {
-            "hot": {
-                "actions": {
-                    "rollover": {
-                        "max_size": "50gb",
-                        "max_age": "30d"
-                    }
-                }
-            },
-            "warm": {
-                "min_age": "30d",
-                "actions": {
-                    "shrink": { "number_of_shards": 1 },
-                    "forcemerge": { "max_num_segments": 1 }
-                }
-            },
-            "delete": {
-                "min_age": "365d",
-                "actions": {
-                    "delete": {}
-                }
-            }
-        }
-    }
-}
+```mermaid
+flowchart LR
+    Q[Query: NVDA Blackwell] --> R[Domain router]
+    R --> E[equities index]
+    R -.-> F[fixed-income index]
+    R -.-> C[compliance index]
+    E --> K[k-NN + filters]
 ```
 
-For Bedrock Knowledge Bases, lifecycle management is simpler—you manage the source documents, and the service handles the vectors. Delete a document from S3, sync the knowledge base, and its vectors are removed.
+Adding data nodes without changing index structure improves **throughput** (queries per second). It does not fix per-query latency when the bottleneck is search **scope**. Shrinking dimensions (1536 → 384) makes each comparison cheaper and can hurt quality — and you still scan 150 million vectors.
+
+```quickcheck
+Q: Each query targets one of 40 practice areas but the single index scans all 150 million vectors. p95 is 3.2s against a 500ms SLA. What change helps most?
+A: Increase shards from 3 to 40 on the one index
+B: Create one index per practice area and route each query
+C: Reduce dimensions from 1536 to 384
+D: Add data nodes and leave the index alone
+correct: B
+feedback: Scope reduction beats a faster full scan. More shards / nodes still evaluate 150 million vectors. Smaller dimensions still scan everything and can hurt legal retrieval quality.
+```
+
+### Hierarchical indexing is architecture, not chunking
+
+A **hierarchical index** is: Company → Document → Section → Chunk, or a coarse index (which filing?) then a fine index (which passage?). Query → which company/document? → which section? → which chunk?
+
+That is 1.4.3. **Hierarchical chunking** (parent/child token sizes inside a Knowledge Base) is 1.5.
+
+### Hot archive + hot desk
+
+Keep 2018–2025 transcripts on **S3 Vectors** (cheap / massive). Keep the current four quarters on **OpenSearch** (fast / hybrid / analytics). Export from S3 Vectors into OpenSearch Serverless if you need to promote a slice. Remember: export is a **snapshot**.
+
+Traditional OpenSearch is keyword → BM25. Vector OpenSearch is embedding → k-NN. **Neural Search** is: text query → model embeds it → semantic pipeline, often combined with keyword.
+
+HNSW vs IVF, `ef_search`, and Titan dimension knobs are how you **tune a chosen store**. They are not how you **choose** the store. Default production ANN is HNSW (handles updates). IVF is for large **static** sets or severe memory pressure. Deep tuning lives with [1.5](/learn/1/retrieval-mechanisms) and Domain 4.
 
 ---
 
-## Synchronization and Maintenance
+## Skill 1.4.4 — The index is a derived copy
 
-Vector stores require ongoing maintenance to stay useful. Documents are added, modified, and deleted; your vectors must reflect these changes or your RAG system serves outdated information.
+A production vector store is a **derived index**, not the source of truth. S3 filings, SharePoint / Confluence / wiki, research notes, and a document-management system feed an ingestion layer. That layer normalizes, embeds, and writes vectors.
 
-### Sync Strategies
-
-**On-demand sync**: Trigger manually when you know content has changed. Simple but requires explicit action. Good for stable content with occasional updates.
-
-**Scheduled sync**: Run hourly, daily, or weekly regardless of whether content changed. Ensures eventual consistency without manual intervention. Most production systems use scheduled sync.
-
-**Event-driven sync**: Respond to changes immediately. S3 event notifications trigger Lambda functions that update vectors as soon as documents change. Lowest latency but most complex to implement.
-
-Bedrock Knowledge Bases supports on-demand and scheduled sync. For event-driven architectures, you'd build a custom pipeline.
+If the index disappears, rebuild it. If the source disappears, you have a problem.
 
 ```fillin
-Without proper deletion handling, your RAG system returns information from {{documents that no longer exist}} — potentially showing outdated or confidential content.
+The 10-K in S3 is the source. The embedding is a {{derived copy}}. Treat it like a cache you can rebuild, not like the filing.
 ```
 
-### Incremental Updates
+Assign stable IDs: `document_id`, `chunk_id`, `embedding_version`, `source_uri`, `source_version`. That is how you dedupe, update, delete, reindex, migrate embedders, and keep lineage ([3.3](/learn/3/governance-compliance)).
 
-Re-processing your entire document corpus for every sync is wasteful. Incremental updates process only what changed: new documents, modified documents, and deleted documents.
+Bedrock Knowledge Bases connectors cover S3, Confluence, SharePoint, Salesforce, web, and **custom** data sources. Skill 1.4.4 is the integration: the wiki stays the wiki; the KB is how GenAI reads it. Do not copy SharePoint into a second unmanaged pile “for AI” without a sync story (that is 1.4.5).
 
-Bedrock Knowledge Bases handles this automatically—it tracks what's been processed and only handles changes since the last sync. For custom implementations, you need to track document versions or modification timestamps yourself.
+Custom data sources use the KnowledgeBaseDocuments APIs as the ingest path — there is no bucket to scan. S3 data sources use **both** a first `StartIngestionJob` and, later, either another sync or per-object ingest.
 
-The basic pattern:
-1. Record document checksums or modification times during ingestion
-2. During sync, compare current documents against recorded values
-3. Process documents that are new or modified
-4. Remove vectors for documents that no longer exist
+---
 
-### Handling Deletions
+## Skill 1.4.5 — Keep the derived index honest
 
-When a source document disappears, its vectors must go too. This sounds obvious but is easy to overlook. Without proper deletion handling, your RAG system returns information from documents that no longer exist—potentially showing outdated policies, deprecated procedures, or confidential information that was supposed to be removed.
+Vectors get stale. Object created → embed → upsert. Object changed → identify old chunks → delete or replace → re-embed. Object deleted → delete vectors.
 
-Bedrock Knowledge Bases handles deletions during sync. For custom implementations, maintain a mapping between source documents and their vector IDs, and delete vectors when their source documents are removed.
+Two clocks:
 
-### Monitoring Sync Health
+| Freshness | Pipe |
+|-----------|------|
+| **As soon as possible**, event-driven, resilient | S3 Event Notifications → **SQS** → Lambda → `IngestKnowledgeBaseDocuments` / `DeleteKnowledgeBaseDocuments` |
+| **Within hours is fine** | EventBridge Scheduler → `StartIngestionJob` (incremental scan of the data source) |
 
-Sync failures leave your vectors stale. Build observability from the start:
+`StartIngestionJob` **scans** the connected S3 data source and incrementally processes adds, changes, and deletes since last sync. Required after you **first** attach the bucket. Fine for nightly catch-up. Wrong when the stem says **as soon as possible** and **event-driven**.
 
-**CloudWatch metrics to watch**:
-- Sync success/failure rate
-- Documents processed per sync
-- Sync duration trends
-- Vector store size growth
+`IngestKnowledgeBaseDocuments` / `DeleteKnowledgeBaseDocuments` name **this object**. No scan. That is the per-filing lever: `NVDA-FY26-10K.pdf` in, old FAQ out, now.
 
-**Alarms to configure**:
-- Failed sync after N consecutive attempts
-- Sync duration exceeding threshold (indicates growing content or processing issues)
-- Growing backlog of unprocessed documents
+For an **S3 data source**, those two families are not interchangeable:
 
-```python
-# CloudWatch alarm for sync failures
-import boto3
+- Direct ingest writes the **vector store**. It does **not** write the object back into the bucket.
+- The next `StartIngestionJob` **re-reads S3**. If you ingested a file that is not in the bucket (or deleted from the index but the object is still there), the sync can **overwrite** your direct change.
+- Do **not** run `IngestKnowledgeBaseDocuments` and `StartIngestionJob` at the same time.
 
-cloudwatch = boto3.client('cloudwatch')
+On the official “new and deleted documents as soon as possible, scalable, event-driven, resilient” stem:
 
-cloudwatch.put_metric_alarm(
-    AlarmName='KnowledgeBaseSyncFailures',
-    MetricName='SyncJobFailed',
-    Namespace='AWS/Bedrock',
-    Dimensions=[
-        {'Name': 'KnowledgeBaseId', 'Value': 'YOUR_KB_ID'}
-    ],
-    Period=300,
-    EvaluationPeriods=3,
-    Threshold=1,
-    ComparisonOperator='GreaterThanOrEqualToThreshold',
-    Statistic='Sum',
-    AlarmActions=['arn:aws:sns:us-east-1:123456789012:alerts']
-)
+| Option | Kill |
+|--------|------|
+| Scheduler every 5 min + `StartIngestionJob` | Clock + scan. Not ASAP, not event-driven. |
+| Scheduler every 5 min + homemade S3 diff + Ingest/Delete | Right APIs, you reinvented S3 events, still wait 5 min. |
+| S3 events → **Lambda only** | Event-driven, **not resilient**. No buffer; bursts can drop. |
+| S3 events → **SQS** → Lambda → Ingest/Delete | The pick. Buffer, retries, per-object APIs. |
+
+```quickcheck
+Q: IR uploads a 10-K and deletes a FAQ. The assistant must reflect both immediately. The stem asks for scalable, event-driven, and resilient. Which pipe?
+A: EventBridge Scheduler every 5 minutes calling StartIngestionJob
+B: S3 events directly to Lambda calling Ingest/Delete APIs
+C: S3 events to SQS, Lambda polls and calls IngestKnowledgeBaseDocuments / DeleteKnowledgeBaseDocuments
+D: Recreate the Knowledge Base every 15 minutes
+correct: C
+feedback: ASAP + event-driven needs object events and per-object APIs. Resilient needs SQS between S3 and Lambda. A 5-minute scan is polling. Direct S3→Lambda can lose bursts. Recreating the KB is not incremental.
+```
+
+Managed S3 connectors can incrementally add, update, and delete on a sync. Metadata-only sidecar changes can sometimes update attributes **without** re-embedding (not CSV, no custom transform Lambda). Content changes re-parse, re-chunk, re-embed.
+
+### Embedding version lives on the index
+
+Do not pick Titan vs Cohere here ([1.5](/learn/1/retrieval-mechanisms)). Do record `embedding_model`, `embedding_dimensions`, and `embedding_version` on the index. Old vectors and a new query space do not compare.
+
+Migration is a **new index**, not an in-place overwrite: `transcripts-v1` stays production while you rebuild `transcripts-v2` with the new embedder, evaluate, switch the alias, then retire v1. Same idea as model aliases in [1.2](/learn/1/model-selection). DynamoDB vector indexes likewise need matching dimensions / distance config and embeddings kept in sync with the item text.
+
+> **Important:** Swapping the embedder without a new index is mixing two number-spaces. The neighbors will look confident and be wrong.
+
+---
+
+## When to use which
+
+Workload first. Then metadata. Then how you keep the derived index honest.
+
+| If the stem says… | Pick |
+|-------------------|------|
+| Infrequent, huge, cheapest, no cluster | **S3 Vectors** |
+| Frequent / hybrid / aggregations / LTR / Neural plugin | **OpenSearch** (VECTORSEARCH if Serverless) |
+| Existing PostgreSQL + joins; or “RDS + S3 repository” | **Aurora / RDS pgvector** |
+| Operational items already in DynamoDB + similarity | **DynamoDB vector index** (never Lambda cosine) |
+| Metadata / ACL lookup after k-NN ids | **DynamoDB beside** a real vector store |
+| Relationships + vectors | **Neptune Analytics** |
+| Fully managed standard RAG, minimal ops | **Bedrock Knowledge Base** (managed or named backend) |
+| Hot + cold tiers | S3 Vectors archive + OpenSearch hot (export is a snapshot) |
+| Cross-type / cross-state / ACL leakage | Filterable metadata **at ingest** + **at query** |
+| Each query hits one domain of a giant corpus | **Multi-index**, not more shards on one index |
+| New and deleted objects ASAP, resilient | **S3 → SQS → Lambda → Ingest/Delete APIs** |
+| First connect or nightly catch-up | **`StartIngestionJob`** |
+| Embedder change | **New index** → eval → switch alias |
+
+---
+
+## AWS service glossary
+
+Services appear above in the architecture that needs them. This section is the lookup card: same facts, compressed.
+
+### GenAI / AI
+
+#### Amazon Bedrock Knowledge Bases
+
+**What it is.** Managed RAG layer: connect a source, chunk, embed, retrieve, optionally generate.
+
+**Problem it solves.** Ground an FM in *your* documents without assembling the whole pipeline.
+
+**Where it sits.** Between the source (often S3) and the FM. Vectors may be managed or a store you name.
+
+**Typical use.** Internal research assistant with citations; hierarchical organization of sources.
+
+**Pricing.** Embedding/indexing plus retrieval/generation tokens; plus the backing vector store.
+
+**Exam cue.** “Minimal operational overhead,” “managed RAG,” “S3 data source.”
+
+**Do not confuse with.** The vector store itself — OpenSearch, Aurora, S3 Vectors, and others can sit underneath.
+
+#### Amazon Titan / Bedrock embedding models
+
+**What it is.** Models that turn text (or images) into vectors.
+
+**Problem it solves.** Semantic similarity for retrieval.
+
+**Where it sits.** Ingestion and query embedding. Which model is [1.5](/learn/1/retrieval-mechanisms); the version stamp on the index is 1.4.5.
+
+**Typical use.** Titan Text Embeddings V2 for a Knowledge Base or OpenSearch Neural plugin.
+
+**Pricing.** Tokens or characters embedded.
+
+**Exam cue.** Same embedding space for query and corpus. Change the model → new index.
+
+**Do not confuse with.** The chat FM that writes the answer (1.2).
+
+### Data
+
+#### Amazon S3 Vectors
+
+**What it is.** Vector buckets and vector indexes on S3. Serverless k-NN.
+
+**Problem it solves.** Store and query huge embedding piles without a search cluster.
+
+**Where it sits.** Cheap archive / infrequent similarity. Can back a Knowledge Base.
+
+**Typical use.** 50 million images or call paragraphs searched occasionally.
+
+**Pricing.** Storage + queries you actually run. Not OCUs, not instance hours.
+
+**Exam cue.** Infrequent + cost-effective + no infrastructure + billions/millions of vectors.
+
+**Do not confuse with.** Ordinary S3 object buckets (`s3` IAM vs `s3vectors`). OpenSearch for hot hybrid search.
+
+#### Amazon OpenSearch Service / Serverless
+
+**What it is.** Search engine with k-NN, hybrid, aggregations, LTR. Serverless collection type for RAG is VECTORSEARCH.
+
+**Problem it solves.** Frequent, low-latency semantic + keyword search you can shard and multi-index.
+
+**Where it sits.** Hot retrieval desk. Neural plugin can call Bedrock embeddings inside the cluster.
+
+**Typical use.** Live blotter; topic indexes per desk; hybrid query.
+
+**Pricing.** Cluster instances, or **OCUs** for Serverless (readiness, not only per-query).
+
+**Exam cue.** Hybrid, high QPS, sharding, Neural plugin, VECTORSEARCH vs SEARCH.
+
+**Do not confuse with.** S3 Vectors (archive economics). “Serverless” here is not “free while idle.”
+
+#### Amazon Aurora / RDS PostgreSQL with pgvector
+
+**What it is.** PostgreSQL with a vector column and distance operators.
+
+**Problem it solves.** k-NN next to SQL joins on data you already keep in Postgres. Often paired with S3 as the document repository.
+
+**Where it sits.** Relational data plane.
+
+**Typical use.** `ORDER BY embedding <=> $q` plus `JOIN fundamentals`.
+
+**Pricing.** Instance (RDS) or Aurora capacity — on at 3am.
+
+**Exam cue.** Existing PostgreSQL, SQL + vectors, RDS + S3 documents.
+
+**Do not confuse with.** A cheap serverless archive. “No infrastructure management” kills it.
+
+#### Amazon DynamoDB
+
+**What it is.** Serverless key-value store. Can hold metadata beside a vector DB, or a **vector index** on operational items. Cannot be “Lambda cosine over 50 million rows.”
+
+**Problem it solves.** Millisecond fetch by key; ANN when the item already lives here.
+
+**Where it sits.** Application state / metadata — not the 50-million-vector warehouse.
+
+**Typical use.** `doc_id →` ACL and URL after OpenSearch returns ids; similarity on blotter notes already in the table.
+
+**Pricing.** Reads/writes; vector index storage/query as billed for that feature.
+
+**Exam cue.** Lambda similarity = trap. Native vector index = operational table. Metadata sidecar = skill-guide pairing.
+
+**Do not confuse with.** S3 Vectors (archive) or OpenSearch (search desk).
+
+#### Amazon S3 (object buckets)
+
+**What it is.** Object store. Source of truth for filings, wikis exports, `.metadata.json` sidecars.
+
+**Problem it solves.** Durable documents the index is derived from.
+
+**Where it sits.** Data warehouse. Event Notifications start the 1.4.5 pipe.
+
+**Typical use.** Knowledge Base data source; RDS `s3_uri` pointer.
+
+**Pricing.** Storage + requests.
+
+**Exam cue.** Source of truth. Sidecar metadata. Object-created / object-deleted events.
+
+**Do not confuse with.** S3 Vectors (a different bucket type).
+
+#### Amazon Neptune Analytics
+
+**What it is.** Graph analytics with vector search for GraphRAG.
+
+**Problem it solves.** Similarity *and* multi-hop relationships.
+
+**Where it sits.** When the data model is a graph, not a pile of chunks.
+
+**Typical use.** Supplier / citation / entity graphs next to embeddings.
+
+**Pricing.** Graph capacity.
+
+**Exam cue.** Relationships as first-class. Not “who sounded like Jensen.”
+
+**Do not confuse with.** OpenSearch k-NN for flat chunk retrieval.
+
+### Integration / orchestration
+
+#### Amazon SQS
+
+**What it is.** Durable queue between S3 events and the ingest worker.
+
+**Problem it solves.** Buffer, retries, burst absorption — the **resilient** word on 1.4.5.
+
+**Where it sits.** S3 Event Notifications → SQS → Lambda.
+
+**Typical use.** Fifty 8-Ks at 8:01am must not drop.
+
+**Pricing.** Requests.
+
+**Exam cue.** Event-driven **and** resilient. Direct S3→Lambda lacks this waiting room.
+
+**Do not confuse with.** EventBridge Scheduler (a clock).
+
+#### Amazon EventBridge Scheduler
+
+**What it is.** Cron / rate schedules.
+
+**Problem it solves.** Nightly or hourly `StartIngestionJob` when hours of delay are acceptable.
+
+**Where it sits.** Time-based producer, not the object-created bell.
+
+**Typical use.** Six-hour freshness SLO.
+
+**Pricing.** Schedule invocations.
+
+**Exam cue.** Polling. Fails “as soon as possible” and “event-driven.”
+
+**Do not confuse with.** S3 Event Notifications.
+
+#### AWS Lambda
+
+**What it is.** Ingest worker: poll SQS, call Knowledge Base document APIs, or run a custom embed pipeline.
+
+**Problem it solves.** Glue around create/update/delete.
+
+**Where it sits.** Application plane on the sync path.
+
+**Typical use.** `IngestKnowledgeBaseDocuments` / `DeleteKnowledgeBaseDocuments`.
+
+**Pricing.** Requests + GB-seconds.
+
+**Exam cue.** Worker, not the similarity engine. Lambda cosine over DynamoDB is the trap.
+
+**Do not confuse with.** The vector store.
+
+#### AWS Step Functions
+
+**What it is.** Managed state machines for multi-step ingest (parse → embed → upsert → notify).
+
+**Problem it solves.** Durable orchestration when ingest is more than one Lambda.
+
+**Where it sits.** Optional wrapper around 1.4.5 pipelines.
+
+**Typical use.** Reindex workflow; wait for a human on failed docs.
+
+**Pricing.** State transitions (Standard) or request/duration (Express).
+
+**Exam cue.** Named in the skill for automated synchronization workflows.
+
+**Do not confuse with.** EventBridge Scheduler (time) or SQS (buffer).
+
+---
+
+## Practice questions
+
+Pick an answer on every stem. The explanation appears after you choose — later questions stay unspoiled until you answer them.
+
+```practice
+Q: A diagnostic app must run similarity search across 50 million image embeddings, ingest new images daily, search **infrequently**, avoid infrastructure management, and minimize cost. Which store?
+A: OpenSearch Serverless vector search
+B: DynamoDB + Lambda cosine similarity
+C: S3 vector bucket with vector indexes
+D: RDS PostgreSQL + pgvector
+correct: C
+feedback: S3 Vectors is serverless k-NN billed for storage and queries you run. OpenSearch OCUs stay on. RDS is an instance. Lambda cosine is not an index.
+
+Q: 200 analysts query all day: exact ticker `NVDA` **and** commentary that means “networking attach on AI clusters,” plus faceting. Infrequent archive search is not the job. Which store?
+A: S3 Vectors alone
+B: OpenSearch (hybrid / Neural plugin)
+C: DynamoDB + Lambda cosine
+D: EventBridge Scheduler
+correct: B
+feedback: Hot hybrid search is OpenSearch. S3 Vectors is the cheap archive. Lambda cosine is a trap. A scheduler is not a vector store.
+
+Q: The team already runs PostgreSQL for fundamentals and wants “chunks near this quote AND ticker = NVDA AND revenue > $20B.” Documents stay in S3. Which pattern?
+A: S3 Vectors only, no SQL
+B: RDS / Aurora pgvector with S3 as the document repository
+C: DynamoDB as the k-NN engine
+D: Kendra
+correct: B
+feedback: Skill 1.4.1 names RDS + S3 document repositories: vectors and joins in Postgres, bytes in S3. Kendra is enterprise file search, not this SQL + k-NN join.
+
+Q: Notes already live in DynamoDB. You want ANN next to that operational state. A teammate proposes scanning the table in Lambda and computing cosine. What is right?
+A: Ship the Lambda cosine design — DynamoDB cannot do vectors
+B: Use a DynamoDB vector index on the embedding attribute; never Lambda cosine
+C: Move 80 million rarely queried archive chunks into DynamoDB for the cheap bill
+D: Use TIMESERIES OpenSearch collections
+correct: B
+feedback: Native vector indexes are for data already in the table. Lambda cosine is always a trap. Huge infrequent archives belong on S3 Vectors, not DynamoDB.
+
+Q: Agents retrieve Texas home-insurance chunks for a California auto question. Semantic similarity is real. What actually fixes retrieval?
+A: Add policy_type and state via `.metadata.json` at ingest, and filter on RetrieveAndGenerate
+B: Raise topK to 50 and post-filter in Lambda
+C: Create 200 Knowledge Bases (type × state)
+D: Switch to a 1024-dim embedder so geography separates in vector space
+correct: A
+feedback: Metadata must exist at ingest and be applied at query. Post-filter wastes k. 200 KBs are ops theater. Embeddings will not replace categorical filters.
+
+Q: A technology analyst must never retrieve healthcare-only notes even if those notes are the nearest neighbors. Where does authorization run?
+A: After generation, redact the answer text
+B: Metadata / ACL filter first, then k-NN
+C: Trust the model not to quote the wrong desk
+D: Post-filter 5 hits in the UI only
+correct: B
+feedback: ACLs constrain retrieval, not just the answer. Filter the allowed set, then search.
+
+Q: 150 million chunks, 40 practice areas, each query targets exactly one area, one index of 3 shards, p95 3.2s vs 500ms SLA. Root cause: every query scans all 150 million vectors. Best fix?
+A: 40 shards on the same index
+B: One index per practice area, route the query
+C: Cut dimensions 1536 → 384
+D: Add data nodes, keep one index
+correct: B
+feedback: Reduce search scope. More shards/nodes still scan 150 million vectors. Smaller dimensions still scan everything and can hurt quality.
+
+Q: OpenSearch Serverless collection type is SEARCH. Vector queries are slow. What collection type should RAG use?
+A: TIMESERIES
+B: SEARCH with bigger OCUs
+C: VECTORSEARCH
+D: DynamoDB Global Tables
+correct: C
+feedback: VECTORSEARCH is the k-NN collection type. SEARCH is keyword. TIMESERIES is logs.
+
+Q: You own an OpenSearch cluster and want Bedrock embeddings at query time without a separate embed Lambda, with topic-based indexes per desk. Which 1.4.1 feature?
+A: SageMaker JumpStart
+B: OpenSearch Neural plugin + Bedrock model id
+C: Kendra thesaurus
+D: Provisioned Throughput
+correct: B
+feedback: Neural plugin runs the embedder inside OpenSearch. Topic-based segmentation is multi-index / per-domain pipelines.
+
+Q: IR uploads `NVDA-FY26-10K.pdf` and deletes an old FAQ. Need both reflected ASAP. Stem: scalable, event-driven, resilient. Which pipe?
+A: Scheduler every 5 min + StartIngestionJob
+B: Scheduler every 5 min + homemade S3 diff + Ingest/Delete
+C: S3 events → SQS → Lambda → IngestKnowledgeBaseDocuments / DeleteKnowledgeBaseDocuments
+D: S3 events → Lambda (no queue) → same APIs
+correct: C
+feedback: Object events + per-object APIs = ASAP and event-driven. SQS = resilient. Clocks are polling. Direct S3→Lambda can drop bursts.
+
+Q: You just attached an S3 bucket as a Knowledge Base data source for the first time. What must run before queries see the corpus?
+A: Only IngestKnowledgeBaseDocuments on one file
+B: StartIngestionJob (initial sync)
+C: Recreate the OpenSearch domain
+D: Fine-tune Titan
+correct: B
+feedback: First connect requires a data-source sync. Direct APIs are for named objects later, and they do not replace the initial scan.
+
+Q: You direct-ingest a PDF that is **not** in the S3 bucket, then someone runs StartIngestionJob. What can happen?
+A: Nothing — the two APIs always merge
+B: The sync re-reads S3 and can overwrite the direct change
+C: S3 magically receives the PDF
+D: DynamoDB stores a backup
+correct: B
+feedback: Direct ingest writes the vector store, not the bucket. The next scan believes S3. Do not run both at once.
+
+Q: You change the embedding model (or dimensions) used for the transcript index. How do you migrate?
+A: Overwrite vectors in place on the same index
+B: Build transcripts-v2, eval, switch the alias, retire v1
+C: Put a prompt prefix on queries so old vectors rotate
+D: Raise temperature
+correct: B
+feedback: Different embedding spaces do not compare. New index, then switch. Same idea as 1.2 model aliases.
+
+Q: The vector store vanished. The S3 bucket of 10-Ks is intact. What did you lose?
+A: The source of truth
+B: A derived index you can rebuild
+C: The company’s filings forever
+D: IAM
+correct: B
+feedback: 1.4.4 — the index is a cache of embeddings. Rebuild from the source. If S3 had vanished, you would have a real problem.
+
+Q: “Slow vector search” on one index, queries already filtered in the application after retrieval, 97% of scanned vectors are the wrong domain. First architecture move?
+A: Multi-index (or metadata pre-filter) to shrink candidates
+B: Always IVF instead of HNSW
+C: Put cosine in Lambda
+D: Switch the collection type to TIMESERIES
+correct: A
+feedback: 1.4.2 and 1.4.3 are about not searching the wrong boxes. Algorithm trivia and Lambda cosine do not fix scope.
 ```
 
 ---
 
-## Performance Optimization
+## Final compressed review
 
-Vector search performance depends on many factors. Systematic optimization makes the difference between snappy sub-100ms queries and frustrating multi-second waits.
+### What are the five knobs?
 
-### Query Latency Optimization
+1. **Shelf** — S3 Vectors (cold/cheap), OpenSearch (hot/hybrid), pgvector (SQL), DynamoDB vector index (operational), Neptune (graph), Knowledge Base (RAG layer).
+2. **Labels** — filterable metadata at ingest **and** at query; ACLs before k-NN.
+3. **Layout** — shards spread work; **many indexes** shrink scope; hierarchical index is coarse-then-fine architecture.
+4. **Feed** — source of truth in S3 / wiki / DMS; stable ids; derived vectors.
+5. **Honesty** — S3 → SQS → Ingest/Delete for ASAP; `StartIngestionJob` for first sync / batch; new index when the embedder changes.
 
-**Reduce dimensions**: If you're using 1024-dim embeddings and latency is an issue, test 512-dim. You might sacrifice minimal accuracy for significant speed improvement. Profile with your actual queries.
+### What requirement words should trigger what choices?
 
-**Tune ef_search**: This is the primary knob for HNSW query performance. Start with ef_search = k (the number of results you want), then increase until accuracy plateaus. Going higher adds latency without improving results.
+Infrequent + cheapest + no servers → **S3 Vectors**. All-day hybrid → **OpenSearch VECTORSEARCH**. PostgreSQL joins / RDS + S3 → **pgvector**. “Lambda cosine” → **trap**. Cross-state leakage → **`.metadata.json` + API filter**. One domain per query, giant corpus → **multi-index**. ASAP add **and** delete + resilient → **S3 → SQS → KnowledgeBaseDocuments**. First attach → **StartIngestionJob**. Embedder swap → **new index**.
 
-**Use pre-filtering**: Metadata filters that run before vector search reduce the candidate set. Queries against 10% of your vectors are roughly 10x faster than queries against all vectors.
+### What mistakes is AWS trying to tempt you into making?
 
-**Shard appropriately**: More shards = more parallelism during queries, up to a point. But too many shards add coordination overhead. Profile with your actual workload.
+Staffing OpenSearch OCUs for a PM who searches twice a week. Renting RDS overnight for the same job. Computing cosine in Lambda over DynamoDB. Filtering in a Lambda after top-K. Building 200 Knowledge Bases instead of two metadata fields. Adding shards when the query only needed 1/40 of the corpus. Calling SEARCH collections VECTORSEARCH. Treating a Knowledge Base as if it were never a store — or as if it replaced the S3 source of truth. Polling every five minutes on an “as soon as possible” stem. Direct S3→Lambda with no queue on a “resilient” stem. Mixing two embedding spaces on one index.
 
-### Index Build Optimization
+If you can walk the blotter out loud — S3 Vectors for the archive, OpenSearch for the live desk, ticker/ACL filters before k-NN, one index per desk when queries never cross, S3 as source of truth, SQS ingest when IR drops a 10-K — you are doing Task 1.4.
 
-**Lower ef_construction for frequent updates**: If you're constantly adding documents and index build time matters, lower ef_construction. You sacrifice some index quality for faster builds.
-
-**Batch insertions**: Instead of inserting vectors one at a time, batch them. Most vector stores handle batches much more efficiently.
-
-**Consider IVF for static data**: If your corpus rarely changes, IVF builds faster than HNSW and uses less memory. The query speed penalty may be acceptable for batch/analytics use cases.
-
-### Memory Optimization
-
-**Lower dimensions**: 512-dim vectors use half the memory of 1024-dim vectors. Significant savings at scale.
-
-**IVF over HNSW**: IVF uses less memory because it doesn't maintain a full graph structure. Trade-off is slower queries and poor update performance.
-
-**Compression**: Some vector stores support vector quantization (storing vectors as integers instead of floats). This reduces memory by 4x with some accuracy loss. OpenSearch supports this via FAISS engine configurations.
-
----
-
-## Exam Tips
-
-| When you see... | Think... |
-|-----------------|----------|
-| "SIMPLEST" or "minimal operational overhead" | Bedrock Knowledge Bases |
-| "hybrid search" or "keyword + semantic" | OpenSearch or Bedrock KB with HYBRID mode |
-| "Neural plugin" or "embed inside OpenSearch" | OpenSearch Neural plugin + Bedrock embeddings |
-| "existing PostgreSQL infrastructure" | Aurora pgvector |
-| "RDS and S3 document repository" | RDS/Aurora pgvector + S3 source objects |
-| "DynamoDB" + "embeddings/metadata" | DynamoDB for metadata; vector DB for k-NN |
-| "enterprise search of files, not RAG generation" | Amazon Kendra |
-| "production RAG" or "complex documents" | Hierarchical chunking |
-| "cost-conscious" or "simple docs" | Fixed-size chunking |
-| "OpenSearch Serverless" + "semantic search" | **VECTORSEARCH** collection type |
-| "slow vector queries in OpenSearch Serverless" | Wrong collection type (should be VECTORSEARCH) |
-| "tune search accuracy vs speed" | HNSW **ef_search** parameter |
-| "memory-constrained" or "large static dataset" | **IVF** index over HNSW |
-| "frequently updated vector index" | **HNSW** (IVF requires retraining) |
-| "access control" or "security" with vectors | Metadata filtering with pre-filter |
-| "documents processed but old results returned" | Sync not running or deletions not handled |
-| "OCUs" or "capacity units" | OpenSearch Serverless billing (minimum 2 OCUs) |
-
----
-
-## Key Takeaways
-
-1. **Embeddings capture meaning, not keywords.** Vector search finds semantically similar content even when words don't match. This is the foundation of RAG—you can't do semantic search without embeddings.
-
-2. **HNSW is the default algorithm for good reason.** It's fast, handles updates well, and provides excellent accuracy. Choose IVF only for massive static datasets or severe memory constraints.
-
-3. **Bedrock Knowledge Bases eliminates operational complexity.** Parsing, chunking, embedding, storage, and sync—all handled for you. Most projects should start here and migrate only if they outgrow it.
-
-4. **OpenSearch Serverless requires the right collection type.** VECTORSEARCH for embeddings and semantic search. SEARCH for traditional keyword search. Using the wrong type causes poor performance.
-
-5. **Chunking strategy is permanent per data source.** You cannot change it after creation. Hierarchical chunking is the safest production default; fixed-size is fine for development.
-
-6. **Metadata filtering enables access control.** Tag documents with permissions, filter based on who's asking. Without this, your RAG system is a security vulnerability.
-
----
-
-## Common Mistakes
-
-| Mistake | Why It Matters |
-|---------|----------------|
-| **Choosing OpenSearch "just in case"** | You're paying for complexity you don't need. Bedrock KB handles most use cases with minimal operational overhead. |
-| **Using DynamoDB for vector similarity** | DynamoDB doesn't do k-NN. Pair it with OpenSearch/Aurora/KB: DynamoDB holds metadata and embedding IDs; the vector store does similarity. |
-| **Skipping metadata schema planning** | Adding filter fields after bulk ingestion means re-processing everything. Design the schema before you start loading data. |
-| **Using SEARCH collection for embeddings** | OpenSearch Serverless SEARCH collections aren't optimized for k-NN. Queries work but perform poorly. VECTORSEARCH is required for RAG. |
-| **Ignoring sync failures** | If syncs fail silently, your vectors drift from your documents. Users get outdated or deleted content. Build monitoring from day one. |
-| **Fixed-size chunking in production** | Works for prototyping, but production systems usually benefit from hierarchical chunking that preserves document structure. |
+Chunking, embedder bake-offs, hybrid fusion, and rerank are next: [1.5 Retrieval Mechanisms](/learn/1/retrieval-mechanisms).

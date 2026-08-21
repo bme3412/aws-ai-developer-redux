@@ -3,7 +3,7 @@
 import React from 'react';
 import { Lightbulb, AlertTriangle, BookmarkCheck, Info } from 'lucide-react';
 
-export type CalloutType = 'exam-tip' | 'warning' | 'key-concept' | 'info';
+export type CalloutType = 'exam-tip' | 'exam-trap' | 'warning' | 'key-concept' | 'info';
 
 interface ExamTipCalloutProps {
   type: CalloutType;
@@ -25,6 +25,14 @@ const calloutConfig: Record<CalloutType, {
     bgColor: 'bg-amber-50',
     iconColor: 'text-amber-600',
     labelColor: 'text-amber-800',
+  },
+  'exam-trap': {
+    icon: AlertTriangle,
+    label: 'Exam Trap',
+    borderColor: 'border-l-orange-500',
+    bgColor: 'bg-orange-50',
+    iconColor: 'text-orange-600',
+    labelColor: 'text-orange-800',
   },
   'warning': {
     icon: AlertTriangle,
@@ -52,12 +60,14 @@ const calloutConfig: Record<CalloutType, {
   },
 };
 
-export function detectCalloutType(textContent: string): CalloutType {
-  const lower = textContent.toLowerCase();
-  if (lower.includes('exam tip') || lower.includes('💡')) return 'exam-tip';
-  if (lower.includes('warning') || lower.includes('important') || lower.includes('⚠')) return 'warning';
-  if (/^\*?\*?\d+\./.test(textContent.trim())) return 'key-concept';
-  return 'info';
+export function detectCalloutType(textContent: string): CalloutType | null {
+  const start = textContent.trim().replace(/^\*+/, '').toLowerCase();
+  if (start.startsWith('exam tip') || start.startsWith('💡')) return 'exam-tip';
+  if (start.startsWith('exam trap')) return 'exam-trap';
+  if (start.startsWith('warning') || start.startsWith('important') || start.startsWith('⚠')) return 'warning';
+  if (start.startsWith('key concept') || start.startsWith('mental shortcut')) return 'key-concept';
+  if (start.startsWith('note:') || start.startsWith('note ') || start.startsWith('ℹ️')) return 'info';
+  return null;
 }
 
 export default function ExamTipCallout({ type, children }: ExamTipCalloutProps) {

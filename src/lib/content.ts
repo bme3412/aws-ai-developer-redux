@@ -5,6 +5,47 @@ import { Question } from '@/types/review';
 const contentCache = new Map<string, TopicContent>();
 const questionCache = new Map<number, Question[]>();
 
+const notesDrillCache = {
+  loaded: false,
+  questions: [] as Question[],
+};
+
+/** Catalog (1.aws) drills live on the Task 1.1 article — that is where the service glossary is. */
+export function articleDrillTaskIds(taskId: string): string[] {
+  if (taskId === '1.1') return ['1.1', '1.aws'];
+  return [taskId];
+}
+
+export async function getNotesDrillQuestions(): Promise<Question[]> {
+  if (notesDrillCache.loaded) {
+    return notesDrillCache.questions;
+  }
+
+  try {
+    const data = await import('@/data/questions/notes-drill.json');
+    notesDrillCache.questions = (data.default.questions as unknown as Question[]).map((q) => ({
+      ...q,
+      source: 'notes-drill',
+    }));
+  } catch {
+    notesDrillCache.questions = [];
+  }
+
+  notesDrillCache.loaded = true;
+  return notesDrillCache.questions;
+}
+
+export async function getNotesDrillByDomain(domainId: number): Promise<Question[]> {
+  const questions = await getNotesDrillQuestions();
+  return questions.filter((q) => q.domain === domainId);
+}
+
+export async function getNotesDrillByTask(taskId: string, expand = true): Promise<Question[]> {
+  const questions = await getNotesDrillQuestions();
+  const ids = expand ? articleDrillTaskIds(taskId) : [taskId];
+  return questions.filter((q) => ids.includes(q.task));
+}
+
 export async function getTopicContent(
   domainId: number,
   topicSlug: string
@@ -47,7 +88,7 @@ export async function getQuestionsByTask(
   taskId: string
 ): Promise<Question[]> {
   const questions = await getDomainQuestions(domainId);
-  return questions.filter(q => q.task === taskId);
+  return questions.filter(q => q.task === taskId || q.skills.includes(taskId));
 }
 
 export async function getQuestionsBySkill(

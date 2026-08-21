@@ -53,6 +53,7 @@ export interface Progress {
   questionsCompleted?: Record<string, { completedAt: string; correct: boolean }>;
   questionAttempts?: QuestionAttempt[];
   practiceSessions?: PracticeSession[];
+  skillsCompleted?: Record<string, { completedAt: string }>;
 }
 
 export interface DomainProgress {

@@ -3862,6 +3862,566 @@
         "Amazon CloudWatch"
       ],
       "examTip": "Token-level redaction is the 3.3.4 answer when logs must exist but SSNs must not."
+    },
+    {
+      "id": "d3-q68",
+      "domain": 3,
+      "task": "3.1",
+      "skills": [
+        "3.1.1",
+        "3.1.5"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "An internal research copilot on Amazon Bedrock Converse must attach guardrail gr-desk-policy on every call, including intern notebooks. Security forbids a mandatory Lambda proxy. Prompt-attack and denied-topic filters are already defined on that guardrail. Developers currently pass guardrailConfig only from the production Lambda.",
+      "question": "Which control enforces the guardrail with the LEAST operational overhead?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Store the guardrail ID in AWS Systems Manager Parameter Store and document that callers must read it."
+        },
+        {
+          "id": "b",
+          "text": "Add an IAM condition key bedrock:GuardrailIdentifier on bedrock:InvokeModel and bedrock:Converse so calls without that ID fail."
+        },
+        {
+          "id": "c",
+          "text": "Also require bedrock:PromptRouterArn on the same policy so routing and guardrails are bound together."
+        },
+        {
+          "id": "d",
+          "text": "Replace Guardrails with a longer system prompt that says to follow gr-desk-policy."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "IAM bedrock:GuardrailIdentifier denies unguarded InvokeModel/Converse. A stored string and a prompt are honor systems. PromptRouterArn selects models; it does not force a guardrail.",
+      "incorrectExplanations": {
+        "a": "Parameter Store does not deny the API if the intern omits guardrailConfig.",
+        "c": "Prompt routing is a different condition key and is not required to enforce Guardrails.",
+        "d": "Instructions are not a control plane."
+      },
+      "services": [
+        "Amazon Bedrock Guardrails",
+        "AWS IAM"
+      ],
+      "examTip": "Least-ops “must apply this guardrail” → IAM GuardrailIdentifier, not a Lambda proxy.",
+      "source": "domain"
+    },
+    {
+      "id": "d3-q69",
+      "domain": 3,
+      "task": "3.1",
+      "skills": [
+        "3.1.3",
+        "3.1.4"
+      ],
+      "type": "multiple-response",
+      "difficulty": "hard",
+      "scenario": "The copilot answers from Amazon Bedrock Knowledge Bases. Analysts still see fluent figures that are not in the retrieved 10-K chunks. Toxicity Guardrails are already on. The team wants defense-in-depth: cheap inspection before the FM, grounding of the completion, and a deterministic check that a cited chunk actually contains the claim.",
+      "question": "Which combination meets these requirements? (Select TWO.)",
+      "options": [
+        {
+          "id": "a",
+          "text": "Enable Guardrails contextual grounding on the completion and show citations."
+        },
+        {
+          "id": "b",
+          "text": "Increase temperature so the model quotes more tokens from memory."
+        },
+        {
+          "id": "c",
+          "text": "Run Amazon Comprehend (or ApplyGuardrail) before Converse, and AWS Lambda after Converse to verify the claim appears in the cited chunk."
+        },
+        {
+          "id": "d",
+          "text": "Delete the Knowledge Base so the model answers only from pretraining."
+        },
+        {
+          "id": "e",
+          "text": "Purchase Provisioned Throughput to reduce hallucinations."
+        }
+      ],
+      "correctAnswers": [
+        "a",
+        "c"
+      ],
+      "explanation": "3.1.3 is grounding plus evidence. 3.1.4 is Comprehend/ApplyGuardrail before and Lambda after. Temperature, removing RAG, and PT do not bind answers to chunks.",
+      "incorrectExplanations": {
+        "b": "Higher temperature increases invention.",
+        "d": "Removes the trusted evidence layer.",
+        "e": "Capacity is not a grounding check."
+      },
+      "services": [
+        "Amazon Bedrock Guardrails",
+        "Amazon Bedrock Knowledge Bases",
+        "Amazon Comprehend",
+        "AWS Lambda"
+      ],
+      "examTip": "Answer must come from the 10-K → RAG + contextual grounding + citations, then Lambda if you must prove the claim is in the chunk.",
+      "source": "domain"
+    },
+    {
+      "id": "d3-q70",
+      "domain": 3,
+      "task": "3.1",
+      "skills": [
+        "3.1.2"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A support copilot must return the exact refund amount stored in Amazon RDS. Guardrails already block denied topics. The model still occasionally writes a plausible amount that is not in the database.",
+      "question": "Which design produces deterministic numeric answers?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Set temperature to 0 and keep generating the amount in free-form text."
+        },
+        {
+          "id": "b",
+          "text": "Have the model emit a constrained SQL or tool call, execute it read-only against RDS, and return the record."
+        },
+        {
+          "id": "c",
+          "text": "Add “never hallucinate refunds” to the system prompt."
+        },
+        {
+          "id": "d",
+          "text": "Enable Cross-Region inference."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Official 3.1.2 uses text-to-SQL or equivalent tools for deterministic results. The FM must not be the calculator. Temperature 0 and a better prompt still allow invented arithmetic. CRI is capacity.",
+      "incorrectExplanations": {
+        "a": "Low randomness is not a bind to the table.",
+        "c": "Instructions are not a ledger.",
+        "d": "Availability, not determinism."
+      },
+      "services": [
+        "Amazon Bedrock",
+        "Amazon RDS",
+        "AWS Lambda"
+      ],
+      "examTip": "Deterministic amounts → query the system of record, do not let the model do the math.",
+      "source": "domain"
+    },
+    {
+      "id": "d3-q71",
+      "domain": 3,
+      "task": "3.2",
+      "skills": [
+        "3.2.1"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A defense contractor runs the copilot on Amazon EC2 in private subnets with no internet gateway, NAT, or VPN. Policy requires that Amazon Bedrock API calls stay on the AWS network and that only this VPC may use the company’s Bedrock access. Traffic must be encrypted in transit.",
+      "question": "Which combination meets the requirements?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Add a NAT gateway and call the public Bedrock endpoint with TLS."
+        },
+        {
+          "id": "b",
+          "text": "Create a VPC interface endpoint (PrivateLink) for Amazon Bedrock and attach an endpoint policy that allows requests only from this VPC."
+        },
+        {
+          "id": "c",
+          "text": "Configure a VPN from the VPC to the Bedrock public endpoint."
+        },
+        {
+          "id": "d",
+          "text": "Use an S3 gateway endpoint, which also private-connects Bedrock."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "PrivateLink keeps Bedrock traffic on the AWS network. An endpoint policy restricts which VPC/principals may use that path. NAT still uses the public internet. Gateway endpoints are S3/DynamoDB only.",
+      "incorrectExplanations": {
+        "a": "NAT + public endpoint violates “must not traverse the public internet.”",
+        "c": "A VPN to a public service endpoint is not the PrivateLink pattern and still leaves your boundary incorrectly.",
+        "d": "S3 gateway endpoints do not serve Bedrock APIs."
+      },
+      "services": [
+        "Amazon VPC",
+        "Amazon Bedrock"
+      ],
+      "examTip": "Must not traverse the public internet → interface VPC endpoint. Endpoint policies are the second gate.",
+      "source": "domain"
+    },
+    {
+      "id": "d3-q72",
+      "domain": 3,
+      "task": "3.2",
+      "skills": [
+        "3.2.2",
+        "3.2.3"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "Support emails in Amazon S3 contain SSNs. A mobile app searches that corpus with Amazon Kendra. SSNs must never appear in search hits. Chat later uses Amazon Bedrock on the same desk and must not echo PANs. Security also wants an inventory of which fine-tune prefixes still hold PANs.",
+      "question": "Which mapping of controls is CORRECT?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Index in Kendra first, then add a system prompt that says to hide PII; use Macie as the search engine."
+        },
+        {
+          "id": "b",
+          "text": "Amazon Comprehend redaction (or equivalent) before Kendra ingest; Guardrails PII on the live Bedrock call; Macie for S3 discovery of remaining PANs."
+        },
+        {
+          "id": "c",
+          "text": "Guardrails on Converse unsay PII already stored in the Kendra index."
+        },
+        {
+          "id": "d",
+          "text": "Amazon Macie findings are a reversible tokenizer for the UI display name."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Redact then index. Guardrails protect the live FM path. Macie inventories S3. Prompts do not un-index PII. Macie is not a tokenizer.",
+      "incorrectExplanations": {
+        "a": "You indexed the SSN; Macie is not Kendra.",
+        "c": "Guardrails do not scrub an existing search index.",
+        "d": "Macie discovers; 3.2.3 pseudonymization is a separate mapping you own."
+      },
+      "services": [
+        "Amazon Comprehend",
+        "Amazon Kendra",
+        "Amazon Bedrock Guardrails",
+        "Amazon Macie"
+      ],
+      "examTip": "PII in search → redact then index. Live chat → Guardrails. Which buckets hold PANs → Macie.",
+      "source": "domain"
+    },
+    {
+      "id": "d3-q73",
+      "domain": 3,
+      "task": "3.2",
+      "skills": [
+        "3.2.1",
+        "3.2.2"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "Compliance needs to know which IAM role invoked Amazon Bedrock last Tuesday and what prompt was sent. Chat logs must expire after 90 days. Invocation logging is currently off.",
+      "question": "Which set of controls is required?",
+      "options": [
+        {
+          "id": "a",
+          "text": "CloudWatch runtime metrics only, because they include principals and prompt text."
+        },
+        {
+          "id": "b",
+          "text": "AWS CloudTrail for the caller; enable Bedrock invocation logging to S3 or CloudWatch Logs for the body; S3 Lifecycle to expire logs."
+        },
+        {
+          "id": "c",
+          "text": "Knowledge Base logging for both the IAM user and the completion."
+        },
+        {
+          "id": "d",
+          "text": "Disable CloudTrail so prompts cannot leak."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Who → CloudTrail. What was said → invocation logging (off by default). How long you keep it → Lifecycle (and IAM/KMS on that new PII store).",
+      "incorrectExplanations": {
+        "a": "Metrics are aggregates without bodies or principals.",
+        "c": "KB logging is ingest/retrieve, not InvokeModel identity plus completion.",
+        "d": "You still need the caller audit."
+      },
+      "services": [
+        "AWS CloudTrail",
+        "Amazon Bedrock",
+        "Amazon S3"
+      ],
+      "examTip": "Who invoked → CloudTrail. Prompt body → invocation logging. Delete after N → Lifecycle.",
+      "source": "domain"
+    },
+    {
+      "id": "d3-q74",
+      "domain": 3,
+      "task": "3.3",
+      "skills": [
+        "3.3.1",
+        "3.3.2"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "A risk committee must see intended use, evaluation results, and limitations for a Bedrock research assistant, generated in CI/CD. Reviewers of generated quiz cards must see whether a fact came from a curated 10-K pile or a web scrape, with the least operational overhead.",
+      "question": "Which pair meets both needs?",
+      "options": [
+        {
+          "id": "a",
+          "text": "A Confluence page plus CloudTrail of the Approve click."
+        },
+        {
+          "id": "b",
+          "text": "SageMaker Model Cards in the pipeline, plus Glue Data Catalog registration of input datasets and tags on FM outputs."
+        },
+        {
+          "id": "c",
+          "text": "SageMaker Clarify SHAP values on the Claude wording."
+        },
+        {
+          "id": "d",
+          "text": "Amazon Macie as the model card and the lineage graph."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "Cards document the application. Catalog + output tags are the least-ops source lineage. Trail is who approved. Clarify is tabular feature importance. Macie is S3 discovery.",
+      "incorrectExplanations": {
+        "a": "Wikis rot; Approve clicks are people, not source piles.",
+        "c": "Wrong kind of “why” for a 10-K URI.",
+        "d": "Macie does not replace cards or Glue."
+      },
+      "services": [
+        "Amazon SageMaker",
+        "AWS Glue Data Catalog"
+      ],
+      "examTip": "Intended use → Model Card. Which pile grounded the fact → Glue Catalog + output tags.",
+      "source": "domain"
+    },
+    {
+      "id": "d3-q75",
+      "domain": 3,
+      "task": "3.3",
+      "skills": [
+        "3.3.3"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "An AWS Organization has Development, Staging, and Production OUs. Production accounts may invoke only approved Bedrock model ARNs and must pass a specific guardrail. No account administrator in Production may override. AWS Config currently detects violations after the fact.",
+      "question": "Which approach is preventive and centrally managed?",
+      "options": [
+        {
+          "id": "a",
+          "text": "IAM policies in each Production account plus Config auto-remediation after InvokeModel."
+        },
+        {
+          "id": "b",
+          "text": "Service Control Policies on the Production OU that deny non-approved model ARNs and require the guardrail identifier condition."
+        },
+        {
+          "id": "c",
+          "text": "Bedrock model access toggles in each account, changeable by account admins."
+        },
+        {
+          "id": "d",
+          "text": "Permission boundaries on some roles, with no restriction on newly created roles."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "SCPs are OU-scoped, non-overridable, and managed from the management account. Per-account IAM, model-access toggles, and incomplete permission boundaries can be bypassed. Config is detective.",
+      "incorrectExplanations": {
+        "a": "Detective/after-the-fact and overridable by admins.",
+        "c": "Account admins can re-enable models.",
+        "d": "New unbounded roles violate the stem."
+      },
+      "services": [
+        "AWS Organizations",
+        "Amazon Bedrock"
+      ],
+      "examTip": "Cannot be overridden + single central location + multiple accounts → SCPs.",
+      "source": "domain"
+    },
+    {
+      "id": "d3-q76",
+      "domain": 3,
+      "task": "3.3",
+      "skills": [
+        "3.3.4"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "After launch, prompt v18 is deployed without updating the approved model card. Guardrail interventions drop and groundedness scores fall. The governance team wants automated detection and a rollback path, not a quarterly committee meeting as the only control.",
+      "question": "Which design matches continuous assurance?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Disable invocation logging to reduce drift noise."
+        },
+        {
+          "id": "b",
+          "text": "CloudWatch quality/guardrail metrics and Config or EventBridge rules that alarm and roll back the prompt alias or restore the pinned guardrail version."
+        },
+        {
+          "id": "c",
+          "text": "Raise temperature so outputs look more like the card."
+        },
+        {
+          "id": "d",
+          "text": "Replace Guardrails with a PDF of the EU AI Act."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "3.3.4 is detect misuse/drift/policy violation and act. Metrics plus EventBridge/Config close the loop. Logging off, temperature, and a PDF are not continuous monitoring.",
+      "incorrectExplanations": {
+        "a": "Removes the decision record.",
+        "c": "Decoding is not a rollback.",
+        "d": "A statute PDF is not a runtime filter."
+      },
+      "services": [
+        "Amazon CloudWatch",
+        "AWS Config",
+        "Amazon EventBridge",
+        "Amazon Bedrock"
+      ],
+      "examTip": "Still approved after launch → monitor + alarm + automated response, not a wiki.",
+      "source": "domain"
+    },
+    {
+      "id": "d3-q77",
+      "domain": 3,
+      "task": "3.4",
+      "skills": [
+        "3.4.1"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "An Amazon Bedrock agent calls search, SQL, and a calculator. Analysts ask why a target was cut. A developer added “think step by step” to the system prompt. CloudTrail is enabled. The team needs the actual tool order for that session.",
+      "question": "Which control provides the path?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Rely on the chain-of-thought paragraph in the completion."
+        },
+        {
+          "id": "b",
+          "text": "Set enableTrace on InvokeAgent and present the orchestration/tool trace (optionally a cleaned reasoning display with citations)."
+        },
+        {
+          "id": "c",
+          "text": "Use SageMaker Clarify SHAP on the Claude tokens."
+        },
+        {
+          "id": "d",
+          "text": "Use CloudTrail LookupEvents as the tool-order log."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "3.4.1 names agent tracing. CoT is a narrative that can be fluent and wrong. Clarify is tabular features. CloudTrail is who called the API.",
+      "incorrectExplanations": {
+        "a": "Self-explanation is not the orchestration trace.",
+        "c": "Wrong artifact for tool order.",
+        "d": "Identity audit, not which action group ran."
+      },
+      "services": [
+        "Amazon Bedrock Agents",
+        "Amazon CloudWatch"
+      ],
+      "examTip": "Which tool / why retrieve → enableTrace, not “explain yourself.”",
+      "source": "domain"
+    },
+    {
+      "id": "d3-q78",
+      "domain": 3,
+      "task": "3.4",
+      "skills": [
+        "3.4.2"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "The same research prompt produces more refusals and harsher tone for small-cap issuers than for NVDA. The FM is Claude on Bedrock, not a tabular SageMaker endpoint. The team wants an ongoing dashboard and a systematic comparison of two prompt versions.",
+      "question": "Which approach matches Skill 3.4.2?",
+      "options": [
+        {
+          "id": "a",
+          "text": "SageMaker Clarify bias drift versus a training baseline as the default for both wordings."
+        },
+        {
+          "id": "b",
+          "text": "Emit CloudWatch fairness metrics sliced by issuer size; A/B the prompts with Prompt Management or Prompt Flows; score with Bedrock LLM-as-a-judge."
+        },
+        {
+          "id": "c",
+          "text": "Add a word filter for the token “small.”"
+        },
+        {
+          "id": "d",
+          "text": "Purchase Provisioned Throughput so latency fairness improves tone."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "The blueprint names CloudWatch fairness metrics, Prompt Management/Flows A/B, and LLM-as-a-judge. Clarify is the logo when the stem is a tabular SageMaker endpoint.",
+      "incorrectExplanations": {
+        "a": "Wrong default for two Claude wordings.",
+        "c": "Not a slice metric.",
+        "d": "Capacity does not measure fairness."
+      },
+      "services": [
+        "Amazon CloudWatch",
+        "Amazon Bedrock Prompt Management",
+        "Amazon Bedrock Model Evaluations"
+      ],
+      "examTip": "Same prompt, different groups → slice metrics + A/B + judge. Clarify is the tabular trap.",
+      "source": "domain"
+    },
+    {
+      "id": "d3-q79",
+      "domain": 3,
+      "task": "3.4",
+      "skills": [
+        "3.4.3"
+      ],
+      "type": "multiple-choice",
+      "difficulty": "medium",
+      "scenario": "The board approved a written policy: no personalized investment advice, cite filings, refuse when evidence is missing. A PDF of principles is on the intranet. Production Lambdas can still call Converse without a guardrail. The SageMaker model card says “not advice,” but nobody checks that the deployed guardrail version still matches.",
+      "question": "Which implementation satisfies 3.4.3?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Keep the PDF as the only control."
+        },
+        {
+          "id": "b",
+          "text": "Encode the policy in Bedrock Guardrails, keep limitations on the model card, and run AWS Lambda (or Config) checks that the deployed guardrail ID/version still matches the card."
+        },
+        {
+          "id": "c",
+          "text": "Ask the model to recite the PDF at the start of every answer."
+        },
+        {
+          "id": "d",
+          "text": "Disable agent tracing so policy text cannot leak."
+        }
+      ],
+      "correctAnswers": [
+        "b"
+      ],
+      "explanation": "3.4.3 is document + enforce + verify they still agree. Guardrails from policy, cards for limits, Lambda/Config to detect drift from the card. A PDF or a recitation is not enforcement.",
+      "incorrectExplanations": {
+        "a": "No enforcement or verification.",
+        "c": "The model quoting a policy is not IAM + Guardrails.",
+        "d": "Hides the path; does not enforce policy."
+      },
+      "services": [
+        "Amazon Bedrock Guardrails",
+        "Amazon SageMaker",
+        "AWS Lambda"
+      ],
+      "examTip": "A PDF of principles is not 3.4.3. Guardrails + cards + a check they still match.",
+      "source": "domain"
     }
   ]
 }

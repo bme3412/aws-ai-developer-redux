@@ -7,9 +7,6 @@ import {
   Loader2,
   ChevronRight,
   RotateCcw,
-  Target,
-  CheckCircle,
-  XCircle,
   BookOpen,
   Shuffle,
   Bookmark,
@@ -33,7 +30,18 @@ function saveBookmarks(bookmarks: Set<string>) {
   localStorage.setItem(BOOKMARKS_KEY, JSON.stringify([...bookmarks]));
 }
 
+type Bank = 'official' | 'exam-style';
+type DomainFilter = 'all' | 1 | 2 | 3 | 4 | 5;
+
+function filterByDomain(qs: Question[], domain: DomainFilter): Question[] {
+  if (domain === 'all') return [...qs];
+  return qs.filter(q => q.domain === domain);
+}
+
 export default function OfficialPracticePage() {
+  const [officialQuestions, setOfficialQuestions] = useState<Question[]>([]);
+  const [examStyleQuestions, setExamStyleQuestions] = useState<Question[]>([]);
+  const [bank, setBank] = useState<Bank>('exam-style');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
@@ -45,32 +53,65 @@ export default function OfficialPracticePage() {
   const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
   const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false);
   const [isShuffled, setIsShuffled] = useState(false);
+  const [showLanding, setShowLanding] = useState(true);
+  const [domainFilter, setDomainFilter] = useState<DomainFilter>('all');
 
   useEffect(() => {
     async function load() {
       try {
-        const data = await import('@/data/questions/official-practice.json');
-        const qs = data.default.questions as Question[];
-        setQuestions(qs);
+        const [officialData, examData] = await Promise.all([
+          import('@/data/questions/official-practice.json'),
+          import('@/data/questions/exam-style.json'),
+        ]);
+        const official = officialData.default.questions as unknown as Question[];
+        const examStyle = examData.default.questions as unknown as Question[];
+        setOfficialQuestions(official);
+        setExamStyleQuestions(examStyle);
+        setQuestions(examStyle);
 
-        // Load completion status
         const completed: Record<string, { correct: boolean }> = {};
-        qs.forEach(q => {
+        [...official, ...examStyle].forEach(q => {
           const c = getQuestionCompletion(q.id);
           if (c) completed[q.id] = { correct: c.correct };
         });
         setPreviouslyCompleted(completed);
-
-        // Load bookmarks
         setBookmarks(getBookmarks());
       } catch (e) {
-        console.error('Failed to load official practice questions:', e);
+        console.error('Failed to load practice questions:', e);
       } finally {
         setIsLoading(false);
       }
     }
     load();
   }, []);
+
+  const bankSource = bank === 'official' ? officialQuestions : examStyleQuestions;
+
+  const switchBank = (next: Bank) => {
+    if (next === bank) return;
+    const source = next === 'official' ? officialQuestions : examStyleQuestions;
+    setBank(next);
+    setQuestions(filterByDomain(source, domainFilter));
+    setCurrentIndex(0);
+    setAnswers({});
+    setShowResults({});
+    setIsComplete(false);
+    setIsShuffled(false);
+    setShowBookmarkedOnly(false);
+    setShowLanding(true);
+  };
+
+  const applyDomainFilter = (next: DomainFilter) => {
+    if (next === domainFilter) return;
+    setDomainFilter(next);
+    setQuestions(filterByDomain(bankSource, next));
+    setCurrentIndex(0);
+    setAnswers({});
+    setShowResults({});
+    setIsComplete(false);
+    setIsShuffled(false);
+    setShowLanding(true);
+  };
 
   const toggleBookmark = (questionId: string) => {
     setBookmarks(prev => {
@@ -96,12 +137,7 @@ export default function OfficialPracticePage() {
   };
 
   const handleUnshuffle = () => {
-    const sorted = [...questions].sort((a, b) => {
-      const numA = parseInt(a.id.replace('op-', ''));
-      const numB = parseInt(b.id.replace('op-', ''));
-      return numA - numB;
-    });
-    setQuestions(sorted);
+    setQuestions(filterByDomain(bankSource, domainFilter));
     setCurrentIndex(0);
     setIsShuffled(false);
   };
@@ -123,6 +159,8 @@ export default function OfficialPracticePage() {
       setCurrentIndex(currentIndex + 1);
     } else if (mode === 'quiz') {
       setIsComplete(true);
+    } else {
+      setShowLanding(true);
     }
   };
 
@@ -137,9 +175,8 @@ export default function OfficialPracticePage() {
     setIsComplete(false);
   };
 
-  // Domain breakdown
   const domainCounts: Record<number, number> = {};
-  questions.forEach(q => {
+  bankSource.forEach(q => {
     domainCounts[q.domain] = (domainCounts[q.domain] || 0) + 1;
   });
 
@@ -168,7 +205,9 @@ export default function OfficialPracticePage() {
           </span>
         </div>
 
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Official Practice Complete</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          {bank === 'exam-style' ? 'Exam Style Complete' : 'Official Practice Complete'}
+        </h2>
         <p className="text-gray-600 mb-4">
           You got {correctCount} out of {questions.length} questions correct.
         </p>
@@ -224,7 +263,7 @@ export default function OfficialPracticePage() {
   }
 
   // Landing / question navigator view
-  if (!currentQuestion || (mode === 'browse' && !showResults[questions[currentIndex]?.id] && Object.keys(answers).length === 0 && currentIndex === 0)) {
+  if (showLanding || !currentQuestion) {
     return (
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="mb-8">
@@ -232,22 +271,42 @@ export default function OfficialPracticePage() {
             <Shield className="w-8 h-8 text-teal-600" />
             <h1 className="text-3xl font-bold text-gray-900">Official Practice Questions</h1>
           </div>
+          <div className="flex gap-1 mb-4 p-1 bg-gray-100 rounded-lg w-fit">
+            <button
+              onClick={() => switchBank('exam-style')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                bank === 'exam-style' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Exam Style
+            </button>
+            <button
+              onClick={() => switchBank('official')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                bank === 'official' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Official Practice
+            </button>
+          </div>
           <p className="text-gray-600">
-            100 exam-style questions for the AWS Certified Generative AI Developer - Professional (AIP-C01) exam. Each includes a strategic breakdown to help you understand what&apos;s being tested and how to approach it.
+            {bank === 'exam-style'
+              ? 'Twenty-five items across Domain 1 and Domain 2 written in official AIP-C01 stem-and-option voice. No timer. Same stacked constraints and full-sentence answers as the official sample set.'
+              : '100 exam-style questions for the AWS Certified Generative AI Developer - Professional (AIP-C01) exam. Each includes a strategic breakdown to help you understand what is being tested and how to approach it.'}
           </p>
         </div>
 
         {/* Mode selection */}
         <div className="grid md:grid-cols-2 gap-4 mb-6">
           <button
-            onClick={() => { setMode('browse'); setCurrentIndex(0); setAnswers({}); setShowResults({}); }}
+            onClick={() => { setMode('browse'); setCurrentIndex(0); setAnswers({}); setShowResults({}); setShowLanding(false); }}
             className="p-5 bg-white border-2 border-teal-200 hover:border-teal-400 rounded-xl text-left transition-colors"
           >
             <h3 className="font-semibold text-gray-900 mb-1">Study Mode</h3>
             <p className="text-sm text-gray-600">Browse questions one by one. Review strategic breakdowns as you go. No time pressure.</p>
           </button>
           <button
-            onClick={() => { setMode('quiz'); setCurrentIndex(0); setAnswers({}); setShowResults({}); }}
+            onClick={() => { setMode('quiz'); setCurrentIndex(0); setAnswers({}); setShowResults({}); setShowLanding(false); }}
             className="p-5 bg-white border-2 border-blue-200 hover:border-blue-400 rounded-xl text-left transition-colors"
           >
             <h3 className="font-semibold text-gray-900 mb-1">Quiz Mode</h3>
@@ -255,8 +314,37 @@ export default function OfficialPracticePage() {
           </button>
         </div>
 
-        {/* Shuffle + Bookmarked filter */}
-        <div className="flex items-center gap-3 mb-6">
+        {/* Domain filter + Shuffle + Bookmarked */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+            <button
+              onClick={() => applyDomainFilter('all')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                domainFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              All
+            </button>
+            {([1, 2, 3, 4, 5] as const).map(d => {
+              const count = domainCounts[d] || 0;
+              return (
+                <button
+                  key={d}
+                  onClick={() => applyDomainFilter(d)}
+                  disabled={count === 0}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    domainFilter === d
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : count === 0
+                      ? 'text-gray-300 cursor-not-allowed'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  D{d}
+                </button>
+              );
+            })}
+          </div>
           <button
             onClick={isShuffled ? handleUnshuffle : handleShuffle}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
@@ -286,7 +374,11 @@ export default function OfficialPracticePage() {
         {/* Question grid */}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            {showBookmarkedOnly ? `Bookmarked Questions (${bookmarks.size})` : 'All Questions'}
+            {showBookmarkedOnly
+              ? `Bookmarked Questions (${bookmarks.size})`
+              : domainFilter === 'all'
+                ? 'All Questions'
+                : `Domain ${domainFilter}`}
           </h2>
           <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
             {questions.map((q, idx) => {
@@ -296,7 +388,7 @@ export default function OfficialPracticePage() {
               return (
                 <button
                   key={q.id}
-                  onClick={() => { setMode('browse'); setCurrentIndex(idx); }}
+                  onClick={() => { setMode('browse'); setCurrentIndex(idx); setShowLanding(false); }}
                   className={`aspect-square rounded-lg text-sm font-medium transition-colors flex items-center justify-center relative ${
                     prev
                       ? prev.correct
@@ -314,25 +406,6 @@ export default function OfficialPracticePage() {
               );
             })}
           </div>
-          <div className="flex items-center gap-4 mt-3 text-xs text-gray-500 flex-wrap">
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100" /> Previously correct</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100" /> Previously incorrect</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100" /> Not attempted</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Bookmarked</span>
-          </div>
-        </div>
-
-        {/* Domain breakdown */}
-        <div className="p-4 bg-teal-50 border border-teal-200 rounded-lg">
-          <h3 className="font-semibold text-teal-800 mb-2">Coverage</h3>
-          <div className="grid grid-cols-5 gap-3 text-center text-sm">
-            {[1, 2, 3, 4, 5].map(d => (
-              <div key={d} className="bg-white rounded-lg p-2">
-                <div className="font-bold text-teal-700">D{d}</div>
-                <div className="text-gray-600">{domainCounts[d] || 0} Q</div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     );
@@ -342,12 +415,36 @@ export default function OfficialPracticePage() {
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       {/* Breadcrumb */}
-      <div className="mb-6 flex items-center gap-2 text-sm">
-        <Link href="/official-practice" className="text-teal-600 hover:text-teal-500">
-          Official Practice
-        </Link>
-        <ChevronRight className="w-4 h-4 text-gray-400" />
-        <span className="text-gray-700">Question {currentIndex + 1}</span>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2 text-sm">
+          <button
+            type="button"
+            onClick={() => { setCurrentIndex(0); setAnswers({}); setShowResults({}); setIsComplete(false); setShowLanding(true); }}
+            className="text-teal-600 hover:text-teal-500"
+          >
+            {bank === 'exam-style' ? 'Exam Style' : 'Official Practice'}
+          </button>
+          <ChevronRight className="w-4 h-4 text-gray-400" />
+          <span className="text-gray-700">Question {currentIndex + 1}</span>
+        </div>
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+          <button
+            onClick={() => switchBank('exam-style')}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+              bank === 'exam-style' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Exam Style
+          </button>
+          <button
+            onClick={() => switchBank('official')}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+              bank === 'official' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Official Practice
+          </button>
+        </div>
       </div>
 
       {/* Progress */}

@@ -10,19 +10,33 @@
       "tasks": [
         {
           "id": "1.1",
-          "name": "Analyze Requirements & Design GenAI Solutions",
+          "name": "Analyze Requirements and Design GenAI Solutions",
           "articleSlug": "architectural-design",
           "skills": [
             {
               "id": "1.1.1",
               "description": "Architectural designs aligned to business needs (FMs, integration patterns, deployment strategies)",
               "services": ["Amazon Bedrock", "AWS Well-Architected Framework"]
-            },
+            }
+          ]
+        },
+        {
+          "id": "1.1.2",
+          "name": "Proof-of-Concept Implementations",
+          "articleSlug": "poc-implementations",
+          "skills": [
             {
               "id": "1.1.2",
               "description": "Proof-of-concept implementations via Amazon Bedrock",
               "services": ["Amazon Bedrock"]
-            },
+            }
+          ]
+        },
+        {
+          "id": "1.1.3",
+          "name": "Standardized Technical Components",
+          "articleSlug": "standardized-components",
+          "skills": [
             {
               "id": "1.1.3",
               "description": "Standardized components using Well-Architected Framework + GenAI Lens",
@@ -32,7 +46,7 @@
         },
         {
           "id": "1.2",
-          "name": "Select & Configure Foundation Models",
+          "name": "Select and Configure Foundation Models",
           "articleSlug": "model-selection",
           
           "skills": [
@@ -60,7 +74,7 @@
         },
         {
           "id": "1.3",
-          "name": "Data Validation & Processing Pipelines for FM Consumption",
+          "name": "Implement Data Validation and Processing Pipelines for FM Consumption",
           "articleSlug": "data-pipelines",
           "skills": [
             {
@@ -87,19 +101,19 @@
         },
         {
           "id": "1.4",
-          "name": "Vector Store Solutions",
+          "name": "Design and Implement Vector Store Solutions",
           "articleSlug": "vector-stores",
           
           "skills": [
             {
               "id": "1.4.1",
-              "description": "Vector DB architectures: Bedrock Knowledge Bases, OpenSearch, Aurora pgvector, DynamoDB",
-              "services": ["Amazon Bedrock Knowledge Bases", "Amazon OpenSearch Service", "Amazon Aurora", "Amazon DynamoDB"]
+              "description": "Vector DB architectures: Bedrock Knowledge Bases, OpenSearch Neural plugin, S3 Vectors, Aurora/RDS pgvector, DynamoDB",
+              "services": ["Amazon Bedrock Knowledge Bases", "Amazon OpenSearch Service", "Amazon S3 Vectors", "Amazon Aurora", "Amazon DynamoDB"]
             },
             {
               "id": "1.4.2",
-              "description": "Metadata frameworks: S3 object metadata, custom attributes, tagging for domain classification",
-              "services": ["Amazon S3"]
+              "description": "Metadata frameworks: S3 sidecar .metadata.json, custom attributes, ACL filters before k-NN",
+              "services": ["Amazon S3", "Amazon Bedrock Knowledge Bases"]
             },
             {
               "id": "1.4.3",
@@ -108,19 +122,19 @@
             },
             {
               "id": "1.4.4",
-              "description": "Integration with document management, knowledge bases, internal wikis",
+              "description": "Integration with document management, knowledge bases, internal wikis — index is a derived copy",
               "services": ["Amazon Bedrock Knowledge Bases", "Amazon S3"]
             },
             {
               "id": "1.4.5",
-              "description": "Data maintenance: incremental updates, change detection, sync workflows",
-              "services": ["Amazon S3", "AWS Lambda", "AWS Step Functions"]
+              "description": "Data maintenance: incremental updates, S3 events to SQS, Ingest/Delete APIs, scheduled sync",
+              "services": ["Amazon S3", "Amazon SQS", "Amazon EventBridge", "AWS Lambda", "Amazon Bedrock Knowledge Bases"]
             }
           ]
         },
         {
           "id": "1.5",
-          "name": "Retrieval Mechanisms for FM Augmentation",
+          "name": "Design Retrieval Mechanisms for FM Augmentation",
           "articleSlug": "retrieval-mechanisms",
           
           "skills": [
@@ -158,7 +172,7 @@
         },
         {
           "id": "1.6",
-          "name": "Prompt Engineering Strategies & Governance",
+          "name": "Implement Prompt Engineering Strategies and Governance for FM Interactions",
           "articleSlug": "prompt-engineering",
           
           "skills": [

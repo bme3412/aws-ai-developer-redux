@@ -192,3 +192,111 @@ pre.bg-gray-900 {
 .animate-slide-up {
   animation: slide-up 0.3s ease-out forwards;
 }
+
+@keyframes skill-check-pop {
+  0% { transform: scale(0.72); }
+  55% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+.skill-check-pop {
+  animation: skill-check-pop 0.45s cubic-bezier(0.22, 1.4, 0.36, 1);
+}
+
+.skill-burst {
+  position: absolute;
+  inset: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.skill-spark {
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #fbbf24;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.35);
+  animation: skill-spark 0.6s ease-out forwards;
+  transform-origin: center;
+}
+
+.skill-spark:nth-child(odd) {
+  background: #34d399;
+  width: 5px;
+  height: 5px;
+}
+
+@keyframes skill-spark {
+  0% {
+    opacity: 1;
+    transform: rotate(calc(var(--i) * 45deg)) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(calc(var(--i) * 45deg)) translateY(-26px) scale(0.2);
+  }
+}
+
+@keyframes skill-time-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.skill-time-in {
+  animation: skill-time-in 0.35s ease-out;
+}
+
+@keyframes skill-task-glow {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.35); }
+  70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.skill-task-glow {
+  animation: skill-task-glow 0.7s ease-out;
+}
+
+.skill-section-done {
+  border-left: 3px solid #10b981;
+  padding-left: 0.75rem;
+  margin-left: -0.75rem;
+}
+
+.skill-stamp-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.75rem;
+  z-index: 60;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 1.05rem;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28);
+  animation: skill-toast-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.skill-stamp-toast-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: #10b981;
+  color: white;
+  font-size: 0.75rem;
+}
+
+@keyframes skill-toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+

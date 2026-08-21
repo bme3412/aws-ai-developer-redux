@@ -1,0 +1,701 @@
+{
+  "categories": [
+    {
+      "id": "analytics",
+      "title": "Analytics",
+      "icon": "BarChart2",
+      "color": "blue",
+      "services": [
+        {
+          "name": "Amazon Athena",
+          "summary": "Serverless, pay-per-query SQL engine that queries data directly in S3 without loading it into a database.",
+          "tags": ["Serverless", "Pay-per-query", "SQL on S3"],
+          "detail": "Athena is Presto/Trino under the hood. You point it at files already in S3 (Parquet, ORC, JSON, CSV), register tables in the Glue Data Catalog, and run ANSI SQL. There is no cluster to size or idle. You pay per TB scanned, so columnar formats and partitioning are the cost lever — a well-partitioned Parquet lake is cheap; SELECT * over raw JSON is not. Results can land back in S3 or feed QuickSight.",
+          "chooseWhen": [
+            "Fundamentals, transcripts, or logs already live in S3",
+            "Queries are ad-hoc or bursty — no warehouse to keep warm",
+            "You want the lake itself to be queryable (Athena + Glue Catalog)"
+          ],
+          "notFor": "High-concurrency, always-on BI with tight SLAs — that's Redshift or QuickSight on SPICE, not a scan-the-lake engine.",
+          "vs": "vs EMR: Athena is SQL-only and fully serverless. EMR is Spark/Hadoop when you need custom distributed jobs, not just SELECT.",
+          "example": "Run ad-hoc SQL over ten years of quarterly fundamentals and consensus estimates stored as Parquet in S3 — screen your coverage universe for margin inflections without standing up a warehouse."
+        },
+        {
+          "name": "Amazon EMR",
+          "summary": "Managed big-data clusters (Spark, Hadoop, Presto) for large-scale distributed processing.",
+          "tags": ["Spark", "Hadoop", "Transient clusters"],
+          "detail": "EMR is AWS's managed Hadoop/Spark/Presto/Flink layer. You pick the AMI, instance types (including Graviton or GPU), autoscaling, and whether the cluster is long-running (notebooks) or transient (spin up, run the job, die). EMR Serverless removes the instance-sizing step if you just want Spark without a fleet. Storage is usually S3 via EMRFS, so the cluster is compute that can disappear.",
+          "chooseWhen": [
+            "Multi-hour / multi-TB jobs that Glue's serverless Spark will choke on",
+            "You need custom Spark configs, bootstrap actions, or specific Hadoop tooling",
+            "Backtests or feature jobs that should exist only while running"
+          ],
+          "notFor": "A handful of SQL queries against S3 — use Athena. Simple nightly ETL with a catalog — use Glue.",
+          "vs": "vs Glue: Glue is serverless Spark + Data Catalog with less knobs. EMR is when you want cluster-level control, custom AMIs, or frameworks Glue doesn't wrap.",
+          "example": "Backtest a factor model across 20 years of global tick and fundamentals data using Spark on a transient cluster that spins down when the job finishes."
+        },
+        {
+          "name": "AWS Glue",
+          "summary": "Serverless ETL service with a data catalog; crawls, cleans, and transforms data between stores.",
+          "tags": ["Serverless ETL", "Data Catalog", "Crawlers"],
+          "detail": "Glue has two halves that exam questions and real pipelines both care about. Crawlers + Data Catalog: infer schemas from S3/JDBC and publish tables Athena, Redshift Spectrum, and SageMaker can see. Jobs: serverless Spark or Python that transform and write back. Triggers and workflows schedule the nightly run. The Catalog is the contract — once tickers and fiscal calendars are normalized there, everything downstream queries one clean layer instead of raw dumps.",
+          "chooseWhen": [
+            "You need a catalog, not just a transform (Athena/SageMaker as consumers)",
+            "Nightly ingest/clean of filings, transcripts, vendor files",
+            "You want Spark ETL without standing up EMR"
+          ],
+          "notFor": "Streaming at market-hours latency — that's Kinesis/MSK. Heavy custom Spark with special AMIs — that's EMR.",
+          "vs": "vs EMR: Glue owns the catalog and hides the cluster. vs Athena: Glue writes/prepares data; Athena only reads it.",
+          "example": "Nightly job that ingests raw earnings-call transcripts and 10-Q filings, normalizes tickers and fiscal calendars, and catalogs them so Athena and SageMaker can query a clean dataset."
+        },
+        {
+          "name": "Amazon Kinesis",
+          "summary": "Real-time streaming data ingestion and processing (Data Streams, Firehose).",
+          "tags": ["Streaming", "Data Streams", "Firehose"],
+          "detail": "Kinesis is the AWS-native stream family. Data Streams: sharded, sub-second ingest; consumers are Lambda, Flink, or the KCL. Firehose: fully managed delivery into S3, OpenSearch, or Redshift with buffering, compression, and optional Lambda transform — no shards to manage. Data Analytics / Managed Flink runs SQL or Flink jobs on the stream. Retention is hours to a year on Streams; Firehose is a pipe, not a log.",
+          "chooseWhen": [
+            "Live headlines, quotes, or options flow during market hours",
+            "You want AWS-native consumers (Lambda, Firehose → S3) without Kafka ops",
+            "Firehose landing a stream into the data lake with almost no code"
+          ],
+          "notFor": "A Kafka-protocol event backbone with long retention, compact topics, and a Kafka-native team — that's MSK.",
+          "vs": "vs MSK: Kinesis is shards + AWS APIs, simpler ops, shorter default retention. MSK is Apache Kafka — topics, consumer groups, the ecosystem.",
+          "example": "Stream live news headlines and options flow into a pipeline that flags unusual activity in semiconductor names during market hours."
+        },
+        {
+          "name": "Amazon OpenSearch Service",
+          "summary": "Managed search and log analytics engine (Elasticsearch fork), including k-NN vector search.",
+          "tags": ["Full-text search", "k-NN vectors", "Logs"],
+          "detail": "OpenSearch is the managed Elasticsearch fork: inverted-index keyword search, aggregations, dashboards, and k-NN vector search for embeddings. Provisioned domains or Serverless collections (the default vector store behind Bedrock Knowledge Bases). Hybrid search — BM25 + k-NN — is the usual RAG pattern. It is a retrieval engine, not a warehouse: great at 'find snippets about X', bad at 'GROUP BY fiscal year across 10 years of fundamentals.'",
+          "chooseWhen": [
+            "Keyword or semantic search over notes, transcripts, filings",
+            "RAG / Bedrock Knowledge Bases needing a managed vector store",
+            "Log and trace analytics with OpenSearch Dashboards"
+          ],
+          "notFor": "SQL over a lake (Athena) or tabular BI (QuickSight). Don't dump a data warehouse into OpenSearch and hope.",
+          "vs": "vs Athena: OpenSearch is sub-second retrieval + vectors. Athena is scan-based SQL. vs Kendra: Kendra is enterprise NL search with connectors; OpenSearch is the engine you tune.",
+          "example": "Full-text and vector search across every management commentary snippet in your coverage — \"find all mentions of AI capex acceleration by hyperscalers since 2024.\""
+        },
+        {
+          "name": "Amazon QuickSight",
+          "summary": "Serverless BI/dashboarding tool with natural-language querying (Q).",
+          "tags": ["BI", "Dashboards", "Q / NL query"],
+          "detail": "QuickSight is AWS's Tableau: authors build dashboards, readers consume them, billing is per-session or per-user rather than a fat license. SPICE is the in-memory engine (fast, imported). Direct query hits Athena/Redshift/RDS live. Q lets PMs type English over a dataset. ML Insights add forecasting and anomaly detection. Embed via SDK if you want charts inside an internal research app. Quick (the 2025 agentic suite) now wraps QuickSight as the BI surface.",
+          "chooseWhen": [
+            "PM-facing attribution, risk, or estimate-revision dashboards",
+            "You already query Athena/Redshift and want charts without Tableau",
+            "Natural-language Q on top of a governed dataset"
+          ],
+          "notFor": "Ops/metrics dashboards with CloudWatch/Prometheus data — that's Managed Grafana. Ad-hoc SQL exploration — that's Athena.",
+          "vs": "vs Tableau/Looker: no seat-license tax, IAM-native, weaker pixel-perfect polish. vs Grafana: QuickSight is business BI; Grafana is observability.",
+          "example": "Portfolio attribution dashboard showing sector contribution, active weights, and estimate-revision breadth, shared with the PM team without a Tableau license."
+        },
+        {
+          "name": "Amazon MSK (Managed Streaming for Apache Kafka)",
+          "summary": "Fully managed Kafka for high-throughput event streaming; the open-source alternative to Kinesis.",
+          "tags": ["Kafka", "Event backbone", "High throughput"],
+          "detail": "MSK runs Apache Kafka (provisioned or Serverless) so you get topics, partitions, consumer groups, compact logs, and the Kafka protocol — without ZooKeeper/KRaft babysitting. Schema Registry, Kafka Connect, and MSK Connect pull in the ecosystem. Retention can be days to forever; that's the difference from Kinesis-as-a-pipe. Use it when multiple research services must independently consume the same events (earnings, prices, model-recalcs) without coupling to one Lambda.",
+          "chooseWhen": [
+            "An event backbone several services subscribe to independently",
+            "Team already speaks Kafka (Connect, Schema Registry, exactly-once)",
+            "Longer retention / replay than Kinesis Streams defaults"
+          ],
+          "notFor": "A single Lambda draining a firehose into S3 — Kinesis Firehose is less machinery. App-level pub/sub with a few subscribers — SNS/SQS.",
+          "vs": "vs Kinesis: MSK is Kafka. Kinesis is AWS-native shards and Firehose. Same job (streaming), different protocol, ops, and ecosystem lock-in.",
+          "example": "An event backbone where earnings releases, price alerts, and model-recalc events are published as topics consumed by multiple downstream research services."
+        }
+      ]
+    },
+    {
+      "id": "application-integration",
+      "title": "Application Integration",
+      "icon": "Layers",
+      "color": "violet",
+      "services": [
+        {
+          "name": "Amazon AppFlow",
+          "summary": "No-code data transfer between SaaS apps (Salesforce, Slack) and AWS.",
+          "example": "Sync CRM meeting notes from Salesforce into S3 so company-touch data feeds your research knowledge base."
+        },
+        {
+          "name": "AWS AppConfig",
+          "summary": "Managed feature flags and dynamic configuration deployment with validation and rollback.",
+          "example": "Toggle a new estimate-revision signal on for 10% of your coverage universe before rolling it out fleet-wide — no redeploy required."
+        },
+        {
+          "name": "Amazon EventBridge",
+          "summary": "Serverless event bus that routes events between AWS services and SaaS apps on rules or schedules.",
+          "example": "Trigger your earnings-agent pipeline automatically at 4:05pm ET when a covered company's press release lands in S3."
+        },
+        {
+          "name": "Amazon SNS",
+          "summary": "Pub/sub messaging for fan-out notifications (email, SMS, Lambda, SQS).",
+          "example": "One \"earnings surprise detected\" event fans out simultaneously to a Slack alert, an email digest, and a Lambda that kicks off deeper analysis."
+        },
+        {
+          "name": "Amazon SQS",
+          "summary": "Fully managed message queues that decouple producers from consumers, with retry and dead-letter support.",
+          "example": "Queue 200 tickers for transcript summarization so the LLM workers process them at a controlled rate without dropping any if a worker fails."
+        },
+        {
+          "name": "AWS Step Functions",
+          "summary": "Serverless workflow orchestration with state machines, branching, retries, and human-approval steps.",
+          "example": "Orchestrate an earnings pipeline: ingest filing → extract tables → LLM proposes estimates → arithmetic verification → human approval gate → write to model."
+        }
+      ]
+    },
+    {
+      "id": "compute",
+      "title": "Compute",
+      "icon": "Cpu",
+      "color": "amber",
+      "services": [
+        {
+          "name": "AWS App Runner",
+          "summary": "Fully managed container web service: point it at a repo or image and it handles build, deploy, scaling, and TLS.",
+          "example": "Deploy a FastAPI research-copilot backend straight from GitHub with zero infrastructure work — the fastest path from prototype to a live URL."
+        },
+        {
+          "name": "Amazon EC2",
+          "summary": "Resizable virtual servers; the foundational IaaS compute primitive.",
+          "example": "A GPU instance (p5/g6) for fine-tuning an embedding model on your proprietary research notes; also the unit of analysis when modeling AWS revenue per compute-hour."
+        },
+        {
+          "name": "AWS Lambda",
+          "summary": "Serverless functions that run code in response to events, billed per millisecond, no servers to manage.",
+          "example": "A function that fires on each new 8-K, extracts guidance language, and posts a delta-vs-consensus summary — costs pennies per quarter."
+        },
+        {
+          "name": "AWS Lambda@Edge",
+          "summary": "Lambda functions executed at CloudFront edge locations for request/response manipulation close to users.",
+          "example": "Personalize or geo-gate a research portal (e.g., serve compliance disclaimers by jurisdiction) without a round trip to the origin."
+        },
+        {
+          "name": "AWS Outposts",
+          "summary": "AWS hardware and services deployed on-premises for low-latency or data-residency needs.",
+          "example": "A hedge fund keeps latency-sensitive execution infrastructure colocated near an exchange while using native AWS APIs — relevant when assessing hybrid-cloud TAM."
+        },
+        {
+          "name": "AWS Wavelength",
+          "summary": "AWS compute embedded in telecom 5G networks for ultra-low-latency mobile applications.",
+          "example": "Investment angle: the 5G edge-compute thesis for telcos and AWS — real-time inference for mobile trading or AR apps at single-digit-millisecond latency."
+        }
+      ]
+    },
+    {
+      "id": "containers",
+      "title": "Containers",
+      "icon": "Box",
+      "color": "indigo",
+      "services": [
+        {
+          "name": "Amazon ECR",
+          "summary": "Managed Docker container registry with vulnerability scanning.",
+          "example": "Store versioned images of your earnings-agent so every production run is traceable to an exact, scanned build."
+        },
+        {
+          "name": "Amazon ECS",
+          "summary": "AWS-native container orchestration; simpler than Kubernetes, deeply integrated with AWS services.",
+          "example": "Run a fleet of transcript-processing containers that scale up on earnings-heavy days and down to near zero in the quiet weeks."
+        },
+        {
+          "name": "Amazon EKS",
+          "summary": "Managed Kubernetes control plane for teams standardized on K8s.",
+          "example": "The relevant benchmark when comparing hyperscaler container strategies — EKS vs GKE vs AKS as a switching-cost and ecosystem story."
+        },
+        {
+          "name": "AWS Fargate",
+          "summary": "Serverless compute engine for ECS/EKS: run containers without managing EC2 instances.",
+          "example": "Your research-copilot API runs on Fargate — you define CPU/memory per task and never patch a host; margin-relevant for AWS as it monetizes idle capacity."
+        }
+      ]
+    },
+    {
+      "id": "customer-engagement",
+      "title": "Customer Engagement",
+      "icon": "Phone",
+      "color": "pink",
+      "services": [
+        {
+          "name": "Amazon Connect",
+          "summary": "Cloud contact center with built-in AI (transcription, sentiment, agent assist).",
+          "example": "Investment angle: Connect is AWS's wedge against NICE, Five9, and Genesys — a case study in hyperscalers moving up-stack into application software."
+        }
+      ]
+    },
+    {
+      "id": "database",
+      "title": "Database",
+      "icon": "Database",
+      "color": "emerald",
+      "services": [
+        {
+          "name": "Amazon Aurora",
+          "summary": "Cloud-native MySQL/PostgreSQL-compatible database with separated storage/compute, up to ~5x MySQL throughput; Serverless v2 scales automatically.",
+          "example": "The system of record for a coverage app's estimates and audit trail; also the flagship exhibit when analyzing AWS database revenue taking share from Oracle."
+        },
+        {
+          "name": "Amazon DocumentDB",
+          "summary": "Managed MongoDB-compatible document database.",
+          "example": "Store semi-structured company profiles (variable KPI sets per archetype — SaaS vs semis vs OTA) without forcing them into one rigid schema."
+        },
+        {
+          "name": "Amazon DynamoDB",
+          "summary": "Serverless key-value/document database with single-digit-millisecond latency at any scale.",
+          "example": "Session state and per-ticker cache for an earnings dashboard that must stay fast when the whole coverage list reports the same week."
+        },
+        {
+          "name": "Amazon DynamoDB Streams",
+          "summary": "Change-data-capture feed of every item modification in a DynamoDB table.",
+          "example": "When an analyst updates an estimate, the stream triggers a Lambda that recomputes portfolio-level EPS growth in near real time."
+        },
+        {
+          "name": "Amazon ElastiCache",
+          "summary": "Managed in-memory cache (Redis/Valkey, Memcached) for microsecond reads.",
+          "example": "Cache hot market data and precomputed comps tables so the research portal doesn't hammer the database during earnings season."
+        },
+        {
+          "name": "Amazon Neptune",
+          "summary": "Managed graph database for highly connected data.",
+          "example": "Map supply-chain relationships — NVDA → TSMC → ASML → suppliers — and query \"which covered names have second-order exposure to a Taiwan disruption?\""
+        },
+        {
+          "name": "Amazon RDS",
+          "summary": "Managed relational databases (PostgreSQL, MySQL, SQL Server, Oracle, MariaDB) handling patching, backups, and failover.",
+          "example": "The default Postgres backing store for an internal research app — and the on-ramp AWS uses to migrate enterprise Oracle/SQL Server workloads (a share-shift thesis)."
+        }
+      ]
+    },
+    {
+      "id": "developer-tools",
+      "title": "Developer Tools",
+      "icon": "Wrench",
+      "color": "sky",
+      "services": [
+        {
+          "name": "AWS Amplify",
+          "summary": "Full-stack framework/hosting for web and mobile apps with built-in auth, APIs, and CI/CD.",
+          "example": "Ship a Next.js investor-tools frontend with Cognito auth wired up in an afternoon — AWS's answer to Vercel/Netlify in the developer-platform land grab."
+        },
+        {
+          "name": "AWS CDK",
+          "summary": "Define cloud infrastructure in real programming languages (TypeScript, Python) that synthesizes to CloudFormation.",
+          "example": "Your entire ECS/Fargate + RDS + Cognito research stack expressed as versioned TypeScript — infrastructure reviewed in pull requests like any other code."
+        },
+        {
+          "name": "AWS CLI",
+          "summary": "Command-line interface to every AWS API.",
+          "example": "`aws s3 sync` a quarter's worth of filings into your pipeline bucket from a script; the glue in every automation."
+        },
+        {
+          "name": "AWS CloudFormation",
+          "summary": "Declarative infrastructure-as-code via JSON/YAML templates with stack-level rollback.",
+          "example": "The underlying engine CDK compiles to; one template reproduces your whole environment in a new region for DR."
+        },
+        {
+          "name": "AWS CodeArtifact",
+          "summary": "Managed artifact repository for npm, PyPI, Maven packages.",
+          "example": "Host internal Python packages (your shared valuation/tie-out library) privately so every pipeline imports the same vetted version."
+        },
+        {
+          "name": "AWS CodeBuild",
+          "summary": "Managed build service that compiles, tests, and produces artifacts on demand.",
+          "example": "Every commit to the earnings-agent repo runs the arithmetic tie-out test suite before an image can be published."
+        },
+        {
+          "name": "AWS CodeDeploy",
+          "summary": "Automated deployments to EC2, Lambda, ECS with blue/green and canary strategies.",
+          "example": "Roll a new estimate-extraction model to 10% of traffic first; auto-rollback if verification failure rates spike."
+        },
+        {
+          "name": "AWS CodePipeline",
+          "summary": "CI/CD orchestration chaining source → build → test → deploy stages.",
+          "example": "Push to main → CodeBuild tests → deploy to staging → manual approval → production, fully automated for your research tooling."
+        },
+        {
+          "name": "Kiro",
+          "summary": "AWS's agentic, spec-driven AI IDE: turns prompts into specs, designs, and task lists before writing code.",
+          "example": "Investment angle: AWS's entry in the AI-coding-tools race against Cursor, GitHub Copilot, and Claude Code — a signal of how seriously hyperscalers view the developer-AI layer."
+        },
+        {
+          "name": "AWS Tools and SDKs",
+          "summary": "Official language SDKs (boto3 for Python, JS SDK, etc.) for programmatic AWS access.",
+          "example": "boto3 is the workhorse of every data pipeline — five lines to drop a parsed filing into S3 and invoke a model on Bedrock."
+        },
+        {
+          "name": "AWS X-Ray",
+          "summary": "Distributed tracing to visualize request paths and latency across microservices.",
+          "example": "Trace one slow research-copilot query end-to-end — API Gateway → Lambda → Bedrock → RDS — and find that retrieval, not generation, is the bottleneck."
+        }
+      ]
+    },
+    {
+      "id": "machine-learning",
+      "title": "Machine Learning",
+      "icon": "Bot",
+      "color": "purple",
+      "services": [
+        {
+          "name": "Amazon Augmented AI (A2I)",
+          "summary": "Adds human-review workflows to ML predictions below a confidence threshold.",
+          "example": "Route low-confidence extracted guidance figures to an analyst for sign-off before they touch the model — a managed version of your human-approval gate."
+        },
+        {
+          "name": "Amazon Bedrock",
+          "summary": "Serverless API access to foundation models (Anthropic Claude, Meta Llama, Amazon Nova/Titan, etc.) with security, guardrails, and fine-tuning.",
+          "example": "The core of the AWS GenAI monetization story — inference consumption as the new compute; also where you'd call Claude to summarize a 10-K inside your VPC without data leaving AWS."
+        },
+        {
+          "name": "Amazon Bedrock AgentCore",
+          "summary": "Infrastructure for deploying and operating production AI agents at scale (runtime, memory, identity, tool gateway, observability).",
+          "example": "The managed equivalent of what you hand-built for the EPS Agent — session isolation, tool auth, and traces for an agent that reads filings and proposes estimates."
+        },
+        {
+          "name": "Amazon Bedrock Knowledge Bases",
+          "summary": "Managed RAG: ingests documents, chunks, embeds, stores in a vector DB, and grounds model answers with citations.",
+          "example": "Point it at your research-note archive and get cited answers to \"what did we say about GOOGL capex in Q1?\" — the managed alternative to a hand-rolled RAG stack."
+        },
+        {
+          "name": "Amazon Bedrock Prompt Management",
+          "summary": "Versioned, reusable prompt templates shared across teams and apps.",
+          "example": "Keep the earnings-summary prompt versioned so a prompt regression can be diffed and rolled back like code."
+        },
+        {
+          "name": "Amazon Bedrock Prompt Flows",
+          "summary": "Visual builder chaining prompts, models, and business logic into workflows.",
+          "example": "Chain \"classify filing type → extract KPIs → generate summary → format for note\" without writing orchestration code."
+        },
+        {
+          "name": "Amazon Comprehend",
+          "summary": "NLP-as-a-service: entities, sentiment, key phrases, PII detection.",
+          "example": "Batch sentiment scoring on ten years of earnings-call Q&A to test whether management-tone shifts lead estimate revisions."
+        },
+        {
+          "name": "Amazon Kendra",
+          "summary": "ML-powered enterprise search across document repositories with natural-language queries.",
+          "example": "One search box across the firm's research notes, models, and meeting memos — the pre-GenAI enterprise search product now feeding RAG pipelines."
+        },
+        {
+          "name": "Amazon Lex",
+          "summary": "Conversational bot service (voice and text) powering chat interfaces; the engine behind Alexa.",
+          "example": "An internal chatbot that answers \"what's our active weight in NVDA?\" from the portfolio database."
+        },
+        {
+          "name": "Amazon Q Business",
+          "summary": "GenAI assistant for enterprises that connects to company data (SharePoint, Salesforce, S3) and answers with permissions-aware citations.",
+          "example": "Investment angle: AWS's competitor to Microsoft 365 Copilot and Glean — the per-seat enterprise-AI-assistant battleground."
+        },
+        {
+          "name": "Amazon Q Business Apps",
+          "summary": "Lightweight, purpose-built AI apps created inside Q Business without code.",
+          "example": "A one-click \"meeting-note → follow-up email + CRM entry\" app any analyst on the desk can build themselves."
+        },
+        {
+          "name": "Amazon Q Developer",
+          "summary": "AI coding assistant (formerly CodeWhisperer) for IDEs and the AWS console; also assists with AWS operations and upgrades.",
+          "example": "Investment angle: bundled AI coding as an AWS retention lever versus GitHub Copilot's paid-seat model."
+        },
+        {
+          "name": "Amazon Quick",
+          "summary": "AWS's unified agentic workspace suite (announced re:Invent 2025) spanning Quick Sight, Quick Flows, and Quick Automate.",
+          "example": "Investment angle: AWS assembling an agentic BI/automation suite — watch as evidence of hyperscalers bundling agents into analytics to defend against standalone BI vendors."
+        },
+        {
+          "name": "Amazon Rekognition",
+          "summary": "Image and video analysis: objects, faces, text, moderation.",
+          "example": "Alt-data experiment: count cars in retailer parking-lot imagery or detect logos in social video for brand-exposure signals."
+        },
+        {
+          "name": "Amazon SageMaker AI",
+          "summary": "End-to-end platform to build, train, tune, and deploy ML models (notebooks, training jobs, endpoints, pipelines).",
+          "example": "Train and host an estimate-revision prediction model with managed endpoints; the anchor of AWS's ML platform revenue versus Azure ML and Vertex."
+        },
+        {
+          "name": "Amazon SageMaker Clarify",
+          "summary": "Bias detection and model explainability (SHAP values) for ML models.",
+          "example": "Explain *why* the model flagged a name as a likely negative revision — feature attributions you can defend to a PM or compliance."
+        },
+        {
+          "name": "Amazon SageMaker Data Wrangler",
+          "summary": "Visual data prep: import, clean, transform, and featurize with minimal code.",
+          "example": "Prep messy point-in-time fundamentals — fiscal-calendar alignment, outlier winsorization — before training, without a week of pandas."
+        },
+        {
+          "name": "Amazon SageMaker Ground Truth",
+          "summary": "Managed data-labeling with human workforces and auto-labeling.",
+          "example": "Label 5,000 transcript passages as \"guidance raise / cut / maintain\" to fine-tune a classifier on your own taxonomy."
+        },
+        {
+          "name": "Amazon SageMaker JumpStart",
+          "summary": "Hub of pre-trained models and solution templates for one-click deployment or fine-tuning.",
+          "example": "Deploy an open-source FinBERT variant in minutes to baseline against your custom sentiment model."
+        },
+        {
+          "name": "Amazon SageMaker Model Monitor",
+          "summary": "Continuously monitors deployed models for data drift and quality degradation.",
+          "example": "Alert when the input distribution shifts (say, a new reporting-segment structure post-restructuring) so a stale model doesn't quietly mis-score."
+        },
+        {
+          "name": "Amazon SageMaker Model Registry",
+          "summary": "Versioned catalog of models with approval status and lineage for CI/CD.",
+          "example": "Every production revision-model version is registered, approved, and traceable — audit-ready governance for an investment process."
+        },
+        {
+          "name": "Amazon SageMaker Neo",
+          "summary": "Compiles trained models to run optimized on specific hardware (edge devices, Inferentia).",
+          "example": "Investment angle: part of AWS's custom-silicon story — squeezing inference cost per query, the key hyperscaler margin lever."
+        },
+        {
+          "name": "Amazon SageMaker Processing",
+          "summary": "Managed jobs for preprocessing, feature engineering, and batch evaluation at scale.",
+          "example": "A nightly job recomputing factor exposures for the full coverage universe on a right-sized cluster that exists only while running."
+        },
+        {
+          "name": "Amazon SageMaker Unified Studio",
+          "summary": "Single environment unifying data, analytics, and AI tools (SQL, notebooks, Bedrock, streaming) with governance.",
+          "example": "Investment angle: AWS's answer to Databricks and Microsoft Fabric — the \"one pane of glass\" data+AI platform war."
+        },
+        {
+          "name": "Amazon Textract",
+          "summary": "OCR++ that extracts text, tables, and form fields from documents with structure preserved.",
+          "example": "Pull segment-revenue tables cleanly out of PDF filings and slide decks — the ingestion front door of an earnings pipeline."
+        },
+        {
+          "name": "Amazon Titan",
+          "summary": "Amazon's first-party foundation model family on Bedrock (text, embeddings, image), largely succeeded by Nova.",
+          "example": "Titan Embeddings as a low-cost embedding option for a filings vector store; strategically, evidence of Amazon hedging its Anthropic partnership with in-house models."
+        },
+        {
+          "name": "Amazon Transcribe",
+          "summary": "Speech-to-text with speaker diarization and custom vocabulary.",
+          "example": "Transcribe earnings-call audio the moment it ends — speaker-labeled — hours before the official transcript vendors publish."
+        }
+      ]
+    },
+    {
+      "id": "management-governance",
+      "title": "Management and Governance",
+      "icon": "Eye",
+      "color": "teal",
+      "services": [
+        {
+          "name": "AWS Auto Scaling",
+          "summary": "Automatically adjusts capacity (EC2, ECS, DynamoDB) to meet demand at lowest cost.",
+          "example": "Scale transcript workers from 2 to 40 containers on peak earnings days and back down after — the elasticity that underpins cloud unit economics."
+        },
+        {
+          "name": "AWS Chatbot",
+          "summary": "Runs AWS notifications and commands through Slack/Teams (now folded into Amazon Q Developer chat).",
+          "example": "Pipeline-failure alarms post straight into the research team's Slack channel with a \"retry\" action."
+        },
+        {
+          "name": "AWS CloudTrail",
+          "summary": "Records every API call in the account for audit and forensics.",
+          "example": "Prove exactly who changed a production estimate table and when — the audit trail compliance will ask for."
+        },
+        {
+          "name": "Amazon CloudWatch",
+          "summary": "Metrics, alarms, and dashboards for AWS resources and custom application metrics.",
+          "example": "Alarm when Bedrock invocation latency or token spend spikes; a custom metric tracks \"estimates verified per hour.\""
+        },
+        {
+          "name": "Amazon CloudWatch Logs",
+          "summary": "Centralized log collection, storage, and querying (Logs Insights).",
+          "example": "Query all Lambda logs for \"verification failed\" across the quarter to quantify your pipeline's exception rate."
+        },
+        {
+          "name": "Amazon CloudWatch Synthetics",
+          "summary": "Canary scripts that continuously probe endpoints and user flows.",
+          "example": "A canary hits your live agent site every 5 minutes so you know it's down before an interviewer clicks the link."
+        },
+        {
+          "name": "AWS Cost Anomaly Detection",
+          "summary": "ML-based detection of unusual spend patterns with alerts.",
+          "example": "Catch a runaway LLM loop the day it starts burning tokens, not when the monthly bill lands."
+        },
+        {
+          "name": "AWS Cost Explorer",
+          "summary": "Visualize and analyze AWS spend and usage over time.",
+          "example": "Break your side-project spend down by service to see Bedrock inference eclipsing everything else — a microcosm of the industry's AI-capex debate."
+        },
+        {
+          "name": "Amazon Managed Grafana",
+          "summary": "Fully managed Grafana for dashboards across AWS and third-party data sources.",
+          "example": "One ops dashboard blending CloudWatch metrics, RDS stats, and pipeline KPIs — the open-source observability standard, managed."
+        },
+        {
+          "name": "AWS Service Catalog",
+          "summary": "Curated portfolios of approved infrastructure products teams can self-serve deploy.",
+          "example": "A fund's platform team publishes a pre-approved \"research sandbox\" stack so analysts launch compliant environments without tickets."
+        },
+        {
+          "name": "AWS Systems Manager",
+          "summary": "Operations hub: patching, run commands, session access, and Parameter Store for config/secrets.",
+          "example": "Store API endpoints and non-secret config in Parameter Store; patch every EC2 host on a schedule without SSH keys."
+        },
+        {
+          "name": "AWS Well-Architected Tool",
+          "summary": "Reviews workloads against best-practice pillars (security, reliability, cost, performance, operational excellence, sustainability).",
+          "example": "Self-audit your research stack before an interview — being able to discuss trade-offs by pillar is a strong FDE signal."
+        }
+      ]
+    },
+    {
+      "id": "migration-transfer",
+      "title": "Migration and Transfer",
+      "icon": "ArrowRightLeft",
+      "color": "rose",
+      "services": [
+        {
+          "name": "AWS DataSync",
+          "summary": "Accelerated, automated data transfer between on-prem storage and AWS (or between AWS services).",
+          "example": "Migrate a decade of archived research files from an on-prem NAS to S3 with checksums verified — the plumbing of enterprise cloud migrations."
+        },
+        {
+          "name": "AWS Transfer Family",
+          "summary": "Managed SFTP/FTPS/FTP endpoints backed by S3 or EFS.",
+          "example": "A data vendor still delivers nightly files by SFTP; Transfer Family drops them straight into S3 where the pipeline picks them up — no server to run."
+        }
+      ]
+    },
+    {
+      "id": "networking",
+      "title": "Networking and Content Delivery",
+      "icon": "Globe",
+      "color": "sky",
+      "services": [
+        {
+          "name": "Amazon API Gateway",
+          "summary": "Managed front door for REST/WebSocket APIs: auth, throttling, caching, versioning.",
+          "example": "Expose your EPS-agent's query endpoint with API-key throttling so a demo can't be abused."
+        },
+        {
+          "name": "AWS AppSync",
+          "summary": "Managed GraphQL (and pub/sub) API layer that aggregates multiple data sources with real-time subscriptions.",
+          "example": "A portfolio dashboard where one GraphQL query fetches positions (RDS), prices (DynamoDB), and notes (S3) — and live-updates via subscriptions."
+        },
+        {
+          "name": "Amazon CloudFront",
+          "summary": "Global CDN delivering content from 600+ edge locations with DDoS protection.",
+          "example": "Serve your Astro portfolio site globally at low latency; investment angle: the CDN layer where AWS competes with Cloudflare, Akamai, and Fastly."
+        },
+        {
+          "name": "Elastic Load Balancing (ELB)",
+          "summary": "Distributes traffic across targets (ALB for HTTP, NLB for TCP) with health checks.",
+          "example": "An ALB in front of Fargate tasks routes /api to the backend and /docs to a static container, dropping unhealthy tasks automatically."
+        },
+        {
+          "name": "AWS Global Accelerator",
+          "summary": "Anycast static IPs that route users onto the AWS backbone at the nearest edge for lower, more consistent latency.",
+          "example": "A global trading app gets consistent latency for users in Singapore and London — the AWS network itself as a product."
+        },
+        {
+          "name": "AWS PrivateLink",
+          "summary": "Private connectivity to AWS services or SaaS endpoints without traversing the public internet.",
+          "example": "Why enterprises trust Bedrock: prompts and filings flow VPC-to-service privately — a real objection-handler in enterprise AI sales."
+        },
+        {
+          "name": "Amazon Route 53",
+          "summary": "Highly available DNS with health checks, failover, and domain registration.",
+          "example": "industrial-eps-agent.com's DNS lives here; latency-based routing could serve EU users from a Frankfurt deployment."
+        },
+        {
+          "name": "Amazon VPC",
+          "summary": "Your logically isolated network in AWS: subnets, route tables, security groups, NAT.",
+          "example": "RDS sits in private subnets reachable only from the Fargate tasks — the isolation model underpinning every enterprise cloud security conversation."
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security, Identity, and Compliance",
+      "icon": "Shield",
+      "color": "red",
+      "services": [
+        {
+          "name": "Amazon Cognito",
+          "summary": "Managed user auth for apps: sign-up/sign-in, user pools, social/SAML federation, token issuance.",
+          "example": "Gate the research copilot behind Cognito with MFA; competitively, AWS's counterpart to Auth0/Okta at a fraction of the per-user price."
+        },
+        {
+          "name": "AWS Encryption SDK",
+          "summary": "Client-side encryption library implementing envelope encryption best practices.",
+          "example": "Encrypt proprietary estimate data in the application before it's written to S3, keeping plaintext out of storage entirely."
+        },
+        {
+          "name": "IAM",
+          "summary": "Identity and access management: users, roles, and fine-grained policies for every AWS action.",
+          "example": "The pipeline's Lambda role can read one bucket and invoke one Bedrock model — nothing else. Least privilege is the answer to half of all AWS security questions."
+        },
+        {
+          "name": "IAM Access Analyzer",
+          "summary": "Finds resources shared externally and unused permissions; validates policies.",
+          "example": "Flags that a filings bucket is publicly readable before your proprietary data leaks — the guardrail on the guardrails."
+        },
+        {
+          "name": "IAM Identity Center",
+          "summary": "Centralized SSO across multiple AWS accounts and business apps, federated with a corporate IdP.",
+          "example": "A fund's analysts log in once via Okta and assume scoped roles across dev/staging/prod accounts."
+        },
+        {
+          "name": "AWS KMS",
+          "summary": "Managed creation and control of encryption keys used across AWS services.",
+          "example": "All research S3 buckets and RDS volumes encrypt under a customer-managed key with rotation — the checkbox every institutional client requires."
+        },
+        {
+          "name": "Amazon Macie",
+          "summary": "ML-powered discovery of sensitive data (PII, credentials) in S3.",
+          "example": "Scan ingested vendor datasets for stray PII before they enter the research lake — MNPI/PII hygiene automated."
+        },
+        {
+          "name": "AWS Secrets Manager",
+          "summary": "Stores, rotates, and delivers secrets (API keys, DB passwords) programmatically.",
+          "example": "The pipeline fetches its market-data API key at runtime; nothing sensitive lives in code or env files on GitHub."
+        },
+        {
+          "name": "AWS WAF",
+          "summary": "Web application firewall filtering malicious traffic (SQLi, XSS, bots, rate abuse) at CloudFront/ALB/API Gateway.",
+          "example": "Rate-limit and bot-filter your public demo endpoints so a scraper can't run up your Bedrock bill."
+        }
+      ]
+    },
+    {
+      "id": "storage",
+      "title": "Storage",
+      "icon": "HardDrive",
+      "color": "amber",
+      "services": [
+        {
+          "name": "Amazon EBS",
+          "summary": "Block storage volumes attached to EC2 instances (the cloud \"hard drive\"), with snapshots.",
+          "example": "A high-IOPS gp3 volume backs a temporary database during a large historical backfill; snapshot it before risky schema changes."
+        },
+        {
+          "name": "Amazon EFS",
+          "summary": "Elastic, shared NFS file system mountable by many instances/containers simultaneously.",
+          "example": "Multiple Fargate tasks share one model-artifact and reference-data directory without copying files into each image."
+        },
+        {
+          "name": "Amazon S3",
+          "summary": "Durable (11 nines), effectively unlimited object storage; the default data lake substrate.",
+          "example": "Every filing, transcript, and parquet table in your pipeline lives in S3 — and S3 as the gravity well is the core AWS moat argument."
+        },
+        {
+          "name": "Amazon S3 Intelligent-Tiering",
+          "summary": "Automatically moves objects between access tiers based on usage, cutting cost with no retrieval penalty.",
+          "example": "Ten years of transcripts: last quarter stays hot, 2016's drifts to archive tiers automatically — storage cost optimization with zero ops."
+        },
+        {
+          "name": "Amazon S3 Lifecycle policies",
+          "summary": "Rules that transition or expire objects on age (e.g., to Glacier after 90 days, delete after 7 years).",
+          "example": "Raw scraped HTML expires after 30 days once parsed; processed data transitions to Glacier per a 7-year retention policy."
+        },
+        {
+          "name": "Amazon S3 Cross-Region Replication",
+          "summary": "Automatically replicates objects to a bucket in another region for DR/compliance/latency.",
+          "example": "The research data lake replicates us-east-1 → eu-west-1 so a regional outage can't take the investment process offline — the resilience posture institutional allocators ask about."
+        }
+      ]
+    }
+  ]
+}

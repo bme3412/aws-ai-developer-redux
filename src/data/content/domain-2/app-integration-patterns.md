@@ -1,1446 +1,785 @@
-# Application Integration Patterns
+# Task 2.5 — Implement Application Integration Patterns and Development Tools
 
-**Domain 2 | Task 2.5 | ~45 minutes**
+**Domain 2 · Skills 2.5.1–2.5.6**
+
+[Task 2.4](/learn/2/fm-api-integrations) was **the wire**. [Task 2.3](/learn/2/enterprise-integration) was **the enterprise**. This task is **the workbench**: the interfaces applications and developers actually touch, the business workflows GenAI improves, the frameworks for composing agentic apps, and the tools for building and debugging all of it faster.
+
+The six skills are three pairs. That pairing is the whole mental model.
+
+| Pair | Skills | Lens |
+|------|--------|------|
+| **Interfaces** | 2.5.1 design the API around GenAI physics; 2.5.2 make it consumable | In |
+| **Applications** | 2.5.3 embed in business systems; 2.5.5 compose agentic apps | Out |
+| **Developer** | 2.5.4 AI to *build* faster; 2.5.6 observability to *debug* faster | Around |
+
+This task **overlaps on purpose**. Streaming and retries showed up in 2.4.2/2.4.3. Step Functions in 2.4.4 and 2.1. X-Ray in 2.4.3. Exam stems here are framed as *application requirements* (“the team needs…”, “developers must…”) rather than raw invoke mechanics. Read the repeats as the same facts at the **contract and workbench** layer.
+
+By the end you should be able to answer, out loud:
+
+> How is the copilot’s API shaped around tokens and 29-second ceilings, who gets Amplify vs Flows vs OpenAPI, which AWS shape enriches Salesforce vs extracts 10-Ks, which framework is the agent, and how do we see the prompt that went wrong?
+
+One application runs through every section.
+
+> **Technology Investment Research Copilot.** Front-end wants a React chat with auth *this sprint*. Platform publishes an OpenAPI contract that agents also use as tools. Salesforce leads need a draft on create. 10-Ks need extract → review → deliver. Analysts talk to research, drafting, and data specialists. Engineers write Bedrock SDK code in the IDE and debug “the answer was wrong.”
+
+> **Exam tip:** Blueprint names **streaming / tokens / retries** (2.5.1), **Amplify / OpenAPI / Bedrock Flows** (2.5.2), **Lambda CRM / Step Functions docs / BDA** plus **Q Business / Quick** (2.5.3), **Q Developer** (and **Kiro / Unified Studio**) (2.5.4), **Strands / Agent Squad / Step Functions / chaining** (2.5.5), **Logs Insights / X-Ray / Q ops** (2.5.6).
 
 ---
 
-## Why This Matters
+## Skill 2.5.1 — FM API interfaces
 
-Building GenAI into applications requires more than calling an API. You need **UI components** that handle streaming text, **business system integrations** that connect AI to where work happens, and **developer tooling** that accelerates building these systems.
+**The question this skill answers:** Ordinary REST assumes small payloads, sub-second responses, stateless calls. GenAI violates all three. How do you design the *contract* around that?
 
-The challenge isn't technical capability—modern foundation models can do remarkable things. The challenge is **integration**: how do you surface AI capabilities in ways users naturally interact with? How do you connect AI to the 47 different systems your enterprise already uses? How do you debug when something goes wrong in a probabilistic system?
+**Concept.** Three named concerns: **streaming through the API layer**, **token limit management**, **retry strategies for model timeouts**. You already met the transports in [2.4.2](/learn/2/fm-api-integrations). Here the exam asks whether the *interface* respects them.
 
-AWS provides managed services for common integration patterns—from Amplify UI components to Q Business for enterprise knowledge to Q Developer for code assistance. Understanding when to use these managed services versus building custom solutions determines whether you ship in weeks or months.
+**Mental model.** The AMD chat API is not `GET /ticker` with a 200 ms JSON body.
 
-**The Integration Spectrum**:
+**Streaming as an interface decision.** Default **API Gateway REST/HTTP buffers**. HTTP APIs still do not stream. REST integrations still **hard-timeout around 29 seconds** unless you change the pattern. REST *can* stream if `responseTransferMode=STREAM` (2.4.2) — stems that say “REST timed out at ~29s” are still testing the default ceiling.
 
-| Timeline | Options | Trade-offs |
-|----------|---------|------------|
-| **Simple (Weeks)** | Q Business, Q Developer, Prompt Flows | Limited customization, lower maintenance |
-| **Medium (Months)** | Custom RAG, Amplify + Bedrock, Lambda Integration | Moderate customization |
-| **Complex (Quarters)** | Multi-Agent Orchestration, Custom Pipelines | Full control, higher maintenance |
+Decision tree:
+
+| Need | Interface |
+|------|-----------|
+| Interactive stream over plain HTTP | **Lambda function URL** response streaming (optional CloudFront) |
+| Bidirectional / long-lived / cancel | **API Gateway WebSocket API** |
+| REST *must* front it and generation is long | **Async contract**: accept, return **job ID**, poll / SSE / WebSocket push |
+
+Design the **chunk contract** as carefully as the transport: delta text, finish reason, usage in a terminal event — so every consumer parses the stream the same way.
+
+**Token limit management — three points.**
+
+- **Input:** estimate/count before invoke. API Gateway JSON Schema catches gross size (2.4.1); Lambda does token math. RAG: explicit **context budget** — system + chunks + history + user must fit. Trim by policy (oldest history first, then lowest-ranked chunks).
+- **Output:** set `max_tokens` *per use case*, not the model maximum. Surface **stop reason** so clients distinguish finished vs truncated.
+- **Accounting:** return usage metadata; log per caller. That feeds [2.3.5](/learn/2/enterprise-integration) cost attribution and [2.4.3](/learn/2/fm-api-integrations) quotas.
+
+**Retries vs timeouts.** A long generation can outrun the *client*, Lambda, or the 29 s Gateway ceiling. Blindly retrying a *slow-but-succeeding* call **doubles cost**. Design responses:
+
+1. Extend SDK **read timeouts** (defaults are for fast APIs).
+2. Align the chain **outermost longest**: client > API > Lambda > SDK — or inner success is discarded as outer failure.
+3. Retry **idempotently**: client request ID → return the cached first result.
+4. Prefer **streaming as timeout defense** — first token in seconds keeps idle timeouts from firing.
+5. If it will not fit interactive limits, **change the pattern** (SQS async, 2.4.1) — do not keep raising one timeout.
+
+Backoff-and-jitter from 2.4.3 still applies to *genuine* failures (`ThrottlingException`, 5xx). Do not confuse “it was slow” with “it failed.”
+
+**Failure mode.** REST proxy, 29 s default, no job ID, retry on timeout with no idempotency key — you pay twice and the analyst sees an error after a successful generation.
+
+```quickcheck
+Q: REST API Gateway in front of a 40 s AMD thesis generation. Users see 29 s timeouts; retries double the bill.
+A: Raise temperature
+B: Do not pretend REST is a 60 s stream — function URL / WebSocket / REST STREAM, or async job ID; align timeouts; idempotent retries
+C: Put the weights on Lambda
+D: Disable max_tokens
+correct: B
+feedback: 2.5.1 is the contract. 2.4.2 is the transport. Same 29 s fact, application-requirements stem.
+```
+
+```fillin
+Context window overflow is an API design problem: enforce an explicit {{context budget}} (system + chunks + history + user).
+```
 
 ---
 
-## Under the Hood: How Integration Services Work
+## Skill 2.5.2 — Accessible AI interfaces
 
-Understanding the internal architecture of AWS integration services helps you make better choices and debug issues effectively.
+**The question this skill answers:** Adoption is throttled by how hard FM capability is to consume. Which mechanism for which audience?
 
-### Q Business: The Managed Knowledge Pipeline
+**Concept.** Three layers. Matching **mechanism to audience** is what the exam tests.
 
-When users query Q Business, here's what happens behind the scenes:
+| Mechanism | Audience | What it hides |
+|-----------|----------|----------------|
+| **Amplify AI kit** | Front-end developers | Auth, APIs, streaming, conversation history |
+| **OpenAPI / API-first** | API teams *and* agent builders | Contract drift; hand-written clients, docs, **tool defs** |
+| **Bedrock Flows** (exam: **Prompt Flows**) | Non-coders, rapid prototypers | Code — visual prompts / KBs / Lambdas / agents / conditions |
+
+**Amplify.** Declare auth/data/hosting in TypeScript. The **AI kit** adds conversation or generation routes plus React chat/streaming components wired to Bedrock. Cognito, streaming, and history are handled. Trigger: “front-end team,” “React app,” “fastest path to a chat UI with authentication.”
+
+**OpenAPI.** Write the **contract before the implementation**. Generate clients, stubs, docs, mocks. Two GenAI-specific reasons it is on the blueprint: **API Gateway can import the spec** (including request-validation models — loop closed with 2.4.1), and OpenAPI schemas are how **Bedrock Agents action groups** (and similar tool contracts) learn what they can call. A clean spec is simultaneously human docs and **machine-consumable tools**. That dual use is a favorite stem.
+
+**Bedrock Flows.** Visual builder: drag prompt, Knowledge Base, Lambda, agent, condition nodes; test in console; publish a **versioned, invokable** resource. Trigger: “business analysts / minimal coding / visual workflow.” Developers may prototype a chain on the canvas, then harden in code.
+
+**Flows vs Step Functions.** Flows is **FM-native and no-code**, inside Bedrock’s world. **Step Functions** is general-purpose orchestration when the workflow spans arbitrary AWS services, needs enterprise retry/HITL, or exceeds the canvas (2.5.5).
+
+**Failure mode.** Platform team writes a custom chat Lambda “because we might need it later” while the stem says the front-end team must ship this sprint with Cognito. Or skip OpenAPI and discover the agent’s action group does not match the live API.
+
+```quickcheck
+Q: Front-end team needs an authenticated AMD chat UI this sprint. They will not own Lambda.
+A: Hand-roll WebSockets and boto3 in React
+B: AWS Amplify AI kit (Cognito, streaming, history)
+C: SageMaker training job
+D: DMS
+correct: B
+feedback: 2.5.2 audience match. Custom streaming is 2.4.2/2.5.1 when you *must* own the wire.
+```
+
+---
+
+## Skill 2.5.3 — Business system enhancements
+
+**The question this skill answers:** 2.3.2 said “embed.” This skill names **three shapes** of business app. Exam scenarios are variations on these.
+
+**Concept.**
+
+| Shape | When | Named implementation |
+|-------|------|----------------------|
+| Discrete event on one record | Enrich / draft / classify when something happens | **Lambda** (+ EventBridge or webhook — 2.3.2) |
+| Multi-stage document pipeline + HITL | Ingest → extract → classify → summarize → review → deliver | **Step Functions** (Map, Retry/Catch, `waitForTaskToken`) |
+| Unstructured → structured, minimal custom code | Documents, images, audio, video → JSON fields | **Bedrock Data Automation (BDA)** blueprints |
+
+**Lambda for CRM.** New Salesforce lead (webhook / partner event) → Lambda pulls the record → Bedrock scores, summarizes, or drafts follow-up → write back via CRM API. Short, **stateless**, event-shaped. Intelligence is one well-prompted call; engineering is auth, idempotency, write-back.
+
+**Step Functions for documents.** 10-Ks land in S3. **Map** fans out pages/files. Per-state retry so one bad PDF does not kill the batch. **`waitForTaskToken`** pauses for a reviewer on low confidence (2.1 HITL, now an application pipeline). Visual history is the audit trail. Standard workflows for long batches; Express for short high-volume.
+
+**BDA.** Managed transform of **multimodal** unstructured content into structured output. Standard outputs (summary, transcript, scene, document text) or **blueprints** (“invoice number, total, dates”) with **confidence scores** for review routing. Also a Knowledge Base **parser** for complex documents.
+
+**Exam decision:** custom logic, mixed services, human approval → **Step Functions**. “Extract structured fields from docs/media with minimal code” → **BDA**. Real systems **nest**: Step Functions calls BDA as the extract state, then HITL.
+
+**Also named on the blueprint (do not skip).** These are *products*, not pipelines you assemble:
+
+| Product | Trigger |
+|---------|---------|
+| **Amazon Q Business** | Employee chat over company data (SharePoint, wikis) with **source ACLs** — do not build that RAG yourself |
+| **Q Business Apps** | No-code internal apps on that same indexed corpus |
+| **Amazon Quick** | Agentic workspace: chat / research / **actions** across enterprise data |
+| **Amazon QuickSight** (often “Quick Sight”) | **Dashboards**, NLQ over metrics, embedded BI |
+
+> **Exam trap:** Q Developer is the **IDE**. Q Business is **company knowledge + ACLs**. QuickSight is **charts**. Quick (workspace) is **actions from chat**. BDA is **structured extraction**, not chat.
+
+**Failure mode.** Build a custom agent + Knowledge Base to answer “what is our travel policy?” with SharePoint ACLs — the stem wanted Q Business. Or hand-roll Textract + three Lambdas when BDA blueprints would emit the invoice JSON.
+
+```quickcheck
+Q: 10k AMD 10-K PDFs → invoice-like fields as JSON, minimal custom code. Low-confidence rows still need a human.
+A: One mega Converse prompt per filing, no orchestration
+B: BDA blueprints for extract; Step Functions around it for Map + waitForTaskToken review
+C: Amplify AI kit
+D: Q Developer in the IDE
+correct: B
+feedback: 2.5.3 nest BDA inside Step Functions when you need HITL. Amplify and Q Dev are other skills.
+```
+
+```fillin
+Low-confidence contract review in a document pipeline → Step Functions {{waitForTaskToken}}.
+```
+
+---
+
+## Skill 2.5.4 — Developer productivity (Q Developer)
+
+**The question this skill answers:** Use a GenAI assistant to **build** GenAI applications faster. Named tool: **Amazon Q Developer**.
+
+**Concept.** Four threads the blueprint likes to isolate (distractors: CodeGuru, DevOps Guru, “just call Bedrock”).
+
+1. **Code generation and refactoring** — IDE / CLI / console. Inline and chat. Agentic multi-file features. Large **code transformations** (flagship: Java version upgrades).
+2. **API assistance** — trained on AWS APIs. Scaffolds **correct boto3/Converse/stream/error handling** (Task 2.4), with citations.
+3. **AI component testing** — generates unit tests: mocked Bedrock, stream assembly, retry paths, malformed output. Pair with [2.3.5](/learn/2/enterprise-integration) eval suites: Q writes *deterministic* tests; eval covers *non-deterministic* model behavior.
+4. **Performance / review** — N+1 calls, missing pagination, sequential work that should be concurrent, oversized prompts, **hardcoded credentials** (echo of 2.3.3).
+
+**2.5.4 vs 2.5.6.** Same product, different hat. Here it is **build-time**. When the scenario is operating/debugging a running app, you have crossed into 2.5.6.
+
+**Also named.** **Kiro** — AWS agentic IDE; spec-driven, plan-and-edit across files. Use when the stem wants an AWS-native agentic *coding environment*; Q Developer when they stay in VS Code/JetBrains. Kiro does **not** replace production Strands/AgentCore. **SageMaker Unified Studio** — unified web IDE for SageMaker data/train/eval/deploy. Not Prompt Management, not Q Developer.
+
+**Failure mode.** “Use Bedrock Agents to autocomplete the IDE.” Or CodeGuru Reviewer as the only answer when the stem is conversational AWS-API scaffolding.
+
+```quickcheck
+Q: Engineers need inline completions, correct Converse streaming snippets, and generated tests for mocked Bedrock.
+A: Amazon Q Business
+B: Amazon Q Developer (build-time)
+C: Amazon QuickSight
+D: Bedrock Data Automation
+correct: B
+feedback: Two Qs. Developer = IDE. Business = company docs + ACLs.
+```
+
+---
+
+## Skill 2.5.5 — Advanced GenAI applications
+
+**The question this skill answers:** Prompt-in, answer-out is not enough. Which **composition** tool for which shape? This is [Task 2.1](/learn/2/agentic-ai) with an *application-framework* lens.
+
+**Concept.** Three tools plus one pattern.
+
+| Tool | Orchestration style | Trigger |
+|------|---------------------|---------|
+| **Strands Agents** | Model-driven loop, **code-first** (model + prompt + tools/MCP) | Custom agent in code; custom tools/MCP |
+| **AWS Agent Squad** | Classifier **routes among specialized agents**, keeps **cross-agent context** | Many specialists, right agent, don’t lose history |
+| **Step Functions** | Explicit, auditable state machine | Deterministic agent workflow; HITL; enterprise error handling |
+| **Prompt chaining** | Linear decomposition (code, Flows, or SF) | Multi-step task; **right-size the model per step** |
+
+**Strands.** OSS AWS-native agent SDK. The LLM plans, calls tools, observes, iterates. **Model-driven** — the model owns the control flow, not a hard-coded graph. Works with Bedrock and beyond. Host it on **AgentCore Runtime** (current platform; see 2.1) — exam still says Strands.
+
+**Agent Squad.** OSS (ex Multi-Agent Orchestrator). **Not a managed service.** 2.4.4 routed among *models*; Squad routes among *agents*. You can run Squad-style routing on AgentCore Runtime.
+
+**Step Functions agent patterns.** ReAct as iterate-until-done: reason → Choice → tool → observe. Orchestrator–worker: plan, then Map/Parallel to specialists, aggregate. Guardrails as timeouts and breakers in states. **SF = inspectable control flow; Strands = the model decides.** Combine: SF as durable outer workflow, agents as steps.
+
+**Prompt chaining.** Extract → analyze → draft → critique. Each step simpler, testable, cacheable, and can use a **cheaper model** (2.4.4 cost logic). Implement in code, **Flows** (2.5.2), or Step Functions when you need branches and Catch.
+
+> **Exam trap:** Agent Squad ≠ Intelligent Prompt Routing. One is agents; one is models in a family. Flows ≠ Step Functions. Strands ≠ AgentCore (framework vs hosting).
+
+**Failure mode.** One 8k-token mega-prompt for extract+thesis+draft. Or a Step Functions Standard graph for a two-tool agent that Strands should own. Or treating Squad as a Bedrock console checkbox.
+
+```quickcheck
+Q: Analysts switch among research, drafting, and data specialists in one conversation. Keep history. Custom tools per agent.
+A: Intelligent Prompt Routing only
+B: Strands (or equivalent) per specialist; Agent Squad / supervisor to classify-and-route with shared context
+C: Glue crawler
+D: QuickSight
+correct: B
+feedback: 2.5.5 multi-agent routing. Prompt routing is modelIds (2.4.4).
+```
+
+---
+
+## Skill 2.5.6 — Troubleshooting FM applications
+
+**The question this skill answers:** Hard failures (errors, throttles, timeouts) vs **soft** failures (HTTP 200, answer wrong / off-policy / slow). What telemetry distinguishes them?
+
+**Concept.** Three named tools: **what** happened, **where** it happened, **what it means**.
+
+| Tool | Question | Notes |
+|------|----------|--------|
+| **CloudWatch Logs Insights** over **Bedrock invocation logging** | What was the prompt/response? | Invocation logging is **off by default**. “We can’t see which prompt produced the bad output” means it was not enabled. Logs hold user data — 2.3 retention/ACL applies. |
+| **X-Ray** | Which hop? | API Gateway → Lambda → retrieval → Bedrock subsegment. Annotate `model_id`, `route`, `tenant`. In 2.5.5 agents, the trace is often the only picture of a dozen tool calls. |
+| **Q Developer (ops)** | What does this error mean? | Same product as 2.5.4. Console: explain throttles, IAM `bedrock:InvokeModel` denials, correlate alarms/metrics/logs. |
+
+**Composite workflow to memorize:** alarm (CloudWatch metrics) → localize hop (**X-Ray**) → inspect exact prompt (**Logs Insights** on invocation logs) → interpret (**Q Developer**).
+
+**Failure mode.** Debug a bad AMD thesis with Lambda ERROR logs only — the model returned 200. Or skip invocation logging then ask X-Ray to show the prompt (traces are timing, not payloads).
+
+```quickcheck
+Q: Analysts complain the copilot “answered the wrong AMD year.” Traces show 200s. Nobody can retrieve the prompt.
+A: Enable Bedrock model invocation logging, then Logs Insights
+B: SageMaker Model Monitor as the only tool
+C: Disable X-Ray
+D: Switch to Textract
+correct: A
+feedback: Soft failure. Invocation logging is off by default. X-Ray localizes hops; it does not store the prompt.
+```
+
+```fillin
+“Can’t see which prompt produced the bad output” → enable Bedrock {{invocation logging}}.
+```
+
+---
+
+## One reference architecture
 
 ```mermaid
-graph TD
-    subgraph "User Interface"
-        A[User Query]
+flowchart TB
+    subgraph IF["2.5.1 / 2.5.2 interfaces"]
+        Amp[Amplify AI kit chat]
+        Spec[OpenAPI: Gateway + agent tools]
+        Amp --> WS[WebSocket / function URL stream]
+        Spec --> API[Validated API: token budget, job IDs]
     end
-
-    subgraph "Q Business Service"
-        B[Query Processor]
-        C[Identity Resolution]
-        D[Permission Filter]
-        E[Retriever]
-        F[Reranker]
-        G[Response Generator]
+    subgraph APP["2.5.3 / 2.5.5 applications"]
+        CRM[Lambda: Salesforce enrich]
+        Docs[Step Functions + BDA + HITL]
+        Squad[Agent Squad: research / draft / data]
+        Strands[Strands agents + prompt chains]
+        Squad --> Strands
     end
-
-    subgraph "Data Layer"
-        H[(Vector Index)]
-        I[(Document Store)]
-        J[Data Source Connectors]
+    WS --> Squad
+    API --> CRM
+    API --> Docs
+    subgraph DX["2.5.4 / 2.5.6 developer"]
+        Qb[Q Developer: code, tests, SDK]
+        Ops[Invocation logs + Insights + X-Ray + Q ops]
     end
-
-    subgraph "External Sources"
-        K[SharePoint]
-        L[Confluence]
-        M[S3]
-        N[Salesforce]
-    end
-
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-    E --> H
-    H --> F
-    F --> I
-    I --> G
-    G --> A
-
-    J --> K
-    J --> L
-    J --> M
-    J --> N
-    J -->|Sync| H
-    J -->|Sync| I
 ```
 
-**What Q Business handles automatically:**
-1. **Data Sync**: Connectors periodically pull documents from sources, chunk them, generate embeddings, and index them
-2. **Identity Resolution**: Maps user identity (from IAM Identity Center) to source system permissions
-3. **Permission Filtering**: Ensures users only see results they're authorized to access in the source system
-4. **Retrieval + Reranking**: Finds relevant documents and reranks by relevance
-5. **Response Generation**: Synthesizes answer with citations from retrieved documents
-
-**Why this matters:** Q Business isn't just "RAG as a service"—it's RAG with **enterprise ACLs built in**. A user can only see answers derived from documents they could access in SharePoint, Confluence, etc. Building this yourself requires integrating with every source system's permission model.
-
-### Amplify AI Kit: Frontend-to-Bedrock Pipeline
-
-When you use Amplify's AI components, the request flows through multiple layers:
-
-```mermaid
-graph LR
-    subgraph "Browser"
-        A[React Component]
-        B[Amplify Client SDK]
-    end
-
-    subgraph "Amplify Backend"
-        C[AppSync/API Gateway]
-        D[Lambda Resolver]
-    end
-
-    subgraph "AWS Services"
-        E[Bedrock Runtime]
-        F[Cognito]
-    end
-
-    A -->|useAIConversation| B
-    B -->|Signed Request| C
-    F -.->|Auth Token| B
-    C --> D
-    D -->|converse| E
-    E -->|Stream| D
-    D -->|SSE| C
-    C -->|SSE| B
-    B -->|State Update| A
-```
-
-**What Amplify handles:**
-- Authentication token injection (Cognito)
-- Request signing for AWS APIs
-- WebSocket/SSE connection management
-- Conversation state management
-- Streaming token accumulation
-- Error handling and retry
-
-**Why this matters:** Without Amplify, you'd write ~500 lines of boilerplate for auth, streaming, and state management before getting to your actual application logic.
-
-### Prompt Flows: Visual Workflow Execution
-
-Prompt Flows compiles your visual workflow into an execution graph:
-
-```mermaid
-graph TD
-    subgraph "Design Time"
-        A[Visual Designer]
-        B[Flow Definition JSON]
-    end
-
-    subgraph "Runtime"
-        C[Flow Executor]
-        D[Node 1: Input]
-        E[Node 2: Prompt Template]
-        F[Node 3: Model]
-        G[Node 4: Condition]
-        H[Node 5A: Output A]
-        I[Node 5B: Output B]
-    end
-
-    A -->|Save| B
-    B -->|Load| C
-    C --> D
-    D --> E
-    E --> F
-    F --> G
-    G -->|Yes| H
-    G -->|No| I
-```
-
-**What happens at each node:**
-- **Input**: Validates schema, extracts variables
-- **Prompt**: Substitutes variables into template
-- **Model**: Makes Bedrock API call, handles streaming
-- **Condition**: Evaluates expression, routes flow
-- **Knowledge Base**: Performs RAG retrieval
-- **Lambda**: Invokes your custom code
-- **Output**: Formats and returns result
-
-**Limitation insight:** Prompt Flows lacks robust error handling, retries, and complex branching compared to Step Functions—it's designed for simplicity, not production resilience.
+- **Amplify** for the React chat; **OpenAPI** as the shared contract and action-group def (2.5.2).
+- Stream and token-budget the API; 29 s REST is not a 40 s thesis (2.5.1).
+- **Lambda** on CRM events; **SF + BDA + waitForTaskToken** on filings (2.5.3).
+- **Squad** routes specialists built with **Strands** and chained prompts (2.5.5).
+- **Q Developer** writes the SDK tests; **invocation logs + Insights + X-Ray + Q** operate it (2.5.4, 2.5.6).
 
 ---
 
-## Building GenAI User Interfaces
+## Architecture decision tables
 
-User interfaces for GenAI applications have unique requirements that differ from traditional web applications. Understanding these requirements is essential for building applications users actually want to use.
+### Interface vs product vs framework
 
-### What Makes GenAI UIs Different
-
-Traditional web applications display complete data once it's ready. GenAI applications must handle **progressive content generation** where responses emerge token by token over several seconds.
-
-| Requirement | Traditional Apps | GenAI Apps | Implementation |
-|-------------|------------------|------------|----------------|
-| **Response display** | Show complete when ready | Stream as tokens arrive | SSE, WebSockets |
-| **Loading indication** | Spinner until done | Typing indicator, partial text | Progressive rendering |
-| **Context management** | Session state | Conversation history | State management + context window |
-| **Source attribution** | Links | Inline citations from RAG | Citation components |
-| **Confidence display** | N/A | Visual uncertainty indicators | Confidence scoring UI |
-| **Alternative responses** | Refresh page | Regenerate button | Multiple response handling |
-| **Error handling** | Error messages | Graceful degradation | Fallback responses |
-
-### Streaming Implementation Pattern
-
-```python
-# Backend: Flask/FastAPI SSE endpoint
-from flask import Flask, Response, stream_with_context
-import boto3
-import json
-
-app = Flask(__name__)
-bedrock = boto3.client('bedrock-runtime')
-
-@app.route('/api/chat', methods=['POST'])
-def chat():
-    prompt = request.json['prompt']
-    conversation_id = request.json.get('conversation_id')
-
-    def generate():
-        response = bedrock.invoke_model_with_response_stream(
-            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-            body=json.dumps({
-                'anthropic_version': 'bedrock-2023-05-31',
-                'max_tokens': 4096,
-                'messages': [{'role': 'user', 'content': prompt}]
-            })
-        )
-
-        for event in response['body']:
-            chunk_data = event.get('chunk', {}).get('bytes')
-            if chunk_data:
-                chunk = json.loads(chunk_data)
-                if chunk['type'] == 'content_block_delta':
-                    text = chunk['delta'].get('text', '')
-                    # Server-Sent Events format
-                    yield f"data: {json.dumps({'text': text, 'done': False})}\n\n"
-                elif chunk['type'] == 'message_stop':
-                    yield f"data: {json.dumps({'text': '', 'done': True})}\n\n"
-
-    return Response(
-        stream_with_context(generate()),
-        mimetype='text/event-stream',
-        headers={
-            'Cache-Control': 'no-cache',
-            'X-Accel-Buffering': 'no'  # Disable nginx buffering
-        }
-    )
-```
-
-```typescript
-// Frontend: React streaming component
-import { useState, useCallback } from 'react';
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  isStreaming?: boolean;
-}
-
-function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const sendMessage = useCallback(async (prompt: string) => {
-    // Add user message
-    setMessages(prev => [...prev, { role: 'user', content: prompt }]);
-
-    // Add empty assistant message for streaming
-    setMessages(prev => [...prev, {
-      role: 'assistant',
-      content: '',
-      isStreaming: true
-    }]);
-
-    setIsLoading(true);
-
-    const eventSource = new EventSource(`/api/chat?prompt=${encodeURIComponent(prompt)}`);
-
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.done) {
-        // Mark streaming complete
-        setMessages(prev => {
-          const updated = [...prev];
-          updated[updated.length - 1].isStreaming = false;
-          return updated;
-        });
-        eventSource.close();
-        setIsLoading(false);
-      } else {
-        // Append streamed text
-        setMessages(prev => {
-          const updated = [...prev];
-          updated[updated.length - 1].content += data.text;
-          return updated;
-        });
-      }
-    };
-
-    eventSource.onerror = () => {
-      eventSource.close();
-      setIsLoading(false);
-    };
-  }, []);
-
-  return (
-    <div className="chat-container">
-      {messages.map((msg, i) => (
-        <div key={i} className={`message ${msg.role}`}>
-          {msg.content}
-          {msg.isStreaming && <span className="cursor-blink">▌</span>}
-        </div>
-      ))}
-    </div>
-  );
-}
-```
-
-### AWS Amplify for AI Interfaces
-
-**AWS Amplify** provides React components specifically designed for AI interfaces, eliminating the need to build complex streaming and state management from scratch.
-
-**Amplify Gen2 AI Capabilities**:
-
-| Feature | Description | Benefit |
-|---------|-------------|---------|
-| **AI Kit** | Pre-built conversation components | Production-ready chat UI |
-| **Bedrock Integration** | Direct connection to Bedrock models | No middleware required |
-| **Conversation Management** | Multi-turn context handling | Automatic history |
-| **Streaming Display** | Token-by-token rendering | Better UX |
-| **Authentication** | Cognito integration | Secure access |
-| **Backend Routes** | Server-side Bedrock calls | API key protection |
-
-```typescript
-// Amplify Gen2 AI conversation setup
-import { defineBackend } from '@aws-amplify/backend';
-import { defineConversationHandler } from '@aws-amplify/backend-ai/conversation';
-
-// Define the AI conversation handler
-export const aiHandler = defineConversationHandler({
-  name: 'SupportAssistant',
-  systemPrompt: `You are a helpful customer support assistant for TechCorp.
-    You have access to product documentation and can help with:
-    - Product questions
-    - Troubleshooting
-    - Account inquiries
-    Be concise and helpful.`,
-
-  model: {
-    resourcePath: 'anthropic.claude-3-sonnet-20240229-v1:0',
-    region: 'us-east-1'
-  },
-
-  inferenceConfiguration: {
-    maxTokens: 2048,
-    temperature: 0.7,
-    topP: 0.9
-  }
-});
-
-// Frontend usage
-import { generateClient } from 'aws-amplify/api';
-import { createAIConversation } from '@aws-amplify/ui-react-ai';
-
-const client = generateClient();
-
-function SupportChat() {
-  const [
-    { messages, isLoading },
-    handleSendMessage
-  ] = createAIConversation(client, 'SupportAssistant');
-
-  return (
-    <AIConversation
-      messages={messages}
-      isLoading={isLoading}
-      onSendMessage={handleSendMessage}
-      avatars={{
-        user: { src: '/user-avatar.png' },
-        ai: { src: '/bot-avatar.png' }
-      }}
-    />
-  );
-}
-```
-
-### Bedrock Prompt Flows
-
-**Bedrock Prompt Flows** enables **non-developers** to build AI workflows visually, accelerating experimentation by removing the developer bottleneck for simple automation.
-
-**Prompt Flow Structure:**
-Input Node → Prompt Template → Model Node → Parser Node → Condition Node → Output Node
-
-**Available Node Types:** Input, Prompt, Model, Condition, Output, Knowledge Base, Lambda, S3
-
-**Prompt Flow Node Types**:
-
-| Node Type | Purpose | Use Case |
-|-----------|---------|----------|
-| **Input** | Accept user input | Start of flow |
-| **Prompt** | Template with variables | Reusable prompts |
-| **Model** | Invoke foundation model | Generate response |
-| **Knowledge Base** | RAG retrieval | Ground responses |
-| **Condition** | Branch logic | Route by content |
-| **Lambda** | Custom code | Complex processing |
-| **Output** | Return result | End of flow |
-
-**When to Use Prompt Flows vs Code**:
-
-| Prompt Flows | Custom Code |
-|--------------|-------------|
-| Business user prototyping | Production systems |
-| Simple linear workflows | Complex branching |
-| Quick experimentation | Fine-grained control |
-| No deployment infrastructure | CI/CD integration |
-| Limited error handling | Comprehensive error handling |
-
-### OpenAPI for API Contracts
-
-**OpenAPI specifications** define your GenAI API contracts, providing a single source of truth for frontend-backend integration.
-
-```yaml
-# GenAI API Contract - openapi.yaml
-openapi: 3.0.3
-info:
-  title: GenAI Application API
-  version: 1.0.0
-  description: API for AI-powered customer support application
-
-paths:
-  /api/chat:
-    post:
-      operationId: sendMessage
-      summary: Send a chat message and receive AI response
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ChatRequest'
-      responses:
-        '200':
-          description: Streaming AI response
-          content:
-            text/event-stream:
-              schema:
-                $ref: '#/components/schemas/StreamChunk'
-        '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RateLimitError'
-
-  /api/conversations/{conversationId}:
-    get:
-      operationId: getConversation
-      summary: Retrieve conversation history
-      parameters:
-        - name: conversationId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Conversation history
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Conversation'
-
-components:
-  schemas:
-    ChatRequest:
-      type: object
-      required:
-        - message
-      properties:
-        message:
-          type: string
-          maxLength: 10000
-        conversationId:
-          type: string
-          format: uuid
-        temperature:
-          type: number
-          minimum: 0
-          maximum: 1
-          default: 0.7
-
-    StreamChunk:
-      type: object
-      properties:
-        text:
-          type: string
-        done:
-          type: boolean
-        citations:
-          type: array
-          items:
-            $ref: '#/components/schemas/Citation'
-
-    Citation:
-      type: object
-      properties:
-        source:
-          type: string
-        text:
-          type: string
-        confidence:
-          type: number
-
-    RateLimitError:
-      type: object
-      properties:
-        error:
-          type: string
-        retryAfter:
-          type: integer
-          description: Seconds until retry allowed
-```
-
----
-
-## Integrating with Business Systems
-
-GenAI adds intelligence to business processes across the enterprise. The key is connecting AI capabilities to **where work actually happens** rather than creating separate AI applications.
-
-### Amazon Q Business Architecture
-
-**Q Business** provides enterprise knowledge assistance **without requiring you to build custom RAG pipelines**.
-
-**Q Business Architecture:**
-
-**Data Sources (40+ Connectors):** SharePoint, Confluence, Slack, Salesforce, S3, Box, Jira, Zendesk
-
-↓ **Ingestion Pipeline** ↓
-
-**Automatic Processing:** Chunking → Embedding → Indexing
-
-↓ **Answer Engine** ↓
-
-**Output Channels:** Web App, Slack Bot, Teams Bot
-
-**Security:** IAM Identity Center - ACLs from source systems respected automatically
-
-**What Q Business handles automatically:**
-
-| Component | Q Business | Custom RAG |
-|-----------|------------|------------|
-| **Data connectors** | 40+ pre-built | Build per source |
-| **Document parsing** | PDFs, Office, HTML | Custom parsers |
-| **Chunking strategy** | Optimized defaults | Design and tune |
-| **Embedding generation** | Managed | Choose model, deploy |
-| **Vector storage** | Managed | OpenSearch, Aurora, etc. |
-| **Retrieval ranking** | Built-in | Implement reranking |
-| **Access control** | From source systems | Implement manually |
-| **Response generation** | Configured model | Prompt engineering |
-
-### Q Business vs Custom RAG Decision Framework
-
-| Factor | Choose Q Business | Choose Custom RAG |
-|--------|-------------------|-------------------|
-| **Time to deploy** | Weeks | Months |
-| **Data sources** | Standard enterprise systems | Proprietary systems |
-| **Chunking needs** | Default works | Domain-specific required |
-| **Embedding model** | Default sufficient | Custom/fine-tuned needed |
-| **Access control** | Enterprise ACLs | Complex custom rules |
-| **Response format** | Standard Q&A | Structured extraction |
-| **Cost model** | Predictable per-user | Variable per-query |
-
-**When Q Business is ideal:**
-- Employee questions about internal docs
-- HR policy lookups
-- IT support knowledge base
-- Sales enablement content
-- Cross-department information access
-
-**When Custom RAG is required:**
-- Specific chunking strategies (code, legal documents)
-- Custom embedding models (domain-specific vocabulary)
-- Multi-modal retrieval (images, diagrams)
-- Complex re-ranking logic
-- Structured output extraction
-
-### Amazon Q Business Apps
-
-**Q Business Apps** is the no-code layer on top of Q Business. Business users build internal AI apps—intake forms, approval helpers, knowledge assistants—against the same connected data sources and ACLs, without a developer writing a RAG pipeline.
-
-| Need | Choose |
+| Stem | Answer |
 |------|--------|
-| Employees asking questions over SharePoint/Confluence/S3 | **Q Business** |
-| A business team shipping a packaged app on that same index | **Q Business Apps** |
-| Custom retrieval, chunking, or structured extraction | **Custom RAG** (Bedrock Knowledge Bases) |
+| Front-end chat + auth, this sprint | Amplify AI kit |
+| Contract first / generate clients / agent tools | OpenAPI |
+| Analysts, no code, visual prompt chain | Bedrock Flows (Prompt Flows) |
+| Arbitrary AWS + HITL + audit | Step Functions |
+| Company wiki Q&A with ACLs | Q Business |
+| Dashboards / NLQ over metrics | QuickSight |
+| IDE completions / Bedrock SDK / tests | Q Developer |
+| Extract fields from 50k PDFs | BDA |
+| Custom agent + MCP in code | Strands |
+| Route among agents, keep context | Agent Squad |
 
-Exam trap: Q Business Apps is not a vector database and not a replacement for Bedrock Agents. It is the no-code app builder on enterprise knowledge that Q Business already indexed.
+### Do not confuse with other tasks
 
-### Amazon Quick vs Q Business vs Quick Sight
-
-The exam lists **Amazon Quick** separately from **Amazon Quick Sight**. Treat them as related, not identical.
-
-| Service | What it is | Exam trigger |
-|---------|------------|--------------|
-| **Amazon Quick** | Agentic AI workspace: chat, research, automation, and actions against connected enterprise data | "AI workspace", "employees take actions from chat", successor positioning to Q Business-style work |
-| **Amazon Quick Sight** | BI dashboards, pixel-perfect reports, embedded analytics (the BI capability inside Quick) | "dashboards", "visualize FM evaluation results", "business metrics" |
-| **Amazon Q Business** | Managed enterprise knowledge Q&A with source ACLs | "internal docs", "40+ connectors", "don't build a RAG pipeline" |
-| **Amazon Q Developer** | IDE/CLI coding assistant | "code generation", "refactor", "IAM policy help" |
-
-Keep Q Business in your decision tree—the exam guide still lists it. When the scenario is **generative BI / agentic workspace / take actions across apps**, think Amazon Quick. When the scenario is **charts and dashboards**, think Quick Sight.
+| This stem | Task |
+|-----------|------|
+| Agent loop, memory, HITL theory, AgentCore | **2.1** |
+| On-demand vs PT vs host | **2.2** |
+| Events, SSO, Outposts, GenAI gateway | **2.3** |
+| Converse, SQS, WebSocket mechanics, modelId routing | **2.4** |
+| API *contract*, Amplify/Flows, CRM/BDA shapes, Q Dev, composition *choice*, debug workflow | **2.5** |
 
 ---
 
-### Bedrock Data Automation
+## Concise AWS service glossary
 
-**Bedrock Data Automation** addresses document-heavy workflows, transforming manual document processing into automated pipelines.
+### Interfaces
 
-**Document Processing Pipeline:**
+#### AWS Amplify AI kit
 
-S3 Input → **Step Functions Workflow:**
-1. Textract (OCR for scanned docs)
-2. Comprehend (Classify document type)
-3. Bedrock (Extract and summarize)
-4. Business Logic (Route to system)
+**What it is.** Declarative full-stack + React chat/generation components on Bedrock.
 
-**Output Routing:**
-- Invoice → ERP
-- Contract → CRM
-- Other → Archive
+**Problem it solves.** Front-end ships authenticated streaming chat without owning Lambda/API/SDK.
 
-**Document Processing Implementation**:
+**Where it sits.** 2.5.2 accessibility.
 
-```python
-import boto3
-import json
-from enum import Enum
+**Typical use.** AMD copilot React app with Cognito and history this sprint.
 
-class DocumentType(Enum):
-    INVOICE = "invoice"
-    CONTRACT = "contract"
-    FORM = "form"
-    CORRESPONDENCE = "correspondence"
-    UNKNOWN = "unknown"
+**Pricing.** Amplify hosting + Bedrock tokens.
 
-class DocumentProcessor:
-    """Intelligent document processing with AWS AI services."""
+**Exam cue.** Front-end team, React, fastest path to chat UI with auth.
 
-    def __init__(self):
-        self.textract = boto3.client('textract')
-        self.comprehend = boto3.client('comprehend')
-        self.bedrock = boto3.client('bedrock-runtime')
+**Do not confuse with.** Hand-rolled WebSocket (2.4.2) when you must own the wire. Q Business (employee knowledge, not your product UI).
 
-    def process_document(self, bucket: str, key: str) -> dict:
-        """Complete document processing pipeline."""
+#### OpenAPI (API-first)
 
-        # Step 1: Extract text with Textract
-        text, tables, forms = self._extract_content(bucket, key)
+**What it is.** Contract-first spec: endpoints, schemas, auth.
 
-        # Step 2: Classify document type
-        doc_type = self._classify_document(text)
+**Problem it solves.** Parallel work, generated clients, **and** agent action-group / tool definitions.
 
-        # Step 3: Extract structured data based on type
-        extracted_data = self._extract_structured_data(text, tables, doc_type)
+**Where it sits.** 2.5.2; imports into API Gateway (2.4.1 validation).
 
-        # Step 4: Generate summary
-        summary = self._generate_summary(text, doc_type)
+**Typical use.** Internal AMD API spec is also the tool catalog for Strands / Classic action groups.
 
-        return {
-            'documentType': doc_type.value,
-            'extractedData': extracted_data,
-            'summary': summary,
-            'confidence': self._calculate_confidence(extracted_data)
-        }
+**Pricing.** Free artifact.
 
-    def _extract_content(self, bucket: str, key: str) -> tuple:
-        """Extract text, tables, and forms from document."""
-        response = self.textract.analyze_document(
-            Document={'S3Object': {'Bucket': bucket, 'Name': key}},
-            FeatureTypes=['TABLES', 'FORMS']
-        )
+**Exam cue.** Define the contract first; generate clients; agent tool defs.
 
-        text_blocks = []
-        tables = []
-        forms = {}
+**Do not confuse with.** Flows (visual FM graph). Ad-hoc JSON in a wiki.
 
-        for block in response['Blocks']:
-            if block['BlockType'] == 'LINE':
-                text_blocks.append(block['Text'])
-            elif block['BlockType'] == 'TABLE':
-                tables.append(self._parse_table(block, response['Blocks']))
-            elif block['BlockType'] == 'KEY_VALUE_SET':
-                key, value = self._parse_form_field(block, response['Blocks'])
-                if key:
-                    forms[key] = value
+#### Amazon Bedrock Flows (Prompt Flows)
 
-        return '\n'.join(text_blocks), tables, forms
+**What it is.** Visual, versioned orchestration of prompts, KBs, Lambdas, agents, conditions.
 
-    def _classify_document(self, text: str) -> DocumentType:
-        """Classify document using Comprehend custom classifier."""
-        # Use keywords and patterns for classification
-        text_lower = text.lower()
+**Problem it solves.** No-code / rapid prototype of FM-native chains.
 
-        if any(kw in text_lower for kw in ['invoice', 'bill to', 'amount due', 'payment terms']):
-            return DocumentType.INVOICE
-        elif any(kw in text_lower for kw in ['agreement', 'whereas', 'parties agree', 'terms and conditions']):
-            return DocumentType.CONTRACT
-        elif any(kw in text_lower for kw in ['please fill', 'signature:', 'date of birth']):
-            return DocumentType.FORM
-        else:
-            return DocumentType.CORRESPONDENCE
+**Where it sits.** 2.5.2; a way to implement 2.5.5 chaining.
 
-    def _extract_structured_data(self, text: str, tables: list, doc_type: DocumentType) -> dict:
-        """Extract structured data using Bedrock based on document type."""
+**Typical use.** Analyst-built “extract then draft” AMD flow; later hardened in code.
 
-        extraction_prompts = {
-            DocumentType.INVOICE: """Extract the following from this invoice:
-                - Invoice number
-                - Invoice date
-                - Due date
-                - Vendor name
-                - Total amount
-                - Line items (description, quantity, unit price, total)
+**Pricing.** Node transitions + underlying model/KB.
 
-                Return as JSON. Document text:
-                {text}""",
+**Exam cue.** Non-developers, visual workflow builder. Exam wording often **Prompt Flows**.
 
-            DocumentType.CONTRACT: """Extract the following from this contract:
-                - Contract parties
-                - Effective date
-                - Term/duration
-                - Key obligations
-                - Termination conditions
-                - Total value (if specified)
+**Do not confuse with.** Step Functions (general AWS, HITL, enterprise Catch). Prompt Management (version prompts, not the graph).
 
-                Return as JSON. Document text:
-                {text}"""
-        }
+### Business systems
 
-        prompt = extraction_prompts.get(doc_type, "Extract key information as JSON:\n{text}")
+#### Lambda CRM enhancement
 
-        response = self.bedrock.invoke_model(
-            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-            body=json.dumps({
-                'anthropic_version': 'bedrock-2023-05-31',
-                'max_tokens': 2048,
-                'messages': [{
-                    'role': 'user',
-                    'content': prompt.format(text=text[:8000])  # Truncate for context limit
-                }]
-            })
-        )
+**What it is.** Short stateless function: event → Bedrock → write back to CRM.
 
-        result = json.loads(response['body'].read())
-        return json.loads(result['content'][0]['text'])
+**Problem it solves.** Enrich/draft/classify **one record when something happens**.
 
-    def _generate_summary(self, text: str, doc_type: DocumentType) -> str:
-        """Generate executive summary of document."""
-        response = self.bedrock.invoke_model(
-            modelId='anthropic.claude-3-haiku-20240307-v1:0',  # Faster model for summaries
-            body=json.dumps({
-                'anthropic_version': 'bedrock-2023-05-31',
-                'max_tokens': 256,
-                'messages': [{
-                    'role': 'user',
-                    'content': f"Summarize this {doc_type.value} in 2-3 sentences:\n{text[:4000]}"
-                }]
-            })
-        )
+**Where it sits.** 2.5.3; uses 2.3.2 EventBridge/webhooks.
 
-        result = json.loads(response['body'].read())
-        return result['content'][0]['text']
-```
+**Typical use.** Salesforce lead created → score + draft AMD outreach.
 
-### CRM Integration Pattern
+**Pricing.** Invocations + tokens.
 
-Lambda functions call Bedrock from CRM triggers, enabling AI enhancement of existing business processes:
+**Exam cue.** CRM enhancement on an event.
 
-**CRM-GenAI Integration:**
+**Do not confuse with.** Step Functions document pipeline. Q Business.
 
-| CRM Event | → EventBridge → | AI Action |
-|-----------|-----------------|-----------|
-| New Case Created | → | Summarize History |
-| Email Received | → | Draft Response |
-| Status Change | → | Analyze Sentiment |
+#### AWS Step Functions (document / agent patterns)
 
-**Integration Flow:** EventBridge → Lambda → Bedrock → CRM API (Update)
+**What it is.** State machine: Map, Retry/Catch, `waitForTaskToken`, Standard vs Express.
 
-```python
-import boto3
-import json
-from datetime import datetime
+**Problem it solves.** Auditable multi-stage pipelines and deterministic agent graphs.
 
-class CRMIntegration:
-    """AI-enhanced CRM operations via Lambda + Bedrock."""
+**Where it sits.** 2.5.3 documents; 2.5.5 explicit agent flow.
 
-    def __init__(self):
-        self.bedrock = boto3.client('bedrock-runtime')
-        # Your CRM client here
+**Typical use.** 10-K batch with BDA extract and human review; or ReAct as states.
 
-    def handle_new_case(self, event: dict) -> dict:
-        """Process new support case with AI enhancement."""
-        case_id = event['detail']['caseId']
-        customer_id = event['detail']['customerId']
-        subject = event['detail']['subject']
-        description = event['detail']['description']
+**Pricing.** State transitions.
 
-        # Get customer history
-        history = self._get_customer_history(customer_id)
+**Exam cue.** Document pipeline with human review; auditable deterministic agent workflow.
 
-        # Generate case summary and recommendations
-        analysis = self._analyze_case(subject, description, history)
+**Do not confuse with.** Strands (model-driven). Flows (Bedrock canvas). 2.4.4 Choice for *modelId* routing.
 
-        # Update CRM with AI insights
-        self._update_crm_case(case_id, {
-            'aiSummary': analysis['summary'],
-            'suggestedCategory': analysis['category'],
-            'urgencyScore': analysis['urgency'],
-            'suggestedResponse': analysis['draft_response'],
-            'relatedCases': analysis['similar_cases']
-        })
+#### Amazon Bedrock Data Automation (BDA)
 
-        return {'statusCode': 200, 'caseId': case_id}
+**What it is.** Managed unstructured multimodal → structured JSON; blueprints + confidence.
 
-    def _analyze_case(self, subject: str, description: str, history: list) -> dict:
-        """Comprehensive case analysis using Bedrock."""
+**Problem it solves.** Extract fields from documents/images/audio/video with minimal custom code.
 
-        history_text = self._format_history(history)
+**Where it sits.** 2.5.3; often a state inside Step Functions; KB parser.
 
-        prompt = f"""Analyze this customer support case and provide structured insights.
+**Typical use.** 10-K table fields; invoice-like research extras.
 
-SUBJECT: {subject}
+**Pricing.** Per-page / per-minute of media (plus storage).
 
-DESCRIPTION:
-{description}
+**Exam cue.** Structured extraction, blueprints, minimal code.
 
-CUSTOMER HISTORY (last 5 interactions):
-{history_text}
+**Do not confuse with.** One-shot Converse on a single file. Textract-only (text/forms, not the FM blueprint layer). Q Business chat.
 
-Provide analysis in the following JSON format:
-{{
-  "summary": "2-3 sentence summary of the issue",
-  "category": "one of: billing, technical, account, general",
-  "urgency": "1-5 where 5 is critical",
-  "urgency_reason": "why this urgency level",
-  "sentiment": "positive, neutral, negative, or frustrated",
-  "draft_response": "suggested agent response",
-  "similar_cases": ["case patterns that might be related"],
-  "recommended_actions": ["specific steps to resolve"]
-}}"""
+#### Amazon Q Business / Q Business Apps
 
-        response = self.bedrock.invoke_model(
-            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-            body=json.dumps({
-                'anthropic_version': 'bedrock-2023-05-31',
-                'max_tokens': 1024,
-                'messages': [{'role': 'user', 'content': prompt}]
-            })
-        )
+**What it is.** Managed enterprise Q&A over connected sources with **identity-aware ACLs**; Apps = no-code apps on that index.
 
-        result = json.loads(response['body'].read())
-        return json.loads(result['content'][0]['text'])
+**Problem it solves.** “Chat our SharePoint” without building RAG + permission mapping.
 
-    def draft_email_response(self, case_id: str, tone: str = 'professional') -> str:
-        """Generate email response draft for support case."""
-        case = self._get_case(case_id)
+**Where it sits.** 2.5.3 productized enhancement.
 
-        prompt = f"""Draft a {tone} customer support email response.
+**Typical use.** IR policy questions; not the AMD thesis copilot’s custom tools.
 
-CUSTOMER ISSUE:
-{case['description']}
+**Pricing.** Users / index.
 
-CUSTOMER NAME: {case['customerName']}
+**Exam cue.** Internal docs, connectors, don’t build a RAG pipeline, ACLs.
 
-RESOLUTION STATUS: {case.get('resolution', 'pending')}
+**Do not confuse with.** Q Developer. Custom Knowledge Bases when you need custom chunking. AgentCore.
 
-Guidelines:
-- Address the customer by name
-- Acknowledge their concern
-- Provide clear next steps or resolution
-- Maintain {tone} tone throughout
-- Keep under 200 words"""
+#### Amazon Quick / QuickSight
 
-        response = self.bedrock.invoke_model(
-            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-            body=json.dumps({
-                'anthropic_version': 'bedrock-2023-05-31',
-                'max_tokens': 512,
-                'messages': [{'role': 'user', 'content': prompt}]
-            })
-        )
+**What it is.** Quick ≈ agentic workspace and actions; QuickSight ≈ dashboards and generative BI.
 
-        result = json.loads(response['body'].read())
-        return result['content'][0]['text']
-```
+**Problem it solves.** Employees acting from chat vs visualizing metrics.
+
+**Where it sits.** 2.5.3.
+
+**Typical use.** Ops dashboard of eval scores (QuickSight); workspace that files a ticket from chat (Quick).
+
+**Pricing.** Readers/authors / sessions.
+
+**Exam cue.** Dashboards vs AI workspace vs Q Business docs.
+
+**Do not confuse with.** Q Developer. BDA.
+
+### Composition
+
+#### Strands Agents
+
+**What it is.** OSS code-first agent SDK: model + prompt + tools/MCP; model-driven loop.
+
+**Problem it solves.** Custom agent behavior you write.
+
+**Where it sits.** 2.5.5; 2.1 loop. Host on AgentCore Runtime.
+
+**Typical use.** AMD research agent with internal APIs as tools.
+
+**Pricing.** Compute + tokens (you host it).
+
+**Exam cue.** Code-first custom agent with tools/MCP.
+
+**Do not confuse with.** AgentCore (hosting). Agent Squad (routing among agents). Harness (managed loop).
+
+#### AWS Agent Squad
+
+**What it is.** OSS classifier/router across specialized agents with shared conversation context.
+
+**Problem it solves.** Many specialists, one conversation, don’t drop history.
+
+**Where it sits.** 2.5.5; 2.1.4. Not a managed AWS service.
+
+**Typical use.** Research vs drafting vs data agent for the copilot.
+
+**Pricing.** Your compute.
+
+**Exam cue.** Route user requests to the right agent; preserve context across agents.
+
+**Do not confuse with.** Intelligent Prompt Routing (models). A console-managed product. Strands (one agent’s loop).
+
+### Developer / operations
+
+#### Amazon Q Developer
+
+**What it is.** IDE/CLI/console assistant: generate, refactor, AWS API help, tests, review; ops investigations.
+
+**Problem it solves.** Build GenAI apps faster (2.5.4) and interpret runtime errors (2.5.6).
+
+**Where it sits.** Both developer skills; hat depends on the stem.
+
+**Typical use.** Scaffold ConverseStream; later explain `AccessDeniedException` on InvokeModel.
+
+**Pricing.** Subscription tiers.
+
+**Exam cue.** Generate/refactor/tests/Bedrock SDK = build. Explain this error / correlate alarms = run.
+
+**Do not confuse with.** Q Business. CodeGuru as the conversational AWS-API tutor. Kiro (agentic IDE environment).
+
+#### Bedrock model invocation logging + Logs Insights
+
+**What it is.** Optional record of prompts, completions, tokens, model IDs to CloudWatch Logs and/or S3; Insights queries them.
+
+**Problem it solves.** Soft failures — you cannot debug a bad generation without the exact prompt.
+
+**Where it sits.** 2.5.6. **Off by default.**
+
+**Typical use.** “Which prompt produced the wrong AMD year?”
+
+**Pricing.** Log ingest/storage.
+
+**Exam cue.** Can’t see which prompt produced the bad output.
+
+**Do not confuse with.** X-Ray (timing/hops, not payload). CloudTrail (API who/when, not full prompt body).
+
+#### AWS X-Ray (app debug)
+
+**What it is.** Distributed traces; Bedrock as a subsegment; annotations.
+
+**Problem it solves.** Which hop is slow or failing in a multi-step app.
+
+**Where it sits.** 2.5.6; same tool as 2.4.3 with a debugging lens.
+
+**Typical use.** TTFT vs retrieval vs serialized tool calls in the agent.
+
+**Pricing.** Traces stored.
+
+**Exam cue.** Which hop — retrieval, our code, or the model?
+
+**Do not confuse with.** Invocation logs (the text). Guardrails.
 
 ---
 
-## Developer Productivity with GenAI
+## Level 1 — Recall
 
-GenAI transforms developer workflows just as it transforms end-user applications.
+```practice
+Q: REST API times out at ~29s while streaming thesis tokens. First interface move?
+A: Raise temperature
+B: Function URL / WebSocket / REST STREAM, or async job ID — do not treat default REST as a long stream
+C: Glue
+D: Outposts
+correct: B
+feedback: 2.5.1 contract + 2.4.2 transport.
 
-### Amazon Q Developer
+Q: Context window overflows after RAG + chat history.
+A: Disable the system prompt
+B: Enforce a context budget; trim history then low-ranked chunks; set max_tokens; surface stop reason
+C: Wavelength
+D: CodeGuru
+correct: B
+feedback: Token management at input, output, accounting.
 
-**Q Developer** integrates AI coding assistance directly into IDEs, understanding your codebase context to provide relevant suggestions.
+Q: Front-end team, React, Cognito chat this sprint, no Lambda ownership.
+A: Amplify AI kit
+B: SageMaker training
+C: DMS
+D: Direct Connect
+correct: A
+feedback: 2.5.2 audience = front-end.
 
-**Q Developer Capabilities:**
+Q: Contract first so mobile, backend, and Bedrock Agents action groups stay aligned.
+A: A Slack thread
+B: OpenAPI spec imported into API Gateway (and used as tool defs)
+C: BDA
+D: QuickSight
+correct: B
+feedback: Dual use is the exam angle.
 
-**IDE Integration:** VS Code, JetBrains, Visual Studio, CLI
+Q: Business analysts, visual, no code, prompt + KB + Lambda.
+A: Step Functions Standard only
+B: Bedrock Flows / Prompt Flows
+C: AgentCore Memory
+D: Macie
+correct: B
+feedback: Flows vs SF: FM-native canvas vs general orchestration.
 
-| Capability | Features |
-|------------|----------|
-| **Code Generation** | Functions, Classes, Tests, Refactoring |
-| **Explain & Document** | Code explain, Docstrings, README, Comments |
-| **Security Scanning** | Vuln detect, Fix suggest, Dependency, OWASP check |
-| **Debug Assistance** | Error explain, Stack trace, Fix suggest, Log analysis |
-| **AWS SDK Assistance** | Service help, IAM policies, CDK/CFN, Best practice |
-| **Transform & Upgrade** | Language upgrade, Framework migration |
+Q: Salesforce lead created → draft a note. One event, one record.
+A: Step Functions + waitForTaskToken for every lead
+B: Lambda enhancement on EventBridge/webhook
+C: Amplify hosting
+D: Provisioned Throughput
+correct: B
+feedback: 2.5.3 CRM shape.
 
-**Q Developer Feature Comparison**:
+Q: Extract structured fields from 50k filings with minimal custom code.
+A: Q Developer
+B: Bedrock Data Automation blueprints
+C: Site-to-Site VPN
+D: SSE
+correct: B
+feedback: BDA. Step Functions wraps it when you need HITL/Map.
 
-| Feature | Benefit | Example Use Case |
-|---------|---------|------------------|
-| **Code generation** | Describe intent, receive implementation | "Create a function to validate email addresses" |
-| **Inline completion** | Context-aware suggestions as you type | Autocomplete based on your patterns |
-| **Code explanation** | Understand unfamiliar code | "What does this regex do?" |
-| **Refactoring** | Improve code quality | "Refactor this to use async/await" |
-| **Test generation** | Create unit tests automatically | Generate tests for existing functions |
-| **Documentation** | Generate docstrings and READMEs | Document APIs consistently |
-| **Security scanning** | Find vulnerabilities as you code | SQL injection, XSS detection |
-| **Debug assistance** | Explain errors, suggest fixes | Parse CloudWatch logs for solutions |
-| **AWS SDK help** | Navigate service complexity | IAM policy generation, CDK patterns |
+Q: Inline completions and correct boto3 Converse scaffolding in VS Code.
+A: Q Business
+B: Q Developer
+C: Q Business Apps
+D: Textract
+correct: B
+feedback: Two Qs.
 
-### Error Pattern Recognition
+Q: Route among research/draft/data agents; keep conversation context.
+A: Intelligent Prompt Routing
+B: AWS Agent Squad / supervisor pattern
+C: AppFlow
+D: S3 lifecycle
+correct: B
+feedback: Agents not models.
 
-Q Developer excels at AWS-specific error diagnosis:
-
-```python
-# Example: User pastes this CloudWatch error into Q Developer
-
-"""
-[ERROR] 2024-03-15T14:22:33.456Z AccessDeniedException: User:
-arn:aws:iam::123456789012:user/dev-user is not authorized to perform:
-bedrock:InvokeModel on resource:
-arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0
-because no identity-based policy allows the bedrock:InvokeModel action
-"""
-
-# Q Developer response:
-# "This error indicates your IAM user lacks permission to invoke Bedrock models.
-# Add this policy to the user or their role:
-#
-# {
-#   "Version": "2012-10-17",
-#   "Statement": [{
-#     "Effect": "Allow",
-#     "Action": "bedrock:InvokeModel",
-#     "Resource": "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-*"
-#   }]
-# }
-#
-# Alternatively, use the managed policy: AmazonBedrockFullAccess
-# (Note: For production, use more restrictive custom policies)"
-```
-
-### Kiro: Agentic IDE for AWS Development
-
-**Kiro** is AWS's agentic IDE (in-scope under Developer Tools). Where Q Developer sits inside VS Code/JetBrains as an assistant, Kiro is a spec-driven environment that can plan, edit, and implement across files.
-
-| Factor | Amazon Q Developer | Kiro |
-|--------|--------------------|------|
-| **What it is** | Coding assistant in existing IDEs and CLI | Agentic IDE / developer environment |
-| **Best for** | Inline complete, explain, refactor, AWS SDK/IAM help | Multi-file implementation from a spec or task |
-| **Exam trigger** | "code suggestions", "security scan while coding" | "agentic IDE", "implement a feature from a spec" |
-
-Use Q Developer when the developer stays in their current IDE. Use Kiro when the scenario wants an AWS-native agentic coding environment. They complement each other; Kiro does not replace Bedrock Agents in production applications.
-
-### SageMaker Unified Studio
-
-**SageMaker Unified Studio** is the web IDE that brings SageMaker notebooks, experiments, data prep, and deployment into one place. For this exam, know it as the **unified interface** when a team needs to customize or evaluate models in SageMaker without jumping across consoles—not as a substitute for Bedrock Prompt Management or Q Developer.
-
-| Need | Service |
-|------|---------|
-| Chat over company docs | Q Business or Amazon Quick |
-| Write application code | Q Developer / Kiro |
-| Train, fine-tune, or evaluate in SageMaker | **SageMaker Unified Studio** |
-| Version prompts for Bedrock apps | Bedrock Prompt Management |
-
----
-
-### Security Scanning in CI/CD
-
-```yaml
-# GitHub Actions workflow with Q Developer security scanning
-name: Security Scan
-
-on:
-  pull_request:
-    branches: [main]
-
-jobs:
-  security-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Run Q Developer Security Scan
-        run: |
-          aws codewhisperer start-code-scan \
-            --artifacts-type "SOURCE_CODE" \
-            --language "python" \
-            --client-token "$(uuidgen)"
-
-      - name: Check Scan Results
-        run: |
-          # Poll for scan completion and check results
-          SCAN_ID=$(aws codewhisperer list-code-scan-findings --query 'codeScanJobId')
-          aws codewhisperer get-code-scan --code-scan-job-id $SCAN_ID
+Q: Can’t retrieve the prompt behind a bad 200 OK answer.
+A: Enable Bedrock invocation logging → Logs Insights
+B: VPC Flow Logs
+C: Disable CloudWatch
+D: Glue Data Catalog
+correct: A
+feedback: Off by default. Soft failure.
 ```
 
 ---
 
-## Advanced Application Patterns
+## Level 2 — Architecture scenarios
 
-Complex applications combine multiple AI capabilities into sophisticated workflows.
+```practice
+Q: REST 29s timeout; client retries; Bedrock actually finished at 35s; bill doubles.
+A: Ideal
+B: Align timeouts outermost-longest, idempotent request IDs, stream or go async — do not retry a slow success
+C: Delete max_tokens
+D: Use Textract
+correct: B
+feedback: 2.5.1 timeout class ≠ throttle class.
 
-### Multi-Agent Systems
+Q: Analysts must ship a visual extract-then-draft chain this week; production later needs HITL and Catch across Textract, BDA, and DynamoDB.
+A: Flows forever; never Step Functions
+B: Prototype in Flows; production pipeline in Step Functions (BDA as a state, waitForTaskToken)
+C: Only Amplify
+D: Only Q Business
+correct: B
+feedback: 2.5.2 then 2.5.3/2.5.5. Canvas vs enterprise graph.
 
-**Strands Agents SDK** combined with **Agent Squad** enables specialized agents collaborating:
+Q: IR wants SharePoint Q&A with existing ACLs. Platform almost built a custom KB + agent.
+A: Correct — always custom
+B: Q Business (or Quick workspace if they also need actions); custom RAG if chunking/multimodal is special
+C: Q Developer in the IDE is the employee chat
+D: Wavelength
+correct: B
+feedback: Product vs pipeline. 2.5.3 extras.
 
-**Multi-Agent Architecture:**
+Q: Document pipeline: BDA extract, then humans approve low-confidence AMD contracts, then write CRM.
+A: One Lambda loop with Thread.sleep
+B: Step Functions Map + BDA + waitForTaskToken + write-back
+C: Amplify AI kit
+D: Kiro
+correct: B
+feedback: Nested 2.5.3.
 
-**Agent Squad (Supervisor)** routes to specialized agents:
+Q: Custom MCP tools, model-driven loop, hosted as *our* code.
+A: Agent Squad as a managed checkbox
+B: Strands (or other SDK) on AgentCore Runtime — exam name Strands
+C: Prompt Flows only
+D: QuickSight
+correct: B
+feedback: 2.5.5 + 2.1 hosting distinction.
 
-| Agent | Capabilities | Backend |
-|-------|--------------|---------|
-| Customer Agent | Profile, History, Preferences | Customer Database |
-| Inventory Agent | Stock, Warehouse, Forecast | Inventory System |
-| Order Agent | Create, Track, Cancel | Order System |
+Q: Same conversation hops research agent → drafting agent. Prompt Routing between Haiku/Sonnet is the proposed “fix.”
+A: Correct — models = agents
+B: Wrong layer: Squad/supervisor for agents; Prompt Routing for same-family models
+C: Use DMS
+D: Use PrivateLink as a router
+correct: B
+feedback: Favorite conflation with 2.4.4.
 
-**Routing Examples:**
-- "Order status?" → Order Agent
-- "In stock?" → Inventory Agent
-- "Update address" → Customer Agent
-- "Order X" → All Agents collaborate
+Q: Team wants AWS-native agentic *IDE* that plans across files, not a production agent runtime.
+A: AgentCore Harness
+B: Kiro (Q Developer if they stay in VS Code)
+C: BDA
+D: EventBridge
+correct: B
+feedback: 2.5.4 extra. Kiro ≠ Strands in prod.
 
-### Prompt Chaining
+Q: “The app is slow.” Need to know if retrieval, Lambda JSON, or Bedrock TTFT.
+A: Invocation logging only
+B: X-Ray subsegments + annotations; logs for the prompt text
+C: Guardrail denied topics
+D: AppFlow
+correct: B
+feedback: 2.5.6 where vs what.
 
-Sequence multiple model calls for complex tasks:
+Q: OpenAPI is “extra paperwork.” Action groups drift from the live AMD API and agents call the wrong shape.
+A: Fine
+B: Spec is the tool definition — import into API Gateway and feed agents; drift is a 2.5.2 failure
+C: Fix with temperature 0
+D: Use Outposts
+correct: B
+feedback: Dual use of OpenAPI.
 
-```python
-class PromptChain:
-    """Sequential prompt chain with intermediate validation."""
-
-    def __init__(self):
-        self.bedrock = boto3.client('bedrock-runtime')
-
-    async def process_customer_request(self, request: str) -> dict:
-        """Four-step chain: Extract → Classify → Generate → Validate."""
-
-        # Step 1: Extract entities
-        entities = await self._extract_entities(request)
-        print(f"Extracted entities: {entities}")
-
-        # Step 2: Classify intent based on entities
-        intent = await self._classify_intent(request, entities)
-        print(f"Classified intent: {intent}")
-
-        # Step 3: Generate response appropriate to intent
-        response = await self._generate_response(request, entities, intent)
-        print(f"Generated response: {response[:100]}...")
-
-        # Step 4: Validate output before returning
-        validation = await self._validate_response(response, intent)
-
-        if not validation['valid']:
-            # Retry with feedback
-            response = await self._generate_response(
-                request, entities, intent,
-                feedback=validation['issues']
-            )
-
-        return {
-            'entities': entities,
-            'intent': intent,
-            'response': response,
-            'validation': validation
-        }
-
-    async def _extract_entities(self, text: str) -> dict:
-        """Step 1: Entity extraction with Haiku (fast)."""
-        response = self.bedrock.invoke_model(
-            modelId='anthropic.claude-3-haiku-20240307-v1:0',
-            body=json.dumps({
-                'anthropic_version': 'bedrock-2023-05-31',
-                'max_tokens': 256,
-                'messages': [{
-                    'role': 'user',
-                    'content': f"""Extract entities from this customer request. Return JSON:
-{{"product": "...", "action": "...", "quantity": ..., "customer_info": {{}}}}
-
-Request: {text}"""
-                }]
-            })
-        )
-        result = json.loads(response['body'].read())
-        return json.loads(result['content'][0]['text'])
-
-    async def _classify_intent(self, text: str, entities: dict) -> str:
-        """Step 2: Intent classification."""
-        response = self.bedrock.invoke_model(
-            modelId='anthropic.claude-3-haiku-20240307-v1:0',
-            body=json.dumps({
-                'anthropic_version': 'bedrock-2023-05-31',
-                'max_tokens': 64,
-                'messages': [{
-                    'role': 'user',
-                    'content': f"""Classify the intent. Options: purchase, inquiry, complaint, return, support
-
-Request: {text}
-Entities: {json.dumps(entities)}
-
-Intent (one word):"""
-                }]
-            })
-        )
-        result = json.loads(response['body'].read())
-        return result['content'][0]['text'].strip().lower()
+Q: Q Developer generated mocked Bedrock tests. Prod answers still regress after a prompt change with HTTP 200.
+A: Unit tests were sufficient
+B: Keep Q’s deterministic tests and add 2.3.5 eval gates; debug with invocation logs
+C: Delete X-Ray
+D: Switch to SOAP
+correct: B
+feedback: 2.5.4 tests ≠ non-deterministic quality. 2.5.6 + 2.3.5.
 ```
-
-### Workflow Patterns
-
-| Pattern | Description | Implementation | Use Case |
-|---------|-------------|----------------|----------|
-| **Sequential** | Each step depends on previous output | Chain of Lambda functions | Multi-step analysis |
-| **Parallel** | Independent steps run simultaneously | Step Functions Parallel state | Reduce latency |
-| **Conditional** | Branch based on intermediate results | Step Functions Choice state | Route by classification |
-| **Loop** | Iterate until quality threshold met | Step Functions with condition | Refine until acceptable |
-| **Human-in-the-loop** | Pause for approval | Step Functions with callback | Sensitive actions |
-| **Fan-out/Fan-in** | Distribute work, aggregate results | Step Functions Map state | Batch processing |
-
-### Prompt Flows vs Step Functions
-
-| Capability | Prompt Flows | Step Functions |
-|------------|--------------|----------------|
-| **Target user** | Business analysts | Developers |
-| **Learning curve** | Low | Medium |
-| **Visual builder** | Yes | Yes (Workflow Studio) |
-| **Error handling** | Basic | Comprehensive (catch, retry) |
-| **Parallel execution** | Limited | Full support |
-| **Human approval** | No | Yes (callback patterns) |
-| **Custom code** | Lambda nodes | Lambda, ECS, any AWS service |
-| **Version control** | Console | IaC (CDK, CloudFormation) |
-| **Testing** | Built-in testing | Integration with test frameworks |
-| **Monitoring** | Basic | CloudWatch, X-Ray integration |
-| **Cost** | Per flow execution | Per state transition |
 
 ---
 
-## Troubleshooting GenAI Applications
+## Explain it aloud
 
-GenAI applications have **unique failure modes** beyond traditional application troubleshooting.
-
-### What Makes GenAI Debugging Different
-
-| Traditional Apps | GenAI Apps |
-|------------------|------------|
-| Binary pass/fail | Subtly wrong responses |
-| Deterministic errors | Probabilistic issues |
-| Clear error messages | Quality degradation |
-| CPU/memory bottlenecks | Token limit issues |
-| Network failures | Rate limiting cascades |
-| Reproducible bugs | Non-reproducible issues |
-
-### CloudWatch Logs Insights Queries
-
-```sql
--- Find slow requests with low user ratings
-fields @timestamp, request_id, model_id, response_time_ms, user_rating
-| filter response_time_ms > 10000 and user_rating < 3
-| sort @timestamp desc
-| limit 50
-
--- Token usage anomalies
-fields @timestamp, user_id, input_tokens, output_tokens,
-       (input_tokens + output_tokens) as total_tokens
-| filter total_tokens > 10000
-| stats count(*) as high_token_requests,
-        sum(total_tokens) as total_token_usage
-  by bin(1h)
-
--- Error rate by model
-fields @timestamp, model_id, error_type
-| filter ispresent(error_type)
-| stats count(*) as error_count by model_id, error_type
-| sort error_count desc
-
--- Cache hit analysis
-fields @timestamp, cache_hit, response_time_ms
-| stats count(*) as requests,
-        sum(case when cache_hit then 1 else 0 end) as cache_hits,
-        avg(response_time_ms) as avg_latency
-  by bin(5m)
-
--- Guardrail interventions
-fields @timestamp, user_id, input_text, guardrail_action, guardrail_reason
-| filter guardrail_action = 'BLOCKED'
-| sort @timestamp desc
-| limit 100
-
--- RAG retrieval quality
-fields @timestamp, query, num_results, max_similarity_score,
-       avg_similarity_score
-| filter avg_similarity_score < 0.7
-| sort @timestamp desc
-| limit 50
+```recall
+Q: Why is 2.5.1 not just a copy of 2.4.2/2.4.3?
+A: Same physics — streams, 29s REST, throttles — but the stem is the *API contract*: chunk format, context budget, max_tokens and stop reason, aligned timeouts, idempotent retries, when to flip to async. 2.4 is how you invoke; 2.5.1 is how you expose that to applications.
 ```
 
-### X-Ray Tracing
-
-Visualize request flow through your GenAI pipeline:
-
-```python
-from aws_xray_sdk.core import xray_recorder, patch_all
-
-# Patch all supported libraries
-patch_all()
-
-class TracedGenAIPipeline:
-    """Full X-Ray tracing for GenAI requests."""
-
-    @xray_recorder.capture('ProcessRequest')
-    def process(self, query: str) -> dict:
-        """Traced end-to-end request processing."""
-
-        segment = xray_recorder.current_segment()
-        segment.put_annotation('query_length', len(query))
-
-        # Trace embedding generation
-        with xray_recorder.in_subsegment('GenerateEmbedding') as subseg:
-            start = time.time()
-            embedding = self._generate_embedding(query)
-            subseg.put_metadata('embedding_dim', len(embedding))
-            subseg.put_annotation('embedding_time_ms',
-                                  int((time.time() - start) * 1000))
-
-        # Trace vector search
-        with xray_recorder.in_subsegment('VectorSearch') as subseg:
-            start = time.time()
-            results = self._search_vectors(embedding)
-            subseg.put_annotation('num_results', len(results))
-            subseg.put_annotation('search_time_ms',
-                                  int((time.time() - start) * 1000))
-            subseg.put_metadata('top_score', results[0]['score'] if results else 0)
-
-        # Trace LLM invocation
-        with xray_recorder.in_subsegment('InvokeModel') as subseg:
-            start = time.time()
-            response = self._invoke_model(query, results)
-            subseg.put_annotation('model', 'claude-3-sonnet')
-            subseg.put_annotation('invoke_time_ms',
-                                  int((time.time() - start) * 1000))
-            subseg.put_metadata('input_tokens', response.get('input_tokens'))
-            subseg.put_metadata('output_tokens', response.get('output_tokens'))
-
-        return response
+```recall
+Q: Amplify vs OpenAPI vs Flows — pick by audience.
+A: Front-end React+auth → Amplify AI kit. API teams and agent tool defs → OpenAPI (Gateway import). Non-coders / visual FM chain → Bedrock Flows (Prompt Flows). Step Functions when the graph is enterprise AWS + HITL, not a Bedrock canvas.
 ```
 
-**Sample X-Ray Trace Visualization**:
-```
-API Gateway ──► Lambda ──► Knowledge Base ──► Bedrock ──► Post-processing
-   100ms         50ms         800ms           3500ms         100ms
-                                │
-                                └── OpenSearch: 650ms
-                                    Rerank: 150ms
+```recall
+Q: Three 2.5.3 shapes, plus Q Business vs BDA vs QuickSight.
+A: Event on one CRM record → Lambda. Multi-stage docs + review → Step Functions. Unstructured to JSON with little code → BDA (often inside SF). Employee chat+ACLs → Q Business. Charts → QuickSight. Workspace/actions → Amazon Quick. Nested BDA-in-SF is the production pattern.
 ```
 
-### Common Issues and Solutions
+```recall
+Q: Strands vs Agent Squad vs Step Functions vs chaining vs 2.1.
+A: Strands = code-first model-driven *one* agent (host on AgentCore). Squad = route among agents, keep context (OSS, not a service). SF = explicit auditable flow / HITL. Chaining = decompose prompts and right-size models (code, Flows, or SF). 2.1 is the theory; 2.5.5 is which framework the app uses.
+```
 
-| Issue | Symptoms | Likely Cause | Solution |
-|-------|----------|--------------|----------|
-| **Token limit exceeded** | 400 error, truncated responses | Prompts too long | Truncate input, summarize context |
-| **Rate limiting** | 429 errors, timeouts | Too many requests | Backoff, quota increase, caching |
-| **Low quality outputs** | User complaints, low ratings | Prompt issues | Review prompts, add examples |
-| **Slow responses** | High p99 latency | Model choice, no streaming | Smaller model, streaming, optimization |
-| **Retrieval misses** | Irrelevant answers | RAG config | Review chunking, embeddings, search params |
-| **Cost spikes** | Unexpected bills | Token waste, retries | Budgets, caching, prompt optimization |
-| **Hallucinations** | Factually incorrect | No grounding | Add RAG, guardrails, citations |
-| **Inconsistent behavior** | Works sometimes | Temperature, random seed | Lower temperature, set seed |
+```recall
+Q: Debug workflow for a wrong AMD answer that returned 200.
+A: Invocation logging must be on. Logs Insights for the exact prompt. X-Ray for which hop. Q Developer (ops hat) to interpret IAM/throttle/context-window errors. Q Developer (build hat) wrote the tests — different skill.
+```
 
 ---
 
-## Decision Framework: Choosing Your Integration Approach
+## Final compressed review
 
-Use this framework to quickly determine the right integration pattern for your use case.
+2.5 is the **workbench**: interfaces, business shapes, developer loop.
 
-### Quick Reference
+**2.5.1** — Stream/async around **29 s REST**; **token budget**; **aligned, idempotent** retries.
 
-| Scenario | Choose | Why |
-|----------|--------|-----|
-| Enterprise Q&A over internal docs | **Q Business** | 40+ connectors, ACLs, managed RAG |
-| Custom chunking/embedding needed | **Custom RAG** | Full control over pipeline |
-| Developer productivity in IDE | **Q Developer** | Context-aware code assistance |
-| Non-technical users building AI flows | **Prompt Flows** | Visual, no-code, fast iteration |
-| Production workflows with complex logic | **Step Functions** | Error handling, retries, monitoring |
-| Chat UI in React app | **Amplify AI Kit** | Pre-built components, auth handled |
-| Document processing pipeline | **Step Functions + Textract + Bedrock** | Orchestration with AI services |
-| Real-time CRM enhancement | **Lambda + Bedrock** | Event-driven, low latency |
+**2.5.2** — **Amplify** (front-end), **OpenAPI** (contract + agent tools), **Flows/Prompt Flows** (visual).
 
-### Decision Tree
+**2.5.3** — **Lambda** CRM events; **Step Functions** doc + HITL; **BDA** blueprints. Also **Q Business / Apps / Quick / QuickSight**.
 
-```mermaid
-graph TD
-    A[New GenAI Integration] --> B{Knowledge/Q&A<br/>use case?}
+**2.5.4** — **Q Developer** to build (and **Kiro / Unified Studio** when named).
 
-    B -->|Yes| C{Standard enterprise<br/>data sources?}
-    B -->|No| D{Workflow<br/>orchestration?}
+**2.5.5** — **Strands** / **Agent Squad** / **Step Functions** / **chaining**. Agents ≠ model routing.
 
-    C -->|Yes| E{Custom chunking<br/>or embeddings?}
-    C -->|No| F[Custom RAG<br/>with Bedrock KB]
+**2.5.6** — **Invocation logs + Insights** (what), **X-Ray** (where), **Q ops** (meaning). Logging **off by default**.
 
-    E -->|Yes| F
-    E -->|No| G[Q Business]
+**If you see X, think Y:**
 
-    D -->|Yes| H{Who builds<br/>the workflow?}
-    D -->|No| I{User interface<br/>needed?}
-
-    H -->|Developers| J{Complex error<br/>handling needed?}
-    H -->|Business Users| K[Prompt Flows]
-
-    J -->|Yes| L[Step Functions]
-    J -->|No| K
-
-    I -->|Yes| M{React/Web<br/>application?}
-    I -->|No| N[Lambda + Bedrock<br/>Direct Integration]
-
-    M -->|Yes| O{Need streaming<br/>chat UI?}
-    M -->|No| N
-
-    O -->|Yes| P[Amplify AI Kit]
-    O -->|No| Q[Custom Components]
+```text
+REST ~29s / buffered stream          → function URL, WebSocket, STREAM, or async job
+Context overflow / runaway output    → token budget, max_tokens, stop reason
+Retries doubled a slow success       → idempotency + aligned timeouts
+Front-end chat + auth, fast          → Amplify AI kit
+Contract first / agent tools         → OpenAPI
+Non-dev visual FM workflow           → Bedrock Flows (Prompt Flows)
+CRM record on an event               → Lambda
+Docs + human review                  → Step Functions waitForTaskToken
+Extract fields, minimal code         → BDA blueprints
+SharePoint Q&A + ACLs                → Q Business
+Dashboards                           → QuickSight
+IDE / boto3 / tests                  → Q Developer (build)
+Custom agent + MCP in code           → Strands
+Route among agents, keep context     → Agent Squad
+Auditable deterministic agent graph  → Step Functions
+Can’t see the bad prompt             → invocation logging + Logs Insights
+Which hop is slow                    → X-Ray
+Explain this runtime error           → Q Developer (ops)
 ```
-
-### Trade-off Analysis
-
-| Factor | Q Business | Custom RAG | Prompt Flows | Step Functions | Amplify |
-|--------|-----------|------------|--------------|----------------|---------|
-| **Time to Deploy** | Days | Weeks-Months | Hours | Days-Weeks | Days |
-| **Customization** | Low | High | Medium | High | Medium |
-| **ACL Support** | Built-in | Manual | None | Manual | Manual |
-| **Error Handling** | Managed | Custom | Basic | Comprehensive | Managed |
-| **Cost Model** | Per user | Per query | Per execution | Per state transition | Per request |
-| **Maintenance** | Low | High | Low | Medium | Low |
-| **Exam Signal** | "enterprise", "ACL" | "custom chunk" | "no-code", "business user" | "workflow", "retry" | "React", "streaming" |
-
-### When to Choose Each
-
-**Q Business:**
-- Employee knowledge access across SharePoint, Confluence, Slack
-- Need to respect existing document permissions
-- Standard Q&A over enterprise content
-- Don't want to build/maintain RAG infrastructure
-
-**Custom RAG (Bedrock Knowledge Bases):**
-- Domain-specific chunking requirements (code, legal, medical)
-- Custom embedding models needed
-- Complex retrieval logic (hybrid search, filters)
-- Need structured output extraction
-
-**Prompt Flows:**
-- Rapid prototyping of AI workflows
-- Business users need to iterate without developers
-- Simple linear or branching logic
-- No complex error handling required
-
-**Step Functions:**
-- Production-grade workflow orchestration
-- Need retries, error handling, timeouts
-- Complex branching and parallel execution
-- Audit trail and compliance requirements
-
-**Amplify AI Kit:**
-- Building chat interface in React
-- Need authentication integrated
-- Want streaming without building from scratch
-- Standard conversation UI patterns
-
----
-
-## Exam Tips
-
-| When you see... | Think... |
-|-----------------|----------|
-| "enterprise knowledge assistant" | Amazon Q Business |
-| "no-code app on enterprise knowledge" | Amazon Q Business Apps |
-| "AI workspace" or "employees take actions from chat" | Amazon Quick |
-| "dashboards" or "visualize metrics" | Amazon Quick Sight |
-| "employee questions about internal docs" | Amazon Q Business |
-| "40+ data source connectors" | Amazon Q Business |
-| "developer productivity" or "code assistance" | Amazon Q Developer |
-| "agentic IDE" or "spec-driven coding" | Kiro |
-| "unified SageMaker IDE" | SageMaker Unified Studio |
-| "security scanning during development" | Amazon Q Developer |
-| "no-code AI workflow" | Bedrock Prompt Flows |
-| "business users building AI workflows" | Bedrock Prompt Flows |
-| "troubleshooting GenAI" | CloudWatch Logs Insights + X-Ray |
-| "document processing automation" | Bedrock Data Automation + Step Functions |
-| "streaming user interface" | SSE + Amplify AI components |
-| "multi-agent collaboration" | Agent Squad (supervisor pattern) |
-| "OCR + AI summarization" | Textract + Bedrock |
-
----
-
-## Key Takeaways
-
-> **1. Amplify provides pre-built AI UI components for rapid development.**
-> Don't build streaming chat interfaces from scratch. Use Amplify Gen2's AI Kit for production-ready conversation components with built-in Bedrock integration.
-
-> **2. Q Business is the managed enterprise knowledge assistant with minimal setup.**
-> 40+ data source connectors, enterprise access controls, no RAG pipeline to build. Choose Q Business when standard enterprise knowledge access meets your needs.
-
-> **3. Q Developer assists in existing IDEs; Kiro is the agentic IDE.**
-> Q Developer for inline complete, explain, and AWS SDK help. Kiro when the scenario wants spec-driven, multi-file implementation. SageMaker Unified Studio is the SageMaker web IDE—not a coding assistant for app developers.
-
-> **4. Amazon Quick is the agentic workspace; Quick Sight is the BI layer.**
-> Q Business remains the managed enterprise-knowledge Q&A option. Quick Sight is dashboards. Don't collapse all three into "Q".
-
-> **5. Prompt Flows enables no-code AI workflow building for non-developers.**
-> Accelerate experimentation without developer bottleneck. Use for prototyping, then migrate to Step Functions for production complexity.
-
-> **6. CloudWatch Logs Insights + X-Ray = GenAI observability and debugging.**
-> Query logs for patterns. Trace requests to identify bottlenecks. Build dashboards for operational visibility.
-
-> **7. Business system integration follows event-driven patterns.**
-> Use EventBridge to connect CRM events to Lambda functions that call Bedrock. AI enhances existing workflows without disrupting them.
-
----
-
-## Common Mistakes
-
-| Mistake | Why It Matters |
-|---------|----------------|
-| **Building custom RAG when Q Business would suffice** | Weeks of development for something that's managed. Evaluate Q Business first for standard enterprise knowledge needs. |
-| **Not using streaming for user-facing AI interfaces** | Users perceive non-streaming responses as broken. Always stream responses over 2-3 seconds. |
-| **Manual debugging instead of X-Ray and Logs Insights** | Can't trace issues across distributed services. Instrument from day one. |
-| **Over-engineering simple workflows** | Prompt Flows handles many use cases without code. Start simple, add complexity only when needed. |
-| **Ignoring Q Developer for AWS coding** | Missing context-aware AWS SDK assistance and security scanning. Productivity multiplier for AWS development. |
-| **Treating Amazon Quick, Q Business, and Quick Sight as the same service** | Quick is the agentic workspace, Q Business is managed enterprise Q&A, Quick Sight is dashboards. |
-| **Skipping OpenAPI contract definition** | Frontend-backend mismatches, manual SDK maintenance. Define contracts first for type-safe integration. |
-| **Not tracing token usage** | Cost spirals undetected. Monitor and alert on token consumption per user and per request. |

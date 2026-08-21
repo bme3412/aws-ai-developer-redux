@@ -1,906 +1,582 @@
-# Data Pipelines for GenAI
+# Implement Data Validation and Processing Pipelines for FM Consumption
 
-**Domain 1 | Task 1.3 | ~30 minutes**
+**Domain 1 · Task 1.3 · Skills 1.3.1–1.3.4**
 
----
+A foundation model never sees a filing cabinet. It sees **bytes in a request**: a transcript string, a PNG the multimodal API accepts, a JSON body with `user` / `assistant` roles. Task 1.3 is the work that turns a drop in S3 into that request — and refuses to spend tokens when the drop is empty, corrupt, or the wrong shape.
 
-## Why This Matters
+The running example is an earnings desk. IR puts `NVDA-FY26-Q1.mp3` and a 10-K PDF in a bucket. Before anyone asks “what did Jensen say about Blackwell,” four things have to happen, in this order:
 
-There's an old saying in computing: garbage in, garbage out. For AI systems, this principle applies with double force. Foundation models are remarkably capable, but they're also remarkably trusting—they'll process whatever you send them and produce output that looks confident, even when the input was nonsensical or corrupted. The model won't raise its hand and say "this input seems wrong." It will simply produce garbage output with the same fluency it produces useful responses.
-
-This creates a fundamental challenge for production AI systems. The quality of your outputs depends entirely on the quality of your inputs, and ensuring input quality requires deliberate work. That work happens in your data pipeline—everything that touches data between its raw source and the moment it reaches the model.
-
-The scope is broad. Data pipelines for GenAI encompass validation (is this data correct?), transformation (converting between formats), extraction (pulling text from documents, audio, images), enhancement (adding context, expanding queries), and formatting (structuring requests for specific APIs). Each step has services optimized for it, and choosing the right service for each task determines whether your pipeline is robust and cost-effective or fragile and expensive.
-
-This topic matters practically because it's where many AI projects fail. Teams focus on prompt engineering and model selection, assuming data quality will take care of itself. It doesn't. The team that masters data pipelines builds AI systems that work reliably. The team that ignores pipelines builds demos that break in production.
-
----
-
-## Under the Hood: How Data Flows in GenAI Systems
-
-Understanding the data flow helps you identify where problems originate and where to apply controls.
-
-### The GenAI Data Pipeline
-
-Data passes through multiple transformation stages before reaching the model:
+1. **Validate.** Is there actually audio? Is the ticker present? Is revenue a number? Failures go to a quarantine bucket and an alarm — they do not become a fluent, wrong answer.
+2. **Process.** The same MP3 is not one pipeline. Searchable speech is Transcribe. Native audio similarity is a multimodal embedder. Structured “company / revenue / summary” from 50,000 PDFs is Bedrock Data Automation. OCR of a form is Textract. You pick from the **job**, not the file extension.
+3. **Enhance.** Cheap, determinate cleanup: `NVIDIA Corporation` → `NVDA` in Lambda; PERSON/ORG tags or PII redaction in Comprehend; a messy note rewritten by Bedrock only when code cannot parse it. Keep the raw file. Derived copies live beside it.
+4. **Format.** Glue saying the row is valid is not a Converse body. Anthropic JSON is not Titan JSON. Turn 2 of a chat must resend turn 1. This stage wraps the **API contract** the chosen model already expects.
 
 ```mermaid
-graph TD
-    subgraph "Raw Sources"
-        A[Documents<br/>PDF, DOCX, HTML]
-        B[Structured Data<br/>CSV, JSON, DB]
-        C[Media<br/>Audio, Video, Images]
-    end
-
-    subgraph "Extraction"
-        A --> D[Textract<br/>Document AI]
-        C --> E[Transcribe<br/>Speech-to-Text]
-        C --> F[Rekognition<br/>Image Analysis]
-        B --> G[Glue ETL]
-    end
-
-    subgraph "Validation"
-        D --> H[Format Check]
-        E --> H
-        F --> H
-        G --> H
-        H --> I[Completeness Check]
-        I --> J[Anomaly Detection]
-    end
-
-    subgraph "Transformation"
-        J --> K[Chunking]
-        K --> L[Embedding]
-        L --> M[Vector Store]
-    end
-
-    subgraph "Inference"
-        M --> N[Retrieval]
-        N --> O[Prompt Assembly]
-        O --> P[Model Invocation]
-    end
+flowchart TD
+    R[Raw drop: PDF, MP3, CSV] --> V[Validate]
+    V -->|fail| Q[Quarantine + alarm]
+    V -->|pass| P[Process for the job]
+    P --> E[Enhance without destroying the source]
+    E --> F[Format the model request]
+    F --> M[Converse / InvokeModel / SageMaker]
 ```
 
-### Where Quality Problems Originate
+Read the article as those four ideas. Each skill below is one stage, with the AWS kitchen that actually runs it.
 
-| Stage | Common Problems | Impact on Output |
-|-------|-----------------|------------------|
-| **Raw sources** | Corruption, encoding issues, format errors | Pipeline fails or processes garbage |
-| **Extraction** | OCR errors, transcription mistakes | Wrong text in prompts |
-| **Validation** | Missing fields, out-of-range values | Incomplete or misleading context |
-| **Chunking** | Split mid-sentence, lost context | Poor retrieval matches |
-| **Embedding** | Wrong model, dimension mismatch | Retrieval fails entirely |
-| **Retrieval** | Wrong documents, poor ranking | Hallucination, wrong answers |
-
-```recall
-Q: At which pipeline stage is fixing errors cheapest?
-A: Validation (pre-processing) — reject immediately at near-zero cost, before expensive embedding or model invocation.
-```
-
-### Why Early Validation Saves Money
-
-Catching problems early is cheaper:
-
-| Stage | Cost to Process | Cost to Fix |
-|-------|-----------------|-------------|
-| Validation (pre-processing) | ~$0 | Reject immediately |
-| Embedding | ~$0.0001/chunk | Re-embed after fix |
-| Vector store | ~$0.0001/chunk | Delete and re-index |
-| Model invocation | ~$0.01+/call | User sees bad output, investigate |
-
-**Key insight:** Model invocations are 100-1000x more expensive than validation. Every garbage input you catch early saves expensive inference and user frustration.
-
-```fillin
-Model invocations are {{100-1000x}} more expensive than validation checks.
-```
+> **Exam tip:** Garbage in still comes out fluent. A null transcript that reaches Sonnet is not a model failure. It is a pipeline you skipped.
 
 ---
 
-## Decision Framework: Choosing Pipeline Components
+## Skill 1.3.1 — Validate before you spend tokens
 
-Use this framework to select the right AWS services for each pipeline stage.
+**Validation** is the gate that decides whether a record is allowed to become a model input. A single Glue rule is one check. A **validation workflow** is inspect → pass or quarantine → alert. Empty transcripts should never burn tokens, and they should never be ingested “so retrieval has something.”
 
-### Quick Reference
+```text
+Inspect   schema, completeness, type, range, uniqueness, freshness, MIME, referential integrity
+Pass      continue to processing
+Fail      quarantine the record; CloudWatch metric / alarm; SNS or an operator — not a quiet skip
+```
 
-| Data Type | Extraction Service | Validation | Processing |
-|-----------|-------------------|------------|------------|
-| PDFs, scanned docs | **Textract** | Lambda format checks | Glue ETL or Lambda |
-| Audio/video | **Transcribe** | Confidence thresholds | Lambda |
-| Images | **Rekognition** | Moderation confidence | Lambda |
-| Structured data | Direct ingest | **Glue Data Quality** | Glue ETL |
-| Web content | Lambda scraping | Format validation | Lambda |
-| Real-time user input | N/A | **Lambda validation** | Lambda |
+For the blotter: `ticker`, `period`, and `revenue` exist; `revenue` is numeric; transcript text is not null; fiscal quarter is 1–4; one transcript per ticker / quarter / version; the Q1 file did not arrive six months late; encoding is supported; the CIK maps to the expected issuer.
+
+Dataset-valid is not enough. Also ask: **can this FM consume this input?** Modality, content type, request shape, token / context size, file limits, conversation roles, required fields.
+
+> Dataset valid → model-request valid → invoke. That is 1.3.1 meeting 1.3.3. A 400 that looks like a model failure is often a body you never mapped.
+
+### Four kitchens — who runs the transform
+
+Fine-tuning JSONL is one use of these tools, not the definition of any of them.
+
+| Kitchen | When |
+|---------|------|
+| **Lambda** | Tiny, event-shaped map. `NVIDIA Corporation` → `NVDA` when a file lands. Fifteen minutes, S3 event. Not a lake job. |
+| **Glue** | Production ETL around a lake. Millions of filing records, Catalog, scheduled jobs, **Data Quality**. |
+| **SageMaker Data Wrangler** | Interactive / little-code. Analysts inspect a messy extract; recipes can later feed production. Not the 200 ms S3-event map. |
+| **SageMaker Processing** | Your script at ML scale. Custom Python / Spark / container. 500 GB fine-tune corpus or a post-job eval set. |
 
 ```quickcheck
-Q: A client sends you a 500-page PDF for analysis. Which API pattern must you use?
-A: Textract async APIs (StartDocumentAnalysis)
-B: Textract sync API (AnalyzeDocument)
-correct: A
-feedback: Synchronous APIs only handle single pages up to 10MB. Multi-page documents require async APIs with job polling.
+Q: IR uploads one transcript. You must map issuer name to ticker before anything else. Which kitchen?
+A: AWS Glue Data Quality on the whole lake
+B: Lambda on the S3 event
+C: SageMaker Processing on a 500 GB cluster
+D: Bedrock Converse
+correct: B
+feedback: Event-shaped deterministic map is Lambda. Glue is lake ETL. Processing is large custom compute. Converse is inference, not validation.
 ```
 
-### Decision Tree
+### AWS Glue Data Quality
 
-```mermaid
-graph TD
-    A[Data Pipeline Design] --> B{Batch or<br/>real-time?}
+**Glue Data Quality** runs checks on the Data Catalog and in ETL. It identifies failing records and publishes **passed / failed** metrics to **CloudWatch**. An alarm on a DQ score below threshold stops the Step Functions ingest.
 
-    B -->|Batch| C{Data volume?}
-    B -->|Real-time| D[Lambda Pipeline]
+**DQDL** (Data Quality Definition Language) is the rules language. A ruleset is a list of checks; Glue returns a **data quality score**.
 
-    C -->|Large TB+| E[Glue ETL + Data Quality]
-    C -->|Medium| F{Structured?}
-
-    F -->|Yes| E
-    F -->|No| G[Lambda + Step Functions]
-
-    D --> H{Needs extraction?}
-
-    H -->|Documents| I[Textract + Lambda]
-    H -->|Audio| J[Transcribe + Lambda]
-    H -->|Images| K[Rekognition + Lambda]
-    H -->|Text only| L[Lambda validation only]
-
-    E --> M{RAG ingestion?}
-    G --> M
-    I --> M
-    J --> M
-    K --> M
-    L --> M
-
-    M -->|Yes| N[Bedrock Knowledge Bases<br/>or custom chunking]
-    M -->|No| O[Direct to model]
-```
-
-### Service Selection by Use Case
-
-| Use Case | Services | Why |
-|----------|----------|-----|
-| **Knowledge base ingestion** | Textract → Glue → Bedrock KB | Structured extraction, quality rules, managed RAG |
-| **Document Q&A** | Textract → Lambda → Bedrock | Real-time extraction and querying |
-| **Call center analysis** | Transcribe → Comprehend → Bedrock | Speech transcription, entity extraction, summarization |
-| **Content moderation** | Rekognition → Lambda → Bedrock | Image analysis, policy check, generate explanation |
-| **Form processing** | Textract AnalyzeDocument → Lambda | Structured form extraction |
-| **Data quality pipeline** | Glue Data Quality → SNS alerts | Batch validation with notifications |
-
-### Trade-off Analysis
-
-| Approach | Throughput | Latency | Cost | Complexity |
-|----------|-----------|---------|------|------------|
-| Lambda only | Medium | Low | Pay per invocation | Low |
-| Glue ETL | High | High (batch) | Pay per DPU-hour | Medium |
-| Step Functions + Lambda | Medium | Medium | Pay per state transition | Medium-High |
-| Bedrock KB managed | Medium | Low (after ingestion) | Per query + storage | Lowest |
-| Custom pipeline | Flexible | Flexible | Depends on design | Highest |
-
-```recall
-Q: Which pipeline approach has the lowest complexity for RAG ingestion?
-A: Bedrock Knowledge Bases (managed) — handles chunking, embedding, and retrieval with minimal setup.
-```
-
----
-
-## Data Quality: The Foundation of Everything
-
-Foundation models exhibit a dangerous property: they produce fluent output regardless of input quality. Give a model corrupted text, and it will generate a confident-sounding response based on whatever patterns it can extract from the noise. Give it incomplete data, and it will fill gaps with plausible-sounding fabrications. Give it contradictory information, and it will often produce a response that sounds reasonable while being completely wrong.
-
-This behavior makes quality validation essential. You cannot rely on the model to flag problems—you must catch them before data ever reaches the model.
-
-### Format Validation: The First Line of Defense
-
-Format validation catches the obvious problems that shouldn't reach production but inevitably try to. Is that JSON actually parseable, or does it have a missing bracket? Is that text file UTF-8 encoded, or is it some legacy encoding that will produce mojibake? Is that supposed image file actually an image, or is it a corrupted binary blob?
-
-These checks sound trivial, and they are—individually. But production systems receive data from diverse sources, each with its own quirks. Customer uploads might be corrupted. API responses might be malformed. Files transferred between systems might lose encoding information. Without explicit validation, these problems slip through and cause mysterious failures downstream.
-
-Format validation should be immediate and unforgiving. The moment bad data arrives, reject it with a clear error message. Don't let it proceed through expensive processing steps only to fail cryptically later.
-
-```fillin
-Format validation should be immediate and {{unforgiving}} — reject bad data the moment it arrives.
-```
-
-### Completeness Checking: Ensuring Nothing's Missing
-
-Your prompt template expects certain fields—a customer name, an order history, a product description. If any field is missing, the resulting prompt is incomplete. The model will still generate output, but that output will be generic at best and fabricated at worst. A response that should reference "your recent order of the Blue Widget" becomes "your order" or invents order details that don't exist.
-
-Completeness checking verifies that all expected data elements exist before building prompts. This is particularly important in RAG systems, where retrieved context might be empty or partial. If retrieval returns nothing, what happens? If it returns documents without the expected metadata, how does your prompt handle it?
-
-Define what "complete" means for each pipeline stage and verify it explicitly. Don't assume data will be complete because it usually is—verify because sometimes it isn't.
-
-```quickcheck
-Q: In a RAG system, what happens when retrieval returns no documents and no check is in place?
-A: The model produces a generic or fabricated response
-B: The API returns an error automatically
-correct: A
-feedback: Models produce confident-sounding output regardless of input quality. Empty context leads to hallucination, not errors.
-```
-
-### Anomaly Detection: Catching the Weird Stuff
-
-Some data passes format and completeness checks but is still obviously wrong. A product price of negative fifty dollars. A customer age of 250 years. An email address that's a thousand characters long. A date in year 2099 for a historical event.
-
-These anomalies suggest data corruption, integration bugs, or adversarial input. They should trigger alerts and prevent processing. Domain-specific rules catch these issues—rules that encode your business knowledge about what valid data looks like.
-
-Anomaly detection is inherently domain-specific. Generic validation can't know that your product prices should never exceed $10,000 or that customer IDs should match a particular pattern. You must encode this knowledge in your validation rules.
-
-### AWS Glue Data Quality: Declarative Batch Validation
-
-**AWS Glue Data Quality** provides a declarative approach to validation in batch pipelines. You define rules using DQDL (Data Quality Definition Language), and Glue evaluates them automatically during ETL jobs.
-
-```python
-# Example DQDL rules
-rules = """
+```text
 Rules = [
-    ColumnValues "price" between 0 and 10000,
-    Completeness "customer_id" > 0.99,
-    ColumnValues "email" matches ".*@.*\\..*",
-    ColumnValues "order_date" <= now(),
-    Uniqueness "order_id" > 0.999
+    ColumnExists "ticker",
+    Completeness "revenue" > 0.99,
+    Uniqueness "document_id" > 0.999,
+    ColumnValues "fiscal_quarter" in [1, 2, 3, 4]
 ]
-"""
 ```
-
-These rules run automatically as part of your Glue ETL jobs. When data fails quality checks, the pipeline can halt, quarantine bad records, or alert operators—depending on your configuration.
 
 ```recall
-Q: What language does AWS Glue Data Quality use for defining validation rules?
-A: DQDL (Data Quality Definition Language)
+Q: What language does Glue Data Quality use, and what happens on failure?
+A: DQDL. Quarantine failing records and alarm on CloudWatch — do not silently ingest into a Knowledge Base.
 ```
 
-The declarative approach has significant advantages. Rules are readable and auditable. Adding new rules doesn't require code changes. Quality thresholds can be adjusted without redeploying pipelines. And Glue tracks quality metrics over time, showing trends that might indicate upstream data problems.
+### Lambda for real-time custom checks
 
-For batch processing of large datasets before AI workloads, Glue Data Quality provides the validation layer that prevents garbage from reaching expensive model invocations.
+A user drops a PDF *now*. Validation must run inline: parseable, UTF-8, page count, MIME, required metadata. Reject with a clear error before Textract or Bedrock.
 
-### SageMaker Data Wrangler: Visual Exploration and Preparation
+### CloudWatch
 
-Before you can write good validation rules, you need to understand your data. What distributions do values follow? What outliers exist? What patterns suggest problems?
-
-**SageMaker Data Wrangler** provides visual exploration tools for this discovery phase. Import data from various sources, explore distributions, spot anomalies, and build transformation recipes—all through a visual interface rather than code.
-
-Data Wrangler excels at building intuition. You might discover that 3% of your product descriptions are empty, or that customer IDs follow three different formats depending on when they were created, or that a particular data source has systematic encoding issues. These discoveries inform your validation rules and transformation logic.
-
-Once you've built transformation recipes in Data Wrangler, you can export them as code for production pipelines. The visual exploration becomes the specification for production logic.
-
-### Lambda: Real-Time Custom Validation
-
-Batch validation handles scheduled processing, but many AI workloads process data in real-time. A user uploads a document, asks a question, or submits a form—and the AI needs to respond immediately. Validation must happen inline, as part of request processing.
-
-**Lambda functions** handle real-time custom validation. They execute your business logic the moment data arrives, rejecting bad input before it proceeds further.
-
-```python
-def validate_request(event):
-    body = json.loads(event['body'])
-
-    # Format validation
-    if 'question' not in body or not isinstance(body['question'], str):
-        return {'statusCode': 400, 'body': 'question field required'}
-
-    # Length validation
-    if len(body['question']) > 10000:
-        return {'statusCode': 400, 'body': 'question exceeds maximum length'}
-
-    # Business rule validation
-    if contains_pii(body['question']):
-        return {'statusCode': 400, 'body': 'PII not allowed in questions'}
-
-    # Passed validation - proceed with processing
-    return process_valid_request(body)
-```
-
-Lambda validation should fail fast and return clear error messages. Users can't fix problems they don't understand. "Invalid input" is useless; "question exceeds 10,000 character limit" is actionable.
+Skill 1.3.1 names **CloudWatch metrics**. Count validation failures, DQ score, quarantine volume. An alarm is how operators notice a bad IR drop instead of a week of fluent wrong answers.
 
 ```fillin
-Lambda validation should fail fast and return {{clear error messages}} that users can act on.
+Format validation should be immediate — reject bad data the moment it arrives, before {{expensive model invocations}}.
 ```
 
 ---
 
-## Multimodal Data Processing
+## Skill 1.3.2 — Process from the job, not the file extension
 
-Modern AI doesn't just read text—it processes images, extracts content from documents, transcribes audio, and analyzes video. Each modality requires specific preparation before AI processing can begin.
+**Processing** is how you convert a file into the *kind of content* the downstream model can use. It is not automatically “make it text.” Knowledge Bases can work with images, audio, and video. **Nova Multimodal Embeddings** can embed multimedia in native form. **Bedrock Data Automation** can instead turn that media into text or structured JSON.
 
-### Images: Preparation for Multimodal Models
+The same MP3 can become a searchable transcript, a native audio embedding, or a structured BDA blob.
 
-Multimodal models like Claude 3 and Titan Vision accept images directly alongside text. But images need preparation to work reliably.
-
-**Resolution matters.** Large images consume more tokens and processing time. Models have maximum resolution limits—exceeding them causes failures. Scale images down to reasonable dimensions before submission. A 20-megapixel photograph doesn't need that resolution for most AI tasks; 1024×1024 pixels often suffices.
-
-**Format compatibility varies.** Most APIs accept JPEG, PNG, GIF, and WebP. Other formats may need conversion. PDF pages aren't images—they need rendering or extraction first.
-
-**Encoding for transmission.** API calls typically require base64-encoded image data. The encoding inflates file size by roughly 33%, which affects payload limits and transmission time.
-
-```python
-import base64
-
-def prepare_image_for_bedrock(image_path):
-    with open(image_path, 'rb') as f:
-        image_bytes = f.read()
-
-    # Check file size after encoding
-    encoded = base64.b64encode(image_bytes).decode('utf-8')
-    if len(encoded) > 20_000_000:  # Example limit
-        raise ValueError('Image too large after encoding')
-
-    # Determine media type
-    media_type = 'image/jpeg' if image_path.endswith('.jpg') else 'image/png'
-
-    return {
-        'type': 'image',
-        'source': {
-            'type': 'base64',
-            'media_type': media_type,
-            'data': encoded
-        }
-    }
+```mermaid
+flowchart TD
+    F[File in S3] --> J{What must the FM consume?}
+    J -->|Exact searchable transcript| T[Amazon Transcribe]
+    J -->|Native audio/image similarity| MM[Multimodal embeddings]
+    J -->|Transcript + summaries + fields| BDA[Bedrock Data Automation]
+    J -->|OCR / forms / tables| TX[Amazon Textract]
+    J -->|Text model, passages| TXT[Clean encoding, strip boilerplate]
+    J -->|CSV / Parquet| TAB[Validate, project columns, serialize]
 ```
 
-**Error handling is essential.** Images can be corrupted, truncated, or in unexpected formats. Validation should verify that image data is actually valid before attempting AI processing. A corrupted image that passes to the API produces unhelpful error messages.
+Embed the MP3 with a **text** embedder and you fail before retrieval starts.
+
+### Text
+
+HTML / TXT / DOC → clean encoding, strip boilerplate, normalize. Default only when the FM is a text model and the job is passages.
+
+### Image / document
+
+OCR, “look at this exhibit,” and “extract 50k 10-Ks into JSON” are three products.
+
+| Stem | Product |
+|------|---------|
+| OCR / forms / tables | **Amazon Textract** (`FORMS`, `TABLES`, `LAYOUT`, `SIGNATURES`, `QUERIES`) |
+| Multi-page PDF | Textract **async** (`StartDocumentAnalysis`) — sync APIs are single-page |
+| Receipts / invoices | Textract **AnalyzeExpense** |
+| Identity docs | Textract **AnalyzeID** |
+| Multimodal FM should *look* at the exhibit | Image → multimodal Converse / Knowledge Base |
+| GenAI extraction at document scale | **Bedrock Data Automation** → JSON / Markdown / HTML / CSV |
+
+> Fifty thousand 10-Ks into company / revenue / tables / summary is BDA. A homemade Textract parser is the wrong altitude. Embeddings do not parse a PDF into fields.
+
+### Audio
+
+Exact searchable transcript → **Transcribe** (diarization for speakers; custom vocabularies for `Blackwell` / `H100`). Native multimodal understanding or embedding → Bedrock multimodal / BDA.
+
+```python
+import boto3
+
+transcribe = boto3.client("transcribe")
+transcribe.start_transcription_job(
+    TranscriptionJobName="nvda-fy26-q1-call",
+    Media={"MediaFileUri": "s3://desk-raw/nvda-fy26-q1.mp3"},
+    MediaFormat="mp3",
+    LanguageCode="en-US",
+    OutputBucketName="desk-text",
+)
+```
+
+### Tabular
+
+CSV / Parquet / Glue table → validate schema → normalize units and nulls → select rows / columns → **serialize** into JSON, a markdown table, or prompt rows. Do not paste a 400-column dump into Converse and hope.
 
 ```quickcheck
-Q: Base64 encoding inflates image file size by approximately what percentage?
-A: 33%
-B: 100%
-correct: A
-feedback: Base64 encoding inflates size by ~33%, which affects payload limits and transmission time.
+Q: You need structured company / revenue / tables from 50,000 10-K PDFs. What is the right altitude?
+A: Loop Textract AnalyzeDocument in Lambda for every file
+B: Bedrock Data Automation
+C: Paste each PDF into Converse
+D: Embed the PDFs with a text embedder and skip extraction
+correct: B
+feedback: Blueprint-driven multimodal extraction at document scale is BDA. Textract is OCR/forms. Converse is not a 50k-file factory. Text embeddings do not parse fields.
 ```
 
-### Document Processing with Amazon Textract
+---
 
-Documents—PDFs, scanned pages, Word files—contain valuable text, but that text is trapped in formats AI can't directly consume. **Amazon Textract** extracts text while preserving structure that simple OCR loses.
+## Skill 1.3.4 — Enhance with the cheapest determinate tool
 
-The key insight is that documents aren't just text—they have structure. Tables have rows and columns. Forms have labels and values. Pages have headings, paragraphs, and lists. Textract understands this structure and exposes it through specialized APIs.
+**Enhancement** is optional cleanup after the file is a usable modality and before you wrap an API call: normalize tickers, tag entities, redact a phone, or rewrite a messy note. Three kitchens. Use the cheapest one that has a determinate answer. You enhance, then you format — even though the official numbering lists format first.
 
-**DetectDocumentText** provides basic OCR—converting images of text into actual text. It returns lines and words with their positions. This works for simple documents where you just need the text content.
+| Tool | Job |
+|------|-----|
+| **Lambda** | Deterministic normalization. `NVIDIA Corporation` → `NVDA`. `$26.0 billion` → `amount=26.0, unit=USD_BILLION`. |
+| **Amazon Comprehend** | NLP enrichment: entities, language, sentiment, PII. Tag `ticker=NVDA` or redact a phone **before** a Knowledge Base. Custom entity recognition / custom classification when the taxonomy is yours. |
+| **Bedrock** | Semantic transformation. A messy analyst note becomes sections or a structured blob when code cannot parse it. You are paying an FM to rewrite, not to look up a ticker. |
 
-**AnalyzeDocument** goes deeper, understanding document structure through configurable **FeatureTypes**:
+Do **not** overwrite the raw source with an LLM-normalized copy. Keep provenance: **RAW → CURATED → DERIVED / AI-ENRICHED**. When the transformation is wrong, you still have the filing.
 
-**TABLES** extracts tabular data with row/column relationships preserved. A financial statement, specification sheet, or any document with grid layouts produces structured table data rather than a confusing sequence of cells.
-
-```python
-response = textract.analyze_document(
-    Document={'S3Object': {'Bucket': 'my-bucket', 'Name': 'financial-report.pdf'}},
-    FeatureTypes=['TABLES']
-)
-
-# Response includes TABLE blocks with CELL children
-# Each CELL knows its row/column position
-for block in response['Blocks']:
-    if block['BlockType'] == 'CELL':
-        row = block['RowIndex']
-        col = block['ColumnIndex']
-        # Cell text available through relationships
-```
-
-**FORMS** extracts key-value pairs from form-like documents. "Customer Name: John Smith" becomes structured data with `{key: "Customer Name", value: "John Smith"}`. Applications, questionnaires, and structured documents yield clean, queryable data.
-
-**SIGNATURES** detects the presence and location of signatures. For contract processing, you might verify that required signatures are present before proceeding. The response includes bounding boxes showing exactly where signatures appear.
-
-**QUERIES** lets you ask specific questions about the document. Instead of extracting everything and searching afterward, you ask "What is the invoice total?" and receive a direct answer. This reduces post-processing and improves accuracy for targeted extraction.
-
-**LAYOUT** analyzes document structure—titles, headers, paragraphs, lists, page numbers. This is critical for RAG applications where chunking must respect semantic structure. A heading shouldn't be separated from its content; a paragraph shouldn't be split mid-sentence.
-
-```python
-response = textract.analyze_document(
-    Document={'S3Object': {'Bucket': 'bucket', 'Name': 'manual.pdf'}},
-    FeatureTypes=['TABLES', 'FORMS', 'LAYOUT']
-)
-```
-
-You can combine multiple FeatureTypes in a single call, extracting tables, forms, and layout structure simultaneously.
+> Comprehend on the way *in* is not a Guardrail. A Guardrail filters the model call. Enhancement tags or redacts the corpus before retrieval ever starts.
 
 ```recall
-Q: Which Textract FeatureType preserves headings, paragraphs, and page structure — critical for RAG chunking?
-A: LAYOUT — it analyzes document structure so chunking respects semantic boundaries.
-```
-
-### Synchronous vs. Asynchronous Textract APIs
-
-Textract provides two API patterns with different use cases.
-
-**Synchronous APIs** (`DetectDocumentText`, `AnalyzeDocument`) process single-page documents and return immediately. They're limited to **10 MB** file size. Use them for real-time processing of individual pages—a user uploads a form, you extract data, you respond immediately.
-
-**Asynchronous APIs** (`StartDocumentTextDetection`, `StartDocumentAnalysis`) handle multi-page PDFs up to **3,000 pages** and **500 MB**. Processing happens in the background; you poll for results or receive SNS notifications when complete.
-
-The async workflow follows a consistent pattern:
-
-```python
-# Start the job
-start_response = textract.start_document_analysis(
-    DocumentLocation={
-        'S3Object': {'Bucket': 'my-bucket', 'Name': 'large-report.pdf'}
-    },
-    FeatureTypes=['TABLES', 'FORMS'],
-    NotificationChannel={
-        'SNSTopicArn': 'arn:aws:sns:...:textract-notifications',
-        'RoleArn': 'arn:aws:iam::...:role/TextractNotificationRole'
-    }
-)
-job_id = start_response['JobId']
-
-# Later, retrieve results (or receive via SNS)
-results = textract.get_document_analysis(JobId=job_id)
-
-# Handle pagination for large documents
-while 'NextToken' in results:
-    more_results = textract.get_document_analysis(
-        JobId=job_id,
-        NextToken=results['NextToken']
-    )
-    # Process more_results
-    results = more_results
-```
-
-For exam purposes: if you see "500-page PDF" or "multi-page document" in a question, the answer involves async APIs with `Start*` operations and job polling. Synchronous APIs simply cannot handle large multi-page documents.
-
-```fillin
-Synchronous Textract APIs are limited to {{10 MB}} file size and single-page documents.
-```
-
-### Specialized Extraction APIs
-
-Beyond general document analysis, Textract provides specialized APIs optimized for specific document types:
-
-**AnalyzeExpense** is optimized for receipts and invoices. It understands expense-specific fields—vendor names, line items, totals, taxes—and extracts them with higher accuracy than generic analysis.
-
-**AnalyzeID** handles identity documents—driver's licenses, passports, ID cards. It extracts standard fields (name, address, date of birth, ID number) with awareness of document layouts specific to identity documents.
-
-These specialized APIs typically outperform generic analysis for their target document types because they incorporate domain-specific knowledge about expected layouts and fields.
-
-### Audio Processing with Amazon Transcribe
-
-Audio content—recorded calls, meetings, podcasts, voice inputs—must become text before most AI processing can use it. **Amazon Transcribe** handles this conversion with features beyond basic speech-to-text.
-
-**Speaker diarization** identifies different speakers in a recording. A customer service call becomes a transcript showing who said what—critical for analyzing conversations rather than just extracting words.
-
-**Custom vocabularies** improve accuracy for domain-specific terminology. Medical terms, product names, technical jargon, company-specific acronyms—standard models might misrecognize these. Custom vocabularies teach Transcribe your terminology.
-
-```python
-transcribe.create_vocabulary(
-    VocabularyName='company-terms',
-    LanguageCode='en-US',
-    Phrases=[
-        'AWS Bedrock',
-        'GPT-4',
-        'LangChain',
-        'RAG pipeline'
-    ]
-)
-```
-
-**Real-time streaming** enables live transcription. As audio arrives, text streams back. This supports live captioning, real-time analysis, and voice-driven interfaces.
-
-**Batch processing** handles recorded audio at scale. Submit audio files to S3, configure transcription jobs, and receive transcripts when complete. This integrates with data pipelines that process audio archives.
-
-### Video: The Combination Challenge
-
-Video presents unique challenges because it combines visual and audio tracks. A complete analysis might:
-
-1. Extract key frames for visual analysis
-2. Transcribe the audio track
-3. Correlate visual and spoken content
-4. Synthesize insights from both modalities
-
-Different frames contain different information—a presentation video cycles through slides; an instructional video shows different steps. Intelligent frame extraction selects informative frames rather than sampling blindly.
-
-Amazon Rekognition handles video analysis—detecting objects, faces, activities, and text within video frames. Combined with Transcribe for audio, you can build comprehensive video analysis pipelines.
-
-### Handling Failures Gracefully
-
-Multimodal processing encounters failures that pure text processing doesn't. Images can be corrupted. Audio can be garbled. PDFs can be password-protected. Scanned documents can be too low-quality for OCR.
-
-Production pipelines must handle these failures gracefully:
-
-- **Log failures with context** — Capture enough information to diagnose problems
-- **Skip bad inputs, continue processing** — One bad file shouldn't halt a thousand-file batch
-- **Return meaningful errors** — Users uploading corrupted files need clear feedback
-- **Quarantine problematic files** — Route failures to a separate queue for manual review
-
-```python
-def process_document(document_path):
-    try:
-        result = extract_and_analyze(document_path)
-        return {'status': 'success', 'data': result}
-    except textract.exceptions.InvalidS3ObjectException:
-        log_error(document_path, 'Document not found')
-        return {'status': 'error', 'reason': 'Document not accessible'}
-    except textract.exceptions.UnsupportedDocumentException:
-        log_error(document_path, 'Unsupported format')
-        return {'status': 'error', 'reason': 'Document format not supported'}
-    except Exception as e:
-        log_error(document_path, f'Unexpected: {e}')
-        return {'status': 'error', 'reason': 'Processing failed'}
+Q: Entity extraction and sentiment at high volume, low cost — FM or Comprehend?
+A: Comprehend. Reserve the FM for tasks that actually need generation. Using Sonnet to label PERSON/ORG is the expensive wrong kitchen.
 ```
 
 ---
 
-## API-Ready Data Formatting
+## Skill 1.3.3 — Valid data is not a valid model request
 
-Foundation model APIs are precise about input format. A missing bracket, wrong field name, or improper nesting causes request failures—sometimes with cryptic error messages that take significant debugging to understand.
+**Formatting** is the last mile: cleaned content still has to match the API the model speaks. A Glue table that passed quality checks is not a Converse body. This skill is JSON for Bedrock and structured bytes for a SageMaker endpoint.
 
-### Understanding Bedrock's Messages API
+**Converse** is the provider-neutral envelope: `system`, `messages` (role + content), `inferenceConfig`. Model-specific knobs still go in `additionalModelRequestFields`. Converse standardizes the **request envelope**. It does not erase model capabilities.
 
-Bedrock's Messages API expects a specific JSON structure:
-
-```json
-{
-  "anthropic_version": "bedrock-2023-05-31",
-  "max_tokens": 1024,
-  "messages": [
-    {
-      "role": "user",
-      "content": [
-        {"type": "text", "text": "What is the capital of France?"}
-      ]
-    }
-  ]
-}
-```
-
-Each element must be correct. The `messages` array contains message objects. Each message has a `role` (user or assistant) and `content`. Content is an array of content blocks, each with a `type`. Text content has `type: "text"` and a `text` field. Image content has `type: "image"` with a `source` object.
-
-Multimodal messages combine content types:
-
-```json
-{
-  "role": "user",
-  "content": [
-    {"type": "text", "text": "What's in this image?"},
-    {
-      "type": "image",
-      "source": {
-        "type": "base64",
-        "media_type": "image/jpeg",
-        "data": "base64-encoded-image-data..."
-      }
-    }
-  ]
-}
-```
-
-Building these structures manually is error-prone. Use proper serialization libraries and helper functions rather than string concatenation.
-
-### Token Limits: The Silent Constraint
-
-Every model has a maximum context window—the total tokens it can process in a single request. Claude 3 models offer 200,000 tokens. Other models have different limits. Exceeding the limit causes request failures.
-
-Token counting isn't straightforward. Tokens aren't words—they're subword units that vary by model and text content. The same text might be 100 tokens in one model and 120 in another. Libraries like `tiktoken` provide accurate counting for specific models.
+**InvokeModel** is the raw, model-specific JSON. Anthropic’s body is not Titan’s. A small Lambda that maps “filing → request body” is the adapter. Build JSON with a serializer, not string concatenation.
 
 ```python
-def check_token_limit(messages, max_tokens=100000):
-    # Estimate tokens (actual counting varies by model)
-    total_chars = sum(
-        len(m['content'][0]['text'])
-        for m in messages
-        if m['content'][0]['type'] == 'text'
-    )
-    estimated_tokens = total_chars / 4  # Rough estimate
-
-    if estimated_tokens > max_tokens:
-        raise ValueError(f'Input exceeds token limit: ~{estimated_tokens}')
+def titan_body(prompt: str) -> bytes:
+    import json
+    return json.dumps({
+        "inputText": prompt,
+        "textGenerationConfig": {"maxTokenCount": 400, "temperature": 0.2},
+    }).encode()
 ```
 
-When inputs exceed limits, you have options:
+SageMaker endpoints have their own serializer (the container’s `/invocations` contract). Same idea: structured data in, bytes the endpoint expects.
 
-**Truncation** is simplest—cut content to fit. But it loses data and might cut mid-thought, producing incoherent context.
+### Conversation formatting
 
-**Summarization** compresses content while preserving meaning. Use a smaller, faster model to summarize documents before sending to the main model. This adds processing time and cost but preserves information.
+The exam names this on purpose. The model does **not** remember the prior API call. Your app reconstructs the thread.
 
-**Chunking and aggregation** processes content in pieces. Break a long document into chunks, process each separately, then synthesize results. This works for analysis tasks where each chunk can be processed independently.
+Turn 1 is “What did NVDA say about Blackwell?” Turn 2 is “Compare that with last quarter.” If the second Converse call sends only the new sentence, “that” has nothing to point at. Session storage is your job (DynamoDB, agent memory) — not Bedrock’s hidden brain.
 
-```quickcheck
-Q: When input exceeds the model's token limit, which approach preserves the most information?
-A: Summarization
-B: Truncation
+```text
+system     You are an equity research assistant. Sent every call — your choice, not memory.
+Turn 1     user: What did NVDA say about Blackwell?  assistant: … (you store both)
+Turn 2     Resend prior user + assistant turns, then the new user sentence. Roles intact.
+```
+
+> There is no hidden session on the model ID. Drop the history and the model asks which company. Switching to InvokeModel will not remember either.
+
+Count tokens before send. Truncate or split oversized inputs explicitly. Token overflow is a pipeline bug, not an FM personality.
+
+```fillin
+Converse standardizes the {{request envelope}}. It does not give the model a hidden session or erase provider constraints.
+```
+
+---
+
+## When to use which
+
+| Stem | Pick |
+|------|------|
+| Batch quality rules on cataloged / ETL data | **Glue Data Quality** (DQDL) + CloudWatch |
+| Visual explore before writing rules | **SageMaker Data Wrangler** |
+| Real-time custom validation | **Lambda** |
+| Large custom preprocess | **SageMaker Processing** |
+| Lake ETL | **Glue** |
+| Searchable speech | **Transcribe** |
+| OCR / forms / tables | **Textract** (async if multi-page) |
+| 50k documents → structured GenAI extraction | **Bedrock Data Automation** |
+| Native image / audio search | Multimodal FM or embeddings |
+| Entities / PII / cheap NLP | **Comprehend** |
+| Semantic rewrite | **Bedrock** (keep RAW vs DERIVED) |
+| Provider-neutral chat | **Converse** + reconstructed `messages` |
+| Model-specific raw body | **InvokeModel** mapping Lambda |
+| SageMaker host | That container’s `/invocations` contract |
+
+---
+
+## AWS service glossary
+
+### Data
+
+#### AWS Glue Data Quality
+
+**What it is.** Declarative checks (DQDL) on Data Catalog / ETL datasets, with a quality score.
+
+**Problem it solves.** Catch schema, completeness, and range failures before FM spend.
+
+**Where it sits.** Lake / batch ingest, before Knowledge Base or Converse.
+
+**Typical use.** `Completeness "transcript" > 0.99`; fail the Step Functions ingest.
+
+**Pricing.** Glue DPU / job time (plus Catalog).
+
+**Exam cue.** Batch validation, DQDL, data quality score, CloudWatch on failures.
+
+**Do not confuse with.** Lambda real-time checks. SageMaker Data Wrangler (explore).
+
+#### Amazon SageMaker Data Wrangler
+
+**What it is.** Visual data prep: distributions, outliers, transformation recipes.
+
+**Problem it solves.** Discover what “valid” means before you write production rules.
+
+**Where it sits.** Interactive exploration; recipes can export to pipelines.
+
+**Typical use.** Spot empty product descriptions, mixed customer-ID formats.
+
+**Pricing.** Studio / compute while you prep.
+
+**Exam cue.** Visual exploration, little-code prep — not a 200 ms S3 trigger.
+
+**Do not confuse with.** Glue Data Quality (declarative batch rules). SageMaker Processing (your script at scale).
+
+#### Amazon SageMaker Processing
+
+**What it is.** Managed compute to run *your* preprocessing / eval script.
+
+**Problem it solves.** Large custom Python / Spark jobs without babysitting clusters.
+
+**Where it sits.** Offline prep for fine-tune JSONL or huge extracts.
+
+**Typical use.** 500 GB corpus clean before training.
+
+**Pricing.** Instance hours for the processing job.
+
+**Exam cue.** Custom preprocessing at scale.
+
+**Do not confuse with.** Data Wrangler (UI). Lambda (event glue).
+
+#### Amazon S3
+
+**What it is.** Object store. Source of truth for filings, audio, BDA output.
+
+**Problem it solves.** Durable RAW files the pipeline reads.
+
+**Where it sits.** Start of 1.3; still the source after you enhance.
+
+**Typical use.** `s3://desk-raw/nvda-fy26-q1.mp3`.
+
+**Pricing.** Storage + requests.
+
+**Exam cue.** Do not overwrite RAW with an LLM rewrite.
+
+**Do not confuse with.** The derived vector index (1.4).
+
+### GenAI / AI
+
+#### Amazon Bedrock Data Automation
+
+**What it is.** Managed GenAI document/media understanding into structured output.
+
+**Problem it solves.** Extract fields, tables, summaries from piles of 10-Ks without a homemade OCR farm.
+
+**Where it sits.** 1.3.2 processing path when the job is structured extraction at scale.
+
+**Typical use.** 50,000 PDFs → JSON blueprints.
+
+**Pricing.** Pages / units processed.
+
+**Exam cue.** Document-scale structured extraction. Not Textract OCR.
+
+**Do not confuse with.** Textract (OCR/forms). Knowledge Bases (retrieval).
+
+#### Amazon Bedrock (rewrite / multimodal)
+
+**What it is.** FM API used here to *transform* or *look at* content, not to answer the blotter.
+
+**Problem it solves.** Semantic normalize; native image/audio understanding.
+
+**Where it sits.** Enhancement (1.3.4) or multimodal consume (1.3.2).
+
+**Typical use.** Messy note → sections; exhibit image → Converse.
+
+**Pricing.** Tokens.
+
+**Exam cue.** Semantic rewrite when Lambda cannot parse. Keep provenance.
+
+**Do not confuse with.** The chat writer in 1.2. Guardrails in 3.1.
+
+### Integration / orchestration
+
+#### AWS Lambda
+
+**What it is.** Event function: validate, normalize, map JSON.
+
+**Problem it solves.** S3-shaped work under 15 minutes.
+
+**Where it sits.** Validation, enhancement, request-body adapter.
+
+**Typical use.** Issuer → ticker; Converse envelope builder.
+
+**Pricing.** Requests + GB-seconds.
+
+**Exam cue.** Real-time custom validation; deterministic map; format adapter.
+
+**Do not confuse with.** Glue (lake). Cosine-over-DynamoDB (1.4 trap).
+
+#### Amazon EventBridge / Step Functions
+
+**What it is.** Schedule or state machine around ingest.
+
+**Problem it solves.** Stop the pipeline when DQ score tanks; sequence validate → process → format.
+
+**Where it sits.** Orchestration around 1.3, not the transform itself.
+
+**Typical use.** Glue job → DQ check → quarantine branch.
+
+**Pricing.** Events / state transitions.
+
+**Exam cue.** Alarm-driven halt. Known graph, not an agent.
+
+**Do not confuse with.** The FM.
+
+### Security / operations
+
+#### Amazon CloudWatch
+
+**What it is.** Metrics, logs, alarms on validation and DQ.
+
+**Problem it solves.** Operators see failed records instead of fluent garbage.
+
+**Where it sits.** Named in 1.3.1 beside Glue / Lambda.
+
+**Typical use.** Alarm on `ValidationFailures > 0`.
+
+**Pricing.** Metrics / log ingest.
+
+**Exam cue.** Quality workflow includes **observability**, not only a rule file.
+
+**Do not confuse with.** CloudTrail (who called the API).
+
+#### Amazon Comprehend
+
+**What it is.** Managed NLP: entities, PII, sentiment, custom classifiers.
+
+**Problem it solves.** Cheap determinate enrichment before generation.
+
+**Where it sits.** 1.3.4 enhancement.
+
+**Typical use.** Tag ticker; redact phone; classify note type.
+
+**Pricing.** Units of text.
+
+**Exam cue.** Standard NLP → Comprehend, not Sonnet.
+
+**Do not confuse with.** Guardrails (model I/O filter). Macie (S3 sensitive-data discovery).
+
+#### Amazon Textract
+
+**What it is.** OCR and document structure APIs.
+
+**Problem it solves.** Text, forms, tables, layout from images/PDFs.
+
+**Where it sits.** 1.3.2 document path.
+
+**Typical use.** `TABLES` + `FORMS`; async for multi-page.
+
+**Pricing.** Pages / features.
+
+**Exam cue.** FeatureTypes. Async for multi-page. Not BDA.
+
+**Do not confuse with.** Bedrock Data Automation.
+
+#### Amazon Transcribe
+
+**What it is.** Speech-to-text.
+
+**Problem it solves.** Exact searchable transcript from an earnings call.
+
+**Where it sits.** 1.3.2 audio path when the job is text.
+
+**Typical use.** Diarization + custom vocabulary.
+
+**Pricing.** Audio minutes.
+
+**Exam cue.** Searchable transcript. Not native audio embeddings.
+
+**Do not confuse with.** Multimodal embed of the MP3 itself.
+
+---
+
+## Practice questions
+
+Pick an answer on every stem. The explanation appears after you choose — later questions stay unspoiled until you answer them.
+
+```practice
+Q: A Glue table of transcripts has null text on 4% of rows. The team still syncs the Knowledge Base so “retrieval has something.” What should 1.3.1 do?
+A: Ingest anyway — the FM will flag bad rows
+B: Quarantine failures, alarm on CloudWatch, do not silently ingest
+C: Fine-tune Sonnet so it ignores nulls
+D: Raise temperature
+correct: B
+feedback: Validation workflows quarantine and alert. Models produce fluent garbage from empty context. Fine-tune and temperature are not quality gates.
+
+Q: You need declarative completeness and uniqueness checks on millions of cataloged filing rows, with a quality score in CloudWatch. Which service?
+A: SageMaker Data Wrangler
+B: AWS Glue Data Quality with DQDL
+C: Amazon Comprehend
+D: OpenSearch aggregations
+correct: B
+feedback: Batch rules + score is Glue Data Quality. Wrangler is interactive explore. Comprehend is NLP. OpenSearch is search.
+
+Q: Analysts must inspect a messy extract, see distributions, and build a prep recipe before production. Which kitchen?
+A: Lambda on each S3 event
+B: SageMaker Data Wrangler
+C: InvokeModel
+D: S3 Object Lock
+correct: B
+feedback: Visual exploration is Data Wrangler. Lambda is the 200 ms map after you know the rules.
+
+Q: The job is an exact searchable transcript of the NVDA webcast. Which 1.3.2 path?
+A: Embed the MP3 with Titan Text Embeddings
+B: Amazon Transcribe, then later chunk/embed the text
+C: Rekognition celebrity recognition
+D: SageMaker Training
+correct: B
+feedback: Searchable speech is Transcribe. A text embedder on audio bytes is the wrong modality. The same MP3 would take a multimodal embedder only if the job is native audio similarity.
+
+Q: 50,000 10-Ks must become company, revenue, tables, and a summary. Homemade Textract+Lambda is proposed. What matches the skill’s altitude?
+A: Keep the homemade OCR farm
+B: Amazon Bedrock Data Automation
+C: Paste PDFs into Converse in a loop
+D: Store PDFs only in DynamoDB
+correct: B
+feedback: Document-scale structured GenAI extraction is BDA. Textract is OCR/forms. Converse is not a factory.
+
+Q: Multi-page PDF, need tables and key-value pairs. Sync Textract AnalyzeDocument fails. Why?
+A: Textract cannot read tables
+B: Synchronous APIs are single-page; use async StartDocumentAnalysis
+C: You must use Comprehend
+D: You must fine-tune Titan
+correct: B
+feedback: Multi-page → async Textract. TABLES/FORMS FeatureTypes are correct; the API mode was wrong.
+
+Q: `NVIDIA Corporation` must become `NVDA` on every S3 drop. The mapping is already known. Which enhancer?
+A: Claude Opus
+B: Lambda deterministic map
+C: SageMaker Processing on ml.p4d
+D: Kendra
+correct: B
+feedback: Cheapest determinate tool. An FM lookup is spend you do not need. Processing is for huge custom jobs.
+
+Q: Tag PERSON/ORG and redact phone numbers in notes *before* they hit a Knowledge Base. Guardrails are proposed on Converse only. What is the 1.3.4 move?
+A: Amazon Comprehend on ingest
+B: Guardrails only — they will clean the corpus
+C: CloudTrail
+D: Provisioned Throughput
 correct: A
-feedback: Summarization compresses while preserving meaning. Truncation loses data and may cut mid-thought.
+feedback: Enhancement tags/redacts the corpus on the way in. Guardrails filter a model call. They are not a document pipeline.
+
+Q: A teammate overwrites the S3 10-K with a Bedrock-normalized markdown file. The rewrite drops a paragraph. What did they break?
+A: Nothing — derived is better
+B: Provenance. Keep RAW → CURATED → DERIVED so you can rebuild
+C: OpenSearch sharding
+D: Prompt routing
+correct: B
+feedback: 1.3.4 and 1.4 agree: do not destroy the source. If the rewrite is wrong you still need the filing.
+
+Q: Glue says the row is valid. Converse returns 400. Anthropic body was sent to a Titan InvokeModel call. Which skill failed?
+A: 1.3.1 dataset validation
+B: 1.3.3 request formatting
+C: 1.2.4 fine-tuning
+D: 1.4.3 sharding
+correct: B
+feedback: Dataset-valid ≠ request-valid. Titan vs Anthropic JSON is the adapter. Fine-tune and shards are unrelated.
+
+Q: Turn 2 is “Compare that with last quarter.” The app sends only that sentence to Converse. What is missing?
+A: A hidden Bedrock session on the model ID
+B: Reconstructed messages[] with prior user/assistant turns (app-owned state)
+C: A new SageMaker endpoint
+D: Higher top-k
+correct: B
+feedback: Conversation formatting is 1.3.3. The model has no hidden memory. DynamoDB/agent memory is your job.
+
+Q: Entity extraction at millions of notes, cost-sensitive, no generation required. Sonnet is proposed. What instead?
+A: Amazon Comprehend
+B: OpenSearch LTR
+C: S3 Vectors
+D: Cross-Region inference
+correct: A
+feedback: Standard NLP is Comprehend. Sonnet is the expensive kitchen. LTR/vectors/CRI are other tasks.
 ```
-
-### Special Characters and Encoding
-
-JSON has strict rules about special characters. Newlines must be `\n`. Quotes must be escaped as `\"`. Backslashes become `\\`. Control characters need Unicode escapes.
-
-If you're building JSON by concatenating strings, you'll eventually encounter content that breaks your JSON. A user question containing a quote character. A document with tabs and newlines. Code with backslashes.
-
-**Use proper serialization libraries.** Python's `json.dumps()` handles escaping automatically. JavaScript's `JSON.stringify()` does too. Don't reinvent this wheel.
-
-```python
-# Wrong - will break on special characters
-payload = f'{{"messages": [{{"role": "user", "content": "{user_input}"}}]}}'
-
-# Right - handles escaping automatically
-payload = json.dumps({
-    "messages": [{"role": "user", "content": [{"type": "text", "text": user_input}]}]
-})
-```
-
-### Building a Formatting Layer
-
-Every codebase that interacts with AI APIs needs formatting logic. The question is whether that logic is scattered across ten files or centralized in one place.
-
-A **formatting layer** centralizes API interaction logic:
-
-```python
-class BedrockFormatter:
-    def __init__(self, model_id):
-        self.model_id = model_id
-
-    def format_text_request(self, user_message, system_prompt=None, max_tokens=1024):
-        messages = [{'role': 'user', 'content': [{'type': 'text', 'text': user_message}]}]
-
-        body = {
-            'anthropic_version': 'bedrock-2023-05-31',
-            'max_tokens': max_tokens,
-            'messages': messages
-        }
-
-        if system_prompt:
-            body['system'] = system_prompt
-
-        return json.dumps(body)
-
-    def format_multimodal_request(self, text, image_data, media_type='image/jpeg'):
-        # Centralized multimodal formatting
-        pass
-
-    def parse_response(self, response_body):
-        # Centralized response parsing
-        pass
-```
-
-When APIs change—and they will—you fix one place rather than hunting through the codebase. When you add new formatting options, all callers can use them immediately. When debugging format issues, you know exactly where to look.
 
 ---
 
-## Input Enhancement Techniques
+## Final compressed review
 
-Raw user input is often insufficient for optimal AI responses. Users write tersely, use abbreviations, omit context that seems obvious to them, or ask questions that require background knowledge they haven't provided. Enhancement techniques improve AI responses by enriching input before it reaches the model.
+### What are the four knobs?
 
-### Entity Extraction with Amazon Comprehend
+1. **Validate** — inspect → pass or quarantine → CloudWatch. Glue DQDL for batch; Lambda for real-time; Wrangler to discover rules; Processing for huge custom jobs.
+2. **Process** — job, not file type. Transcribe / Textract / BDA / multimodal / tabular serialize.
+3. **Enhance** — Lambda if code knows; Comprehend for NLP/PII; Bedrock for semantic rewrite. Never overwrite RAW.
+4. **Format** — Converse envelope, InvokeModel body, SageMaker `/invocations`, reconstructed chat roles.
 
-**Amazon Comprehend** provides NLP capabilities that identify entities, sentiment, key phrases, and more—faster and cheaper than using foundation models for these standard tasks.
+### What requirement words should trigger what choices?
 
-Entity extraction identifies names, dates, locations, organizations, and other structured elements in text. A customer message mentioning "John Smith from Acme Corp called about the March invoice" yields entities: person (John Smith), organization (Acme Corp), date (March).
+DQDL / quality score → **Glue Data Quality**. Visual prep → **Data Wrangler**. S3 event map → **Lambda**. 500 GB script → **Processing**. Searchable audio → **Transcribe**. Forms/tables → **Textract** (async if multi-page). 50k structured 10-Ks → **BDA**. Entities/PII cheap → **Comprehend**. Semantic rewrite → **Bedrock**. Chat across turns → **messages[] you rebuild**. 400 on invoke → **wrong body**, not a “dumb model.”
 
-This information enables:
+### What mistakes is AWS trying to tempt you into making?
 
-**Intelligent routing** — Messages about billing go to billing support; technical issues go to technical support. Extract entities, classify intent, and route accordingly.
+Ingesting nulls so RAG “has something.” Using Sonnet to label ORG. Homemade Textract farm instead of BDA. Sync Textract on a 200-page PDF. Text-embedding an MP3. Overwriting S3 with an LLM file. String-concatenated JSON. Dropping chat history. Treating Converse as a session store.
 
-**Contextual enrichment** — The extracted organization name can trigger a database lookup for customer history, which gets injected into the prompt for the AI.
+If you can walk the blotter out loud — quarantine empty transcripts, Transcribe the call, Comprehend-tag the notes, keep the 10-K in S3, wrap Converse with both turns — you are doing Task 1.3.
 
-**Response filtering** — If sentiment analysis detects anger, perhaps escalate to a human. If entities include competitor names, perhaps apply additional review.
-
-```python
-comprehend = boto3.client('comprehend')
-
-response = comprehend.detect_entities(
-    Text="I'd like to discuss my order #12345 with John Smith at Acme Corp",
-    LanguageCode='en'
-)
-
-for entity in response['Entities']:
-    print(f"{entity['Type']}: {entity['Text']} (confidence: {entity['Score']:.2f})")
-# QUANTITY: order #12345
-# PERSON: John Smith
-# ORGANIZATION: Acme Corp
-```
-
-```recall
-Q: Name two advantages of using Comprehend over foundation models for entity extraction.
-A: Lower per-request cost (10-100x cheaper) and faster inference (~100ms vs 1-3s).
-```
-
-### Custom Entity Recognition: Teaching Comprehend Your Domain
-
-Out-of-the-box Comprehend recognizes standard entity types—PERSON, ORGANIZATION, DATE, LOCATION. But your domain likely has specific entities it doesn't know: product codes, internal project names, medical terms, legal citations.
-
-**Custom Entity Recognition** trains Comprehend to find your entities. The process involves:
-
-**1. Prepare training data.** Create an annotations file mapping text spans to your entity types, or provide entity lists with examples of each type.
-
-Annotations format (more flexible, higher accuracy):
-```csv
-File,Line,Begin Offset,End Offset,Type
-doc1.txt,0,15,25,PRODUCT_CODE
-doc1.txt,0,45,60,CUSTOMER_ID
-```
-
-Entity list format (simpler, faster to prepare):
-```csv
-Text,Type
-ABC-1234,PRODUCT_CODE
-XYZ-5678,PRODUCT_CODE
-CUST-001,CUSTOMER_ID
-```
-
-**2. Train the model.** Comprehend handles the ML infrastructure—you just provide data and wait.
-
-```python
-response = comprehend.create_entity_recognizer(
-    RecognizerName='product-entity-recognizer',
-    DataAccessRoleArn='arn:aws:iam::123456789012:role/ComprehendRole',
-    InputDataConfig={
-        'EntityTypes': [
-            {'Type': 'PRODUCT_CODE'},
-            {'Type': 'CUSTOMER_ID'}
-        ],
-        'Documents': {'S3Uri': 's3://bucket/training-docs/'},
-        'EntityList': {'S3Uri': 's3://bucket/entities.csv'}
-    },
-    LanguageCode='en'
-)
-```
-
-Training takes hours—plan accordingly. Once complete, create an endpoint for real-time inference or use batch jobs for async processing.
-
-**3. Use the trained model.** Custom recognizers work like built-in ones but find YOUR entities.
-
-### Custom Classification: Categorizing at Scale
-
-Sometimes you need to categorize documents into your own taxonomy—support ticket types, document categories, content topics. **Custom Classification** trains Comprehend for your categories.
-
-```python
-# Training data format (CSV)
-# CLASS,TEXT
-# billing_issue,"I was charged twice for my subscription"
-# technical_problem,"The app crashes when I click settings"
-# feature_request,"Please add dark mode"
-
-response = comprehend.create_document_classifier(
-    DocumentClassifierName='support-ticket-classifier',
-    DataAccessRoleArn='arn:aws:iam::123456789012:role/ComprehendRole',
-    InputDataConfig={
-        'S3Uri': 's3://bucket/training-data.csv'
-    },
-    LanguageCode='en',
-    Mode='MULTI_CLASS'  # Each document gets exactly one category
-)
-```
-
-**MULTI_CLASS** assigns exactly one category per document. **MULTI_LABEL** allows multiple categories—a ticket might be both "billing" AND "cancellation."
-
-### When to Use Custom Comprehend vs. Foundation Models
-
-Both Comprehend custom models and foundation models can classify and extract entities. The choice depends on your use case:
-
-| Factor | Comprehend Custom | Foundation Model |
-|--------|-------------------|------------------|
-| Per-request cost | Lower at volume | Higher |
-| Inference latency | Faster (~100ms) | Slower (~1-3s) |
-| Flexibility | Fixed after training | Adjustable via prompts |
-| Setup time | Hours of training | Immediate |
-| Category changes | Requires retraining | Update the prompt |
-
-For **stable, high-volume tasks** where categories and entities don't change frequently, train Comprehend models. The lower per-request cost compounds at scale.
-
-For **evolving needs** where categories change frequently or you're still iterating, foundation models offer flexibility. Update the prompt rather than retraining.
-
-```fillin
-For stable, high-volume classification tasks, train {{Comprehend custom models}} instead of using foundation models.
-```
-
-### Text Normalization
-
-Raw text often benefits from cleanup before AI processing:
-
-- **Expand abbreviations**: "u" → "you", "msg" → "message"
-- **Fix obvious typos**: Common misspellings that don't affect meaning
-- **Standardize formats**: Dates, phone numbers, currency amounts
-- **Remove noise**: Excessive punctuation, emoji overuse, repeated characters
-
-Models handle imperfect input reasonably well, but cleaner input often produces cleaner output. A carefully normalized prompt eliminates ambiguity that the model might resolve incorrectly.
-
-### Context Enrichment: The Power Move
-
-The most impactful enhancement technique is **context injection**—adding relevant background information that enables specific, personalized responses.
-
-**Before enhancement:**
-```
-User: "What's my order status?"
-```
-
-The model can only generate a generic response about how to check order status.
-
-**After context injection:**
-```
-User context:
-- Customer: John Smith (ID: 12345)
-- Recent order: #98765 (Blue Widget, qty 2)
-- Order status: Shipped yesterday
-- Tracking: 1Z999AA1012345678
-- Estimated delivery: Friday
-
-User question: "What's my order status?"
-```
-
-Now the model can respond specifically: "Your order #98765 for 2 Blue Widgets shipped yesterday and should arrive Friday. Here's your tracking number: 1Z999AA1012345678."
-
-Context injection typically involves:
-1. Extracting identifiers from the user message or session
-2. Looking up relevant data in your systems
-3. Formatting that data for inclusion in the prompt
-4. Including it in a way the model can use naturally
-
-The difference in response quality is dramatic. Generic responses become specific ones. Unhelpful responses become actionable ones.
-
-### Query Expansion for RAG
-
-In RAG systems, users' queries often use different terminology than your documents. A question about "compute options" might need to match documents about "EC2," "Lambda," and "Fargate." Query expansion bridges this vocabulary gap.
-
-Techniques include:
-- **Synonym expansion**: Add known synonyms to the query
-- **Abbreviation expansion**: "ML" → "machine learning"
-- **Hierarchical expansion**: "EC2" → "EC2 compute virtual machine server"
-- **LLM-based expansion**: Ask a model to rephrase the query in multiple ways
-
-```python
-def expand_query(original_query):
-    # Use a fast, cheap model to generate query variants
-    expansion_prompt = f"""
-    Generate 3 alternative phrasings of this question for search purposes:
-    "{original_query}"
-
-    Return only the alternative phrasings, one per line.
-    """
-
-    variants = invoke_model(expansion_prompt)
-    return [original_query] + variants.split('\n')
-```
-
-Multiple query variants cast a wider net during retrieval, finding relevant documents that might have been missed by the original phrasing alone.
-
----
-
-## Exam Tips
-
-| When you see... | Think... |
-|-----------------|----------|
-| "data quality rules" or "batch validation" | **AWS Glue Data Quality** with DQDL rules |
-| "real-time custom validation" | **Lambda** with custom validation logic |
-| "visual data exploration" | **SageMaker Data Wrangler** |
-| "forms or tables in documents" | **Textract AnalyzeDocument** with FORMS or TABLES FeatureTypes |
-| "multi-page PDF" or "large documents" | Textract **async APIs** (StartDocumentAnalysis) |
-| "document structure" or "headings" | Textract **LAYOUT** FeatureType |
-| "signature detection" | Textract **SIGNATURES** FeatureType |
-| "receipts or invoices" | **Textract AnalyzeExpense** |
-| "identity documents" | **Textract AnalyzeID** |
-| "speaker identification in audio" | **Transcribe** with diarization |
-| "domain-specific audio terms" | Transcribe **custom vocabularies** |
-| "entity or sentiment extraction" | **Amazon Comprehend** |
-| "domain-specific entities" | Comprehend **Custom Entity Recognition** |
-| "document categorization at scale" | Comprehend **Custom Classification** |
-| "high-volume classification, low cost" | Comprehend (not foundation models) |
-
----
-
-## Key Takeaways
-
-> **1. Validate before sending to AI.**
-> Foundation models don't flag bad input—they produce garbage output that looks confident. Catch errors in your pipeline, before expensive model invocations.
-
-> **2. Choose the right validation approach.**
-> Glue Data Quality for batch pipelines with declarative rules. Lambda for real-time custom logic. Data Wrangler for visual exploration before writing rules.
-
-> **3. Use Comprehend for standard NLP tasks.**
-> Entity extraction, sentiment analysis, and classification are faster and cheaper with Comprehend than foundation models for these common tasks.
-
-> **4. Understand Textract's FeatureTypes.**
-> TABLES for tabular data, FORMS for key-value pairs, LAYOUT for document structure, SIGNATURES for signature detection, QUERIES for targeted extraction. Async APIs for multi-page documents.
-
-> **5. Enhance inputs for better outputs.**
-> Context injection transforms generic responses into specific ones. Query expansion improves RAG retrieval. Entity extraction enables intelligent routing.
-
-> **6. Build a formatting layer.**
-> Centralize API formatting logic instead of scattering it throughout your codebase. When APIs change, fix one place.
-
----
-
-## Common Mistakes
-
-| Mistake | Why It Matters |
-|---------|----------------|
-| **Skipping validation entirely** | AI produces confident garbage from bad input. You won't discover problems until users complain about nonsensical responses. |
-| **Using foundation models for standard NLP** | Entity extraction and sentiment analysis via Comprehend are 10-100x cheaper than FM calls. Reserve FMs for complex reasoning. |
-| **Using sync Textract for multi-page PDFs** | Synchronous APIs only handle single pages. Multi-page documents require async APIs with job polling. |
-| **Forgetting token limits** | Requests fail or truncate unexpectedly. Count tokens before sending and handle oversized inputs explicitly. |
-| **Building JSON with string concatenation** | Special characters break your JSON. Use proper serialization libraries that handle escaping automatically. |
-| **Scattered formatting logic** | Duplicate formatting code diverges over time and creates inconsistent bugs. Centralize in a formatting layer. |
-| **No context injection** | Users get generic responses when specific ones are possible. Look up relevant data and include it in prompts. |
+Where vectors live is next: [1.4 Vector Store Solutions](/learn/1/vector-stores). How you cut and ask is [1.5](/learn/1/retrieval-mechanisms).

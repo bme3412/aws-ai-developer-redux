@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getDomains, getDomain } from '@/lib/domains';
-import { getDomainQuestions, getAllQuestions, shuffleQuestions, isAnswerCorrect } from '@/lib/content';
+import { getDomainQuestions, getAllQuestions, getNotesDrillQuestions, getNotesDrillByDomain, getNotesDrillByTask, shuffleQuestions, isAnswerCorrect } from '@/lib/content';
 import { addReviewScore, markQuestionCompleted, getQuestionCompletion, getProgress, startPracticeSession, recordQuestionAttempt, completePracticeSession } from '@/lib/progress';
 import { getWeakAreaQuestions, selectAdaptiveQuestions } from '@/lib/analytics';
 import { Question } from '@/types/review';
@@ -28,6 +28,7 @@ interface TaskQuestionCount {
   taskId: string;
   taskName: string;
   count: number;
+  drillCount: number;
   articleSlug?: string;
 }
 
@@ -36,6 +37,7 @@ interface DomainQuestionSummary {
   domainName: string;
   weight: number;
   totalQuestions: number;
+  totalDrills: number;
   tasks: TaskQuestionCount[];
 }
 
@@ -44,6 +46,8 @@ function ReviewContent() {
   const domainFilter = searchParams.get('domain');
   const taskFilter = searchParams.get('task');
   const mode = searchParams.get('mode') || 'practice';
+  const source = searchParams.get('source');
+  const isDrill = source === 'drill' || mode === 'drill';
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -76,16 +80,27 @@ function ReviewContent() {
       setTimeRemaining(null);
       try {
         let loadedQuestions: Question[] = [];
+        const useDrill = source === 'drill' || mode === 'drill';
 
-        if (domainFilter) {
+        if (useDrill) {
+          if (taskFilter) {
+            loadedQuestions = await getNotesDrillByTask(taskFilter, false);
+          } else if (domainFilter) {
+            loadedQuestions = await getNotesDrillByDomain(parseInt(domainFilter));
+          } else {
+            loadedQuestions = await getNotesDrillQuestions();
+          }
+        } else if (domainFilter) {
           loadedQuestions = await getDomainQuestions(parseInt(domainFilter));
         } else {
           loadedQuestions = await getAllQuestions();
         }
 
-        // Filter by task if specified
-        if (taskFilter) {
-          loadedQuestions = loadedQuestions.filter(q => q.task === taskFilter);
+        // Filter by task if specified (domain bank only — drill already filtered)
+        if (!useDrill && taskFilter) {
+          loadedQuestions = loadedQuestions.filter(q =>
+            q.task === taskFilter || q.skills?.includes(taskFilter)
+          );
         }
 
         const progress = getProgress();
@@ -113,6 +128,10 @@ function ReviewContent() {
         }
 
         setQuestions(loadedQuestions);
+        setCurrentIndex(0);
+        setAnswers({});
+        setShowResults({});
+        setIsComplete(false);
 
         // Start session tracking
         const sid = startPracticeSession(
@@ -139,9 +158,13 @@ function ReviewContent() {
       }
     }
     loadQuestions();
-  }, [domainFilter, taskFilter, mode]);
+  }, [domainFilter, taskFilter, mode, source]);
 
   const currentQuestion = questions[currentIndex];
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [domainFilter, taskFilter, mode, source]);
 
   const handleAnswer = (selectedIds: string[]) => {
     if (!currentQuestion) return;
@@ -157,6 +180,7 @@ function ReviewContent() {
   };
 
   const handleNext = () => {
+    window.scrollTo(0, 0);
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
@@ -172,6 +196,7 @@ function ReviewContent() {
 
   const handlePrevious = () => {
     if (currentIndex > 0) {
+      window.scrollTo(0, 0);
       setCurrentIndex(currentIndex - 1);
     }
   };
@@ -303,10 +328,13 @@ function ReviewContent() {
               </Link>
             </>
           )}
-          {taskFilter && task && (
+          {taskFilter && (
             <>
               <ChevronRight className="w-4 h-4 text-gray-400" />
-              <span className="text-gray-700">Task {taskFilter}: {task.name}</span>
+              <span className="text-gray-700">
+                {isDrill ? 'Notes drill · ' : ''}
+                Task {taskFilter}: {task?.name || (taskFilter === '1.aws' ? 'AWS catalog' : taskFilter)}
+              </span>
             </>
           )}
         </div>
@@ -347,8 +375,9 @@ function ReviewContent() {
         )}
       </div>
 
-      {/* Question Card */}
+      {/* Question Card — remount per item so selection/explanation state does not leak */}
       <QuestionCard
+        key={currentQuestion.id}
         question={currentQuestion}
         questionNumber={currentIndex + 1}
         totalQuestions={questions.length}
@@ -378,6 +407,7 @@ function ReviewContent() {
           <button
             onClick={() => {
               if (currentIndex < questions.length - 1) {
+                window.scrollTo(0, 0);
                 setCurrentIndex(currentIndex + 1);
               }
             }}
@@ -416,14 +446,24 @@ function DomainSection({ summary, isExpanded, onToggle }: {
             </h3>
           </div>
         </div>
-        <Link
-          href={`/review?domain=${summary.domainId}&mode=all`}
-          onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          <Play className="w-4 h-4" />
-          Practice All
-        </Link>
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <Link
+            href={`/review?domain=${summary.domainId}&mode=all`}
+            className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            <Play className="w-4 h-4" />
+            Practice All
+          </Link>
+          {summary.totalDrills > 0 && (
+            <Link
+              href={`/review?source=drill&domain=${summary.domainId}&mode=all`}
+              className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              <Target className="w-4 h-4" />
+              Drill All
+            </Link>
+          )}
+        </div>
       </button>
 
       {/* Task List */}
@@ -440,7 +480,10 @@ function DomainSection({ summary, isExpanded, onToggle }: {
                 </span>
                 <div>
                   <p className="text-sm font-medium text-gray-800">{task.taskName}</p>
-                  <p className="text-xs text-gray-500">{task.count} questions</p>
+                  <p className="text-xs text-gray-500">
+                    {task.count} practice
+                    {task.drillCount > 0 ? ` · ${task.drillCount} notes drills` : ''}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -453,6 +496,16 @@ function DomainSection({ summary, isExpanded, onToggle }: {
                     Read
                   </Link>
                 )}
+                {task.drillCount > 0 && (
+                  <Link
+                    href={`/review?source=drill&domain=${summary.domainId}&task=${task.taskId}&mode=all`}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    <Target className="w-3 h-3" />
+                    Drill
+                  </Link>
+                )}
+                {task.count > 0 && (
                 <Link
                   href={`/review?domain=${summary.domainId}&task=${task.taskId}&mode=all`}
                   className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white text-xs font-medium rounded-lg transition-colors"
@@ -460,6 +513,7 @@ function DomainSection({ summary, isExpanded, onToggle }: {
                   <Play className="w-3 h-3" />
                   Practice
                 </Link>
+                )}
               </div>
             </div>
           ))}
@@ -470,6 +524,36 @@ function DomainSection({ summary, isExpanded, onToggle }: {
 }
 
 export default function ReviewPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+        </div>
+      }
+    >
+      <ReviewPageBody />
+    </Suspense>
+  );
+}
+
+function ReviewPageBody() {
+  const searchParams = useSearchParams();
+  const hasSession = Boolean(
+    searchParams.get('mode') ||
+    searchParams.get('domain') ||
+    searchParams.get('task') ||
+    searchParams.get('source')
+  );
+
+  if (hasSession) {
+    return <ReviewContent />;
+  }
+
+  return <ReviewHub />;
+}
+
+function ReviewHub() {
   const domains = getDomains();
   const [questionSummaries, setQuestionSummaries] = useState<DomainQuestionSummary[]>([]);
   const [expandedDomains, setExpandedDomains] = useState<Set<number>>(new Set([1]));
@@ -482,25 +566,37 @@ export default function ReviewPage() {
       for (const domain of domains) {
         try {
           const questions = await getDomainQuestions(domain.id);
-
-          // Count questions per task
-          const taskCounts: Record<string, number> = {};
-          questions.forEach(q => {
-            taskCounts[q.task] = (taskCounts[q.task] || 0) + 1;
+          const drills = await getNotesDrillByDomain(domain.id);
+          const drillByTask: Record<string, number> = {};
+          drills.forEach((q) => {
+            drillByTask[q.task] = (drillByTask[q.task] || 0) + 1;
           });
 
           const tasks: TaskQuestionCount[] = domain.tasks.map(t => ({
             taskId: t.id,
             taskName: t.name,
-            count: taskCounts[t.id] || 0,
+            count: questions.filter(q => q.task === t.id || q.skills?.includes(t.id)).length,
+            drillCount: drillByTask[t.id] || 0,
             articleSlug: t.articleSlug,
           }));
+
+          if (domain.id === 1 && drillByTask['1.aws']) {
+            const insertAt = tasks.findIndex((t) => t.taskId === '1.1') + 1;
+            tasks.splice(insertAt, 0, {
+              taskId: '1.aws',
+              taskName: 'AWS catalog',
+              count: 0,
+              drillCount: drillByTask['1.aws'],
+              articleSlug: 'architectural-design',
+            });
+          }
 
           summaries.push({
             domainId: domain.id,
             domainName: domain.name,
             weight: domain.weight,
             totalQuestions: questions.length,
+            totalDrills: drills.length,
             tasks,
           });
         } catch {
@@ -509,6 +605,7 @@ export default function ReviewPage() {
             domainName: domain.name,
             weight: domain.weight,
             totalQuestions: 0,
+            totalDrills: 0,
             tasks: [],
           });
         }
@@ -534,6 +631,7 @@ export default function ReviewPage() {
   };
 
   const totalQuestions = questionSummaries.reduce((sum, s) => sum + s.totalQuestions, 0);
+  const totalDrills = questionSummaries.reduce((sum, s) => sum + s.totalDrills, 0);
 
   return (
     <div className="min-h-screen">
@@ -544,7 +642,8 @@ export default function ReviewPage() {
             Practice Questions
           </h1>
           <p className="text-gray-600 mt-2">
-            {totalQuestions} exam-style questions organized by domain and task.
+            {totalQuestions} exam-style questions organized by domain and task
+            {totalDrills > 0 ? ` · ${totalDrills} notes drills matched to each section.` : '.'}
           </p>
         </div>
 
@@ -576,21 +675,12 @@ export default function ReviewPage() {
         <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
           <h3 className="font-semibold text-purple-800 mb-2">Study Tips</h3>
           <ul className="text-sm text-gray-700 space-y-1">
-            <li>• Read the article first, then practice questions for that task</li>
-            <li>• Questions show which article section they test (after answering)</li>
+            <li>• Notes drills are the short Pick / Do not pick items from the trilogy notes, grouped by task</li>
+            <li>• Read the article first, then drill that task, then use the longer practice bank</li>
             <li>• Focus on Domain 1 (31%) and Domain 2 (26%) for best ROI</li>
           </ul>
         </div>
       </div>
-
-      {/* Question Interface */}
-      <Suspense fallback={
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
-        </div>
-      }>
-        <ReviewContent />
-      </Suspense>
     </div>
   );
 }

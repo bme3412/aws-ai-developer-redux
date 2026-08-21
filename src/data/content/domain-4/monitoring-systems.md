@@ -1,1156 +1,742 @@
-# Monitoring and Observability for GenAI Systems
+# Implement Monitoring Systems for GenAI Applications
 
-**Domain 4 | Task 4.3 | ~40 minutes**
+**Domain 4 · Task 4.3 · Skills 4.3.1–4.3.6**
 
----
+Traditional application monitoring asks whether the system is running, how long requests take, whether APIs are failing, and how much CPU and memory you are using.
 
-## Why This Matters
+A GenAI application has all of those problems plus an entirely new category:
 
-You can't optimize what you don't measure. You can't debug what you can't see. You can't maintain quality you don't monitor.
+Is the model producing good answers? Is it hallucinating? Is retrieval supplying the right evidence? Is the agent calling the right tools? Are token costs suddenly exploding? Has behavior changed even though nothing technically “failed”?
 
-GenAI systems have unique monitoring challenges. Traditional application metrics—latency, error rates, throughput—still matter, but they're not enough. You need to track token usage (cost), output quality (correctness), hallucination rates (reliability), and prompt effectiveness (optimization opportunity). A system might have perfect uptime and sub-second latency while producing garbage outputs that damage user trust.
+That distinction is the heart of Task 4.3.
 
-The challenge compounds with complexity. Agentic systems make autonomous decisions. RAG systems depend on retrieval quality. Multi-model architectures route between services. Without proper observability, debugging becomes guesswork. "The model gave a wrong answer" could mean: wrong prompt, wrong context, wrong model, wrong parameters, or perfectly correct behavior given bad inputs.
+**A GenAI system can be technically healthy and functionally terrible.**
 
-Good monitoring catches issues before users do. It enables optimization through data. It provides audit trails for compliance. It turns "the AI is being weird" into actionable insights with specific causes and solutions.
+Walk this scenario as you read:
 
----
+> An internal investment-research copilot. An analyst asks “Why did management reduce its revenue outlook?” The assistant responds in two seconds, has 99.99% availability, and produces no HTTP errors — but regularly retrieves the wrong quarter and invents financial figures. Traditional monitoring says the application is healthy. GenAI monitoring must say it is broken.
 
-## Under the Hood: GenAI Metrics That Matter
+The goal is observability across the entire AI pipeline, not merely the infrastructure running it.
 
-Understanding which metrics to track and why helps you build effective monitoring.
-
-### The GenAI Metrics Hierarchy
-
-```mermaid
-graph TD
-    subgraph "Infrastructure Metrics"
-        A[Latency]
-        B[Error Rates]
-        C[Throughput]
-    end
-
-    subgraph "Cost Metrics"
-        D[Input Tokens]
-        E[Output Tokens]
-        F[API Calls]
-    end
-
-    subgraph "Quality Metrics"
-        G[Groundedness]
-        H[Relevance]
-        I[User Satisfaction]
-    end
-
-    subgraph "Business Metrics"
-        J[Task Completion]
-        K[Escalation Rate]
-        L[Time Saved]
-    end
-
-    A --> M[System Health]
-    D --> N[Cost Control]
-    G --> O[Output Quality]
-    J --> P[Business Value]
+```text
+Infrastructure → Model → Retrieval / tools → Answer quality → Business outcome
 ```
 
-### What Each Metric Tells You
+CloudWatch's GenAI observability reflects that broader model: latency, usage, errors, model invocations, agents, knowledge bases, guardrails and tools, and traces across the workflow.
 
-| Metric | Healthy Range | Alert Threshold | What It Indicates |
-|--------|---------------|-----------------|-------------------|
-| p50 Latency | < 2s | > 5s | Typical user experience |
-| p99 Latency | < 10s | > 30s | Worst-case experience |
-| Error Rate | < 1% | > 5% | System stability |
-| Input Tokens/req | Stable | +50% | Prompt bloat or attack |
-| Output Tokens/req | Stable | +100% | Unexpected verbosity |
-| Guardrail Interventions | < 1% | > 5% | Content issues |
-| User Feedback Score | > 4.0/5 | < 3.5/5 | Quality perception |
+> **Exam tip:** No errors does not mean healthy. Hallucination, wrong-quarter retrieval, and a silent agent loop are production failures that never trip an HTTP 500.
 
-### The Observability Stack
+---
 
-```mermaid
-graph LR
-    subgraph "Collection"
-        A[CloudWatch Metrics]
-        B[X-Ray Traces]
-        C[Custom Logs]
-    end
+## Monitoring vs observability
 
-    subgraph "Storage"
-        D[CloudWatch Logs]
-        E[S3 Archives]
-    end
+**Monitoring** watches known measurements and checks whether they cross expected boundaries: latency > 10 seconds, error rate > 2%, token usage jumps 50%, tool failure rate exceeds 5%. You already know what you are looking for.
 
-    subgraph "Analysis"
-        F[CloudWatch Insights]
-        G[Athena Queries]
-        H[QuickSight Dashboards]
-    end
+**Observability** is broader. You collect enough telemetry — metrics, logs, and traces — that when something unexpected occurs, you can investigate what happened.
 
-    subgraph "Action"
-        I[Alarms]
-        J[SNS Notifications]
-        K[Auto-remediation]
-    end
+```text
+Monitoring tells you something is wrong.
+Observability helps you determine why it is wrong.
+```
 
-    A --> D
-    B --> D
-    C --> D
-    D --> E
-    D --> F
-    E --> G
-    F --> H
-    G --> H
-    F --> I
-    I --> J
-    I --> K
+That distinction shows up in every skill below.
+
+Adjacent tasks sit next door:
+
+- **[4.1](/learn/4/cost-optimization)** and **[4.2](/learn/4/performance-optimization)** *act* on tokens, latency, and capacity. 4.3 is how you *see* those signals.
+- **[5.1](/learn/5/evaluation-systems)** is the evaluation curriculum. 4.3.6 uses golden datasets and output diffs as *production troubleshooting*, not as the full eval platform.
+- **[5.2](/learn/5/troubleshooting)** is the incident playbook. 4.3 is the telemetry that playbook reads.
+- **[2.1](/learn/2/agentic-ai)** agents need `enableTrace`. **[3.1](/learn/3/input-output-safety)** guardrail debug is the Converse **trace**, not an eval job. **[3.2](/learn/3/data-security-privacy)** / **[3.3](/learn/3/governance-compliance)** govern the prompts you just decided to log.
+
+### Five layers, six skills
+
+Instead of memorizing dozens of isolated metrics, organize GenAI observability into five layers. The six skills are a progression through those layers — not six disconnected dashboards.
+
+| Layer | Central question | Skill |
+|-------|------------------|--------|
+| Application / infrastructure | Is the system operating correctly? | **4.3.1** see everything |
+| Model | Is inference fast, reliable, and affordable? | **4.3.2** measure GenAI behavior |
+| Retrieval / tools / agents | Is the model receiving and using the right resources? | **4.3.4**, **4.3.5** |
+| Quality / safety | Are the answers actually good? | **4.3.2**, **4.3.6** |
+| Business | Is the application achieving its purpose? | **4.3.3** connect the evidence |
+
+```text
+4.3.1  See everything          metrics + logs + traces + business metrics
+4.3.2  Measure GenAI behavior  latency, tokens, quality, anomalies, cost
+4.3.3  Connect the evidence    ops + quality + compliance + business
+4.3.4  Watch agents and tools  selection, latency, failures, loops
+4.3.5  Watch RAG infrastructure  store health + freshness + retrieval quality
+4.3.6  Debug AI-specific failures  golden sets, diffs, traces
 ```
 
 ---
 
-## Decision Framework: Building Your Monitoring Strategy
+## Skill 4.3.1 — Create holistic observability systems
 
-Use this framework to prioritize what to monitor.
+The keyword is **holistic**. One dashboard of API latency does not make the application observable.
 
-### Quick Reference
+A mature GenAI application collects information from the entire request lifecycle. For “Why did management reduce its revenue outlook?” the path might be:
 
-| Application Stage | Priority Metrics | Alerting |
-|-------------------|------------------|----------|
-| Development | Error rates, basic latency | Email |
-| Staging | + Quality metrics, token usage | Slack |
-| Production | All metrics, user feedback | PagerDuty |
-| Optimization | + Cost breakdown, A/B metrics | Dashboard review |
-
-### Decision Tree
-
-```mermaid
-graph TD
-    A[Monitoring Strategy] --> B{User-facing?}
-
-    B -->|Yes| C[Full observability stack]
-    B -->|No| D[Basic metrics]
-
-    C --> E{Cost-sensitive?}
-    D --> E
-
-    E -->|Yes| F[Add token tracking<br/>budget alerts]
-    E -->|No| G[Standard cost metrics]
-
-    F --> H{Quality-critical?}
-    G --> H
-
-    H -->|Yes| I[Add quality sampling<br/>user feedback]
-    H -->|No| J[Basic quality checks]
-
-    I --> K{Compliance needs?}
-    J --> K
-
-    K -->|Yes| L[Add full audit logging<br/>invocation storage]
-    K -->|No| M[Standard logging]
+```text
+User question → retrieval → rerank → prompt construction
+  → FM invocation → tool call → FM response → citations → user
 ```
 
-### Monitoring Priority by Metric Type
+If the answer is bad, you need visibility into each step: retrieval time, which documents and scores, the prompt, the model and version, input and output tokens, inference time, whether tools ran and succeeded, which citations supported the response, and whether the analyst accepted, rejected, or regenerated it.
 
-| Phase | Must Have | Should Have | Nice to Have |
-|-------|-----------|-------------|--------------|
-| MVP | Error rates, latency | Token counts | - |
-| Production | + Throughput, cost | + Quality sampling | Distributed tracing |
-| Scale | + Per-user metrics | + Anomaly detection | Predictive alerts |
-| Optimization | + A/B metrics | + Cost attribution | Custom dimensions |
+That complete sequence is a **trace**.
 
-### Trade-off Analysis
+### Metrics, logs, and traces
 
-| Monitoring Level | Visibility | Storage Cost | Operational Overhead |
-|------------------|-----------|--------------|---------------------|
-| Basic (CloudWatch defaults) | Limited | Low | Low |
-| Standard (+ custom metrics) | Good | Medium | Medium |
-| Comprehensive (+ logs + traces) | Excellent | High | High |
-| Full audit (+ I/O logging) | Complete | Very High | Very High |
+**Metrics** are numerical measurements aggregated over time: 10,000 model calls/day, p95 latency 4.8s, 20 million tokens/day, retrieval failure rate 1.2%, tool success 97%, average quality 4.3/5. They are excellent for dashboards, trends, and alarms.
 
----
+**Logs** are detailed records of individual events. A model invocation log can hold timestamp, model ID, request ID, prompt, response, token counts, and caller identity.
 
-## GenAI Observability Foundations
+Amazon **Bedrock Model Invocation Logging** can send that data to CloudWatch Logs or S3. It covers Converse, ConverseStream, InvokeModel, and InvokeModelWithResponseStream. **It is disabled by default.**
 
-GenAI observability combines traditional infrastructure monitoring with AI-specific metrics.
+That last sentence is exam knowledge:
 
-### CloudWatch: The Metrics Foundation
+**CloudWatch metrics ≠ automatically storing every prompt and response.**
 
-CloudWatch automatically collects metrics from Bedrock and SageMaker:
+Detailed prompt/response analysis requires invocation logging or your own application telemetry. Prompts may contain sensitive information, so logging is also a [3.2 / 3.3](/learn/3/data-security-privacy) decision: access control, retention, masking, encryption. Object Lock when you must keep bodies.
 
-**Bedrock Metrics:**
-- `InvocationLatency`: Time per model call
-- `InputTokenCount`: Tokens sent to model
-- `OutputTokenCount`: Tokens generated
-- `InvocationCount`: Number of API calls
-- `InvocationClientErrors`: 4xx errors
-- `InvocationServerErrors`: 5xx errors
+**Traces** follow one request through multiple components:
 
-**SageMaker Endpoint Metrics:**
-- `Invocations`: Calls to endpoint
-- `ModelLatency`: Inference time
-- `OverheadLatency`: Non-inference overhead
-- `CPUUtilization`, `MemoryUtilization`: Resource usage
-
-Create dashboards combining these metrics:
-
-```typescript
-const operationalDashboard = new cloudwatch.Dashboard(this, 'GenAIOps', {
-  dashboardName: 'GenAI-Operations'
-});
-
-operationalDashboard.addWidgets(
-  new cloudwatch.GraphWidget({
-    title: 'Invocation Latency',
-    left: [
-      new cloudwatch.Metric({
-        namespace: 'AWS/Bedrock',
-        metricName: 'InvocationLatency',
-        dimensionsMap: { ModelId: 'anthropic.claude-3-sonnet-*' },
-        statistic: 'p50',
-        period: Duration.minutes(1)
-      }),
-      new cloudwatch.Metric({
-        namespace: 'AWS/Bedrock',
-        metricName: 'InvocationLatency',
-        dimensionsMap: { ModelId: 'anthropic.claude-3-sonnet-*' },
-        statistic: 'p99',
-        period: Duration.minutes(1)
-      })
-    ],
-    width: 12
-  }),
-  new cloudwatch.GraphWidget({
-    title: 'Token Usage',
-    left: [
-      new cloudwatch.Metric({
-        namespace: 'AWS/Bedrock',
-        metricName: 'InputTokenCount',
-        statistic: 'Sum',
-        period: Duration.hours(1)
-      }),
-      new cloudwatch.Metric({
-        namespace: 'AWS/Bedrock',
-        metricName: 'OutputTokenCount',
-        statistic: 'Sum',
-        period: Duration.hours(1)
-      })
-    ],
-    width: 12
-  })
-);
+```text
+API Gateway          20 ms
+Lambda               45 ms
+Vector search       180 ms
+Reranker            230 ms
+Bedrock           2,800 ms
+External tool       400 ms
+Final generation  1,200 ms
 ```
 
-### X-Ray: Distributed Tracing
+If total latency jumps from four seconds to twelve, metrics tell you the application got slower. A trace tells you vector retrieval is normal, the tool is normal, and model inference moved from 2.8s to 10s. That is actionable. **AWS X-Ray** is the named hop-finder. CloudWatch GenAI observability can also expose traces involving models, knowledge bases, tools, and agents.
 
-X-Ray traces requests across service boundaries. See exactly where time is spent in the request path.
+### Operational vs AI-quality vs business metrics
 
-```typescript
-import * as AWSXRay from 'aws-xray-sdk';
+**Operational** metrics tell you whether the system is working: latency, volume, HTTP errors, throttling, timeouts, availability, queue depth, tool failures.
 
-// Instrument the AWS SDK
-const bedrockClient = AWSXRay.captureAWSv3Client(
-  new BedrockRuntimeClient({ region: 'us-east-1' })
-);
+**AI-quality** metrics tell you whether the AI is behaving well: hallucination rate, groundedness, answer relevance, citation correctness, retrieval recall, refusal accuracy, prompt effectiveness, tool-selection accuracy.
 
-// Add custom subsegments for detailed tracing
-async function processRAGQuery(query: string): Promise<Response> {
-  const segment = AWSXRay.getSegment();
+**Business** metrics tell you whether anybody cares: adoption, queries per user, task completion, analyst time saved, escalation rate, satisfaction, conversion, cost per completed task.
 
-  // Trace embedding generation
-  const embeddingSegment = segment.addNewSubsegment('generate_embedding');
-  const embedding = await generateEmbedding(query);
-  embeddingSegment.addMetadata('embedding_model', 'titan-embed-text-v2');
-  embeddingSegment.close();
+Skill 4.3.1 exists because AWS expects complete GenAI observability to include operational performance *and* business impact. A 200 from Bedrock is not a completed research task.
 
-  // Trace retrieval
-  const retrievalSegment = segment.addNewSubsegment('retrieve_documents');
-  const docs = await searchVectorDB(embedding);
-  retrievalSegment.addAnnotation('docs_retrieved', docs.length);
-  retrievalSegment.close();
-
-  // Trace model inference
-  const inferenceSegment = segment.addNewSubsegment('model_inference');
-  inferenceSegment.addAnnotation('model', 'claude-3-sonnet');
-  const response = await invokeModel(query, docs);
-  inferenceSegment.addMetadata('tokens', {
-    input: response.inputTokens,
-    output: response.outputTokens
-  });
-  inferenceSegment.close();
-
-  return response;
-}
-```
-
-X-Ray service map shows:
-- Request flow through services
-- Latency at each hop
-- Error rates per service
-- Dependencies and bottlenecks
-
-### Bedrock Model Invocation Logging
-
-Bedrock can log detailed request/response data:
-
-```typescript
-// Enable model invocation logging
-await bedrock.putModelInvocationLoggingConfiguration({
-  loggingConfig: {
-    cloudWatchConfig: {
-      logGroupName: '/aws/bedrock/model-invocations',
-      roleArn: loggingRoleArn,
-      largeDataDeliveryS3Config: {
-        bucketName: 'bedrock-invocation-logs',
-        keyPrefix: 'large-payloads/'
-      }
-    },
-    s3Config: {
-      bucketName: 'bedrock-invocation-logs',
-      keyPrefix: 'invocations/'
-    },
-    textDataDeliveryEnabled: true,
-    imageDataDeliveryEnabled: true,
-    embeddingDataDeliveryEnabled: true
-  }
-});
-```
-
-Invocation logs capture:
-- Full request content (prompts)
-- Full response content
-- Model parameters used
-- Timestamps and latency
-- Token counts
-
-Use for:
-- Debugging unexpected outputs
-- Quality analysis
-- Compliance auditing
-- Cost attribution
-
----
-
-## GenAI-Specific Metrics
-
-Beyond infrastructure metrics, GenAI needs application-level measurement.
-
-### Token Usage Tracking
-
-Track tokens with dimensions for analysis:
-
-```typescript
-interface TokenMetrics {
-  inputTokens: number;
-  outputTokens: number;
-  model: string;
-  application: string;
-  feature: string;
-  userId?: string;
-}
-
-async function recordTokenUsage(metrics: TokenMetrics): Promise<void> {
-  await cloudwatch.putMetricData({
-    Namespace: 'GenAI/Tokens',
-    MetricData: [
-      {
-        MetricName: 'InputTokens',
-        Dimensions: [
-          { Name: 'Application', Value: metrics.application },
-          { Name: 'Feature', Value: metrics.feature },
-          { Name: 'Model', Value: metrics.model }
-        ],
-        Value: metrics.inputTokens,
-        Unit: 'Count'
-      },
-      {
-        MetricName: 'OutputTokens',
-        Dimensions: [
-          { Name: 'Application', Value: metrics.application },
-          { Name: 'Feature', Value: metrics.feature },
-          { Name: 'Model', Value: metrics.model }
-        ],
-        Value: metrics.outputTokens,
-        Unit: 'Count'
-      },
-      {
-        MetricName: 'EstimatedCost',
-        Dimensions: [
-          { Name: 'Application', Value: metrics.application }
-        ],
-        Value: calculateCost(metrics),
-        Unit: 'None'  // Dollar amount
-      }
-    ]
-  });
-}
-```
-
-Dashboard by application, feature, model:
-- Which features consume most tokens?
-- Which users drive costs?
-- How do different models compare?
-
-### Prompt Effectiveness Measurement
-
-Measure how well prompts achieve their goals:
-
-```typescript
-interface PromptEffectivenessMetrics {
-  promptVersion: string;
-  taskCompleted: boolean;
-  userSatisfaction?: number;  // 1-5 rating
-  requiresFollowUp: boolean;
-  errorOccurred: boolean;
-}
-
-async function recordPromptEffectiveness(metrics: PromptEffectivenessMetrics): Promise<void> {
-  await cloudwatch.putMetricData({
-    Namespace: 'GenAI/PromptEffectiveness',
-    MetricData: [
-      {
-        MetricName: 'SuccessRate',
-        Dimensions: [
-          { Name: 'PromptVersion', Value: metrics.promptVersion }
-        ],
-        Value: metrics.taskCompleted ? 1 : 0,
-        Unit: 'Count'
-      },
-      {
-        MetricName: 'UserSatisfaction',
-        Dimensions: [
-          { Name: 'PromptVersion', Value: metrics.promptVersion }
-        ],
-        Value: metrics.userSatisfaction || 0,
-        Unit: 'None'
-      },
-      {
-        MetricName: 'FollowUpRate',
-        Dimensions: [
-          { Name: 'PromptVersion', Value: metrics.promptVersion }
-        ],
-        Value: metrics.requiresFollowUp ? 1 : 0,
-        Unit: 'Count'
-      }
-    ]
-  });
-}
-```
-
-Compare prompt versions:
-- Which performs better?
-- What's the success rate?
-- How often do users need to clarify?
-
-### Hallucination Rate Tracking
-
-Track when outputs contain incorrect or unsupported claims:
-
-```typescript
-interface HallucinationCheckResult {
-  responseId: string;
-  hallucinated: boolean;
-  groundingScore: number;  // 0-1, how well grounded in context
-  claims: Array<{
-    claim: string;
-    supported: boolean;
-    source?: string;
-  }>;
-}
-
-async function recordHallucinationMetrics(result: HallucinationCheckResult): Promise<void> {
-  await cloudwatch.putMetricData({
-    Namespace: 'GenAI/Quality',
-    MetricData: [
-      {
-        MetricName: 'HallucinationDetected',
-        Value: result.hallucinated ? 1 : 0,
-        Unit: 'Count'
-      },
-      {
-        MetricName: 'GroundingScore',
-        Value: result.groundingScore,
-        Unit: 'None'
-      },
-      {
-        MetricName: 'UnsupportedClaims',
-        Value: result.claims.filter(c => !c.supported).length,
-        Unit: 'Count'
-      }
-    ]
-  });
-}
-```
-
-High hallucination rates indicate problems:
-- Poor retrieval quality
-- Inadequate grounding instructions
-- Wrong model for the task
-- Insufficient context
-
-### Anomaly Detection
-
-Detect unusual patterns automatically:
-
-```typescript
-// CloudWatch anomaly detection alarm
-const anomalyAlarm = new cloudwatch.Alarm(this, 'TokenAnomalyAlarm', {
-  alarmName: 'GenAI-Token-Anomaly',
-  metric: new cloudwatch.Metric({
-    namespace: 'GenAI/Tokens',
-    metricName: 'TotalTokens',
-    statistic: 'Sum',
-    period: Duration.hours(1)
-  }),
-  threshold: 0,  // Anomaly detection doesn't use fixed threshold
-  evaluationPeriods: 2,
-  comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_UPPER_THRESHOLD,
-  treatMissingData: cloudwatch.TreatMissingData.BREACHING
-});
-
-// Use ANOMALY_DETECTION_BAND for the metric
-```
-
-Anomaly detection catches:
-- Sudden cost spikes
-- Unusual error patterns
-- Quality degradation
-- Potential abuse or attacks
-
----
-
-## Integrated Dashboards
-
-Different audiences need different views.
-
-### Operational Dashboard
-
-For engineering and on-call teams:
-
-```typescript
-const opsDashboard = new cloudwatch.Dashboard(this, 'OpsDashboard');
-
-opsDashboard.addWidgets(
-  // Health Overview
-  new cloudwatch.SingleValueWidget({
-    title: 'Error Rate (1h)',
-    metrics: [errorRateMetric],
-    width: 6
-  }),
-  new cloudwatch.SingleValueWidget({
-    title: 'P99 Latency',
-    metrics: [latencyP99Metric],
-    width: 6
-  }),
-  new cloudwatch.SingleValueWidget({
-    title: 'Invocations/min',
-    metrics: [invocationRateMetric],
-    width: 6
-  }),
-  new cloudwatch.SingleValueWidget({
-    title: 'Active Alarms',
-    metrics: [alarmCountMetric],
-    width: 6
-  }),
-
-  // Detailed Graphs
-  new cloudwatch.GraphWidget({
-    title: 'Latency Distribution',
-    left: [latencyP50, latencyP95, latencyP99],
-    width: 12
-  }),
-  new cloudwatch.GraphWidget({
-    title: 'Error Breakdown',
-    left: [clientErrors, serverErrors, throttles],
-    width: 12
-  })
-);
-```
-
-### Business Impact Dashboard
-
-For leadership and product teams:
-
-```typescript
-const businessDashboard = new cloudwatch.Dashboard(this, 'BusinessDashboard');
-
-businessDashboard.addWidgets(
-  // Cost and Usage
-  new cloudwatch.SingleValueWidget({
-    title: 'Daily Token Cost',
-    metrics: [dailyCostMetric],
-    width: 8
-  }),
-  new cloudwatch.SingleValueWidget({
-    title: 'Queries Today',
-    metrics: [dailyQueriesMetric],
-    width: 8
-  }),
-  new cloudwatch.SingleValueWidget({
-    title: 'Cost per Query',
-    metrics: [costPerQueryMetric],
-    width: 8
-  }),
-
-  // User Experience
-  new cloudwatch.GraphWidget({
-    title: 'User Satisfaction Trend',
-    left: [satisfactionMetric],
-    width: 12
-  }),
-  new cloudwatch.GraphWidget({
-    title: 'Task Completion Rate',
-    left: [completionRateMetric],
-    width: 12
-  }),
-
-  // ROI Metrics
-  new cloudwatch.TextWidget({
-    markdown: `## Automation Metrics
-- Tasks automated: **${automatedTasks}**/day
-- Estimated savings: **$${estimatedSavings}**/month
-- Human escalation rate: **${escalationRate}%**`,
-    width: 24
-  })
-);
-```
-
-### Compliance Dashboard
-
-For governance and security teams:
-
-```typescript
-const complianceDashboard = new cloudwatch.Dashboard(this, 'ComplianceDashboard');
-
-complianceDashboard.addWidgets(
-  // Guardrail Activity
-  new cloudwatch.GraphWidget({
-    title: 'Guardrail Triggers',
-    left: [
-      guardrailContentFilterTriggers,
-      guardrailPIITriggers,
-      guardrailDeniedTopicTriggers
-    ],
-    width: 12
-  }),
-
-  // Audit Coverage
-  new cloudwatch.SingleValueWidget({
-    title: 'Invocations Logged',
-    metrics: [invocationsLoggedMetric],
-    width: 6
-  }),
-  new cloudwatch.SingleValueWidget({
-    title: 'Log Completeness',
-    metrics: [logCompletenessMetric],
-    width: 6
-  }),
-
-  // Recent Audit Events
-  new cloudwatch.LogQueryWidget({
-    title: 'Recent Guardrail Blocks',
-    logGroupNames: ['/aws/bedrock/guardrails'],
-    queryString: `
-      fields @timestamp, @message
-      | filter action = 'BLOCKED'
-      | sort @timestamp desc
-      | limit 20
-    `,
-    width: 24
-  })
-);
+```recall
+Q: CloudWatch already shows Bedrock invocations, latency, and tokens. Why isn't that enough to inspect a bad AMD answer?
+A: Runtime metrics do not store the prompt and response. Invocation logging is off by default. Enable it (or your own telemetry) to see what was said.
 ```
 
 ---
 
-## Tool and Agent Observability
+## Skill 4.3.2 — Implement comprehensive GenAI monitoring
 
-Agentic systems require specialized monitoring.
+4.3.1 gave the architecture. 4.3.2 asks what specifically to monitor. Four categories.
 
-### Tool Call Tracking
+### Performance
 
-Log every tool invocation:
+Invocation count, latency, p50 / p90 / p95 / p99, model errors, throttling, timeouts. Bedrock publishes runtime metrics into CloudWatch: volume, latency, token consumption, errors.
 
-```typescript
-interface ToolCallLog {
-  requestId: string;
-  agentId: string;
-  toolName: string;
-  parameters: Record<string, any>;
-  result: 'success' | 'failure' | 'timeout';
-  latencyMs: number;
-  errorMessage?: string;
-}
+Percentiles matter for the same reason they did in [4.2](/learn/4/performance-optimization). Ninety users at 2 seconds and ten at 15 seconds average about 3.3 seconds and look fine. Ten percent of analysts had a terrible morning.
 
-async function logToolCall(log: ToolCallLog): Promise<void> {
-  // CloudWatch Logs for detailed records
-  console.log(JSON.stringify({
-    ...log,
-    timestamp: new Date().toISOString(),
-    type: 'TOOL_CALL'
-  }));
+Think:
 
-  // CloudWatch Metrics for aggregates
-  await cloudwatch.putMetricData({
-    Namespace: 'GenAI/Agents',
-    MetricData: [
-      {
-        MetricName: 'ToolInvocations',
-        Dimensions: [
-          { Name: 'AgentId', Value: log.agentId },
-          { Name: 'ToolName', Value: log.toolName }
-        ],
-        Value: 1,
-        Unit: 'Count'
-      },
-      {
-        MetricName: 'ToolLatency',
-        Dimensions: [
-          { Name: 'ToolName', Value: log.toolName }
-        ],
-        Value: log.latencyMs,
-        Unit: 'Milliseconds'
-      },
-      {
-        MetricName: 'ToolFailures',
-        Dimensions: [
-          { Name: 'ToolName', Value: log.toolName }
-        ],
-        Value: log.result === 'failure' ? 1 : 0,
-        Unit: 'Count'
-      }
-    ]
-  });
-}
+```text
+metric  →  detect
+trace / log  →  diagnose
 ```
 
-Track patterns:
-- Which tools are called most?
-- Which tools fail most often?
-- What's the average tool latency?
-- How many tool calls per agent invocation?
+Do not use invocation logs as the *detector* of a latency spike. Alarm on the metric; open the trace to find the hop; open the log for the body.
 
-### Bedrock Agent Tracing
+### Token usage and cost
 
-Enable tracing for Bedrock Agents:
+Tokens affect cost, latency, and capacity. Monitor input, output, and total tokens — per user, application, model, and request type.
 
-```typescript
-const response = await bedrockAgentRuntime.invokeAgent({
-  agentId: 'AGENT123',
-  agentAliasId: 'ALIAS123',
-  sessionId: sessionId,
-  inputText: userQuery,
-  enableTrace: true  // Enable detailed tracing
-});
+If average input moves from 4,000 tokens to 32,000, the application might still return 200s. Retrieval may be dumping too many documents, conversation history may be untrimmed, an agent may have entered a recursive loop, or users may be pasting enormous inputs. Token **anomaly detection** is how you notice.
 
-// Process trace events
-for await (const event of response.completion) {
-  if (event.trace?.trace) {
-    const trace = event.trace.trace;
+CloudWatch can surface token usage and estimated cost by dimensions such as application or user role. **AWS Cost Anomaly Detection** on the Bedrock bill catches the case where availability is fine, errors are zero, and finance is not.
 
-    // Pre-processing trace
-    if (trace.preProcessingTrace) {
-      console.log('Pre-processing:', {
-        input: trace.preProcessingTrace.modelInvocationInput
-      });
-    }
+### Response quality
 
-    // Orchestration trace
-    if (trace.orchestrationTrace) {
-      const orch = trace.orchestrationTrace;
+This is where GenAI monitoring departs most from ordinary APM.
 
-      if (orch.rationale) {
-        console.log('Reasoning:', orch.rationale.text);
-      }
+You might track correctness, relevance, groundedness, hallucination, toxicity, completeness, citation accuracy, instruction-following.
 
-      if (orch.invocationInput?.actionGroupInvocationInput) {
-        console.log('Tool call:', {
-          actionGroup: orch.invocationInput.actionGroupInvocationInput.actionGroupName,
-          parameters: orch.invocationInput.actionGroupInvocationInput.parameters
-        });
-      }
+An important conceptual distinction:
 
-      if (orch.observation) {
-        console.log('Observation:', orch.observation);
-      }
-    }
+**CloudWatch can store, visualize, and alarm on quality metrics. It cannot magically know that an answer is hallucinated merely because the request went through CloudWatch.**
 
-    // Post-processing trace
-    if (trace.postProcessingTrace) {
-      console.log('Post-processing:', trace.postProcessingTrace);
-    }
-  }
-}
+You need a way to evaluate the response: deterministic checks, golden datasets, human evaluation, LLM-as-judge, Bedrock evaluations, custom application logic. Then you put the score on a custom metric.
+
+Bedrock evaluations support automatic and human evaluation of models and RAG systems against expected responses or retrieved evidence. The full curriculum is [5.1](/learn/5/evaluation-systems). Here the exam wants you to *operate* those scores as production monitors.
+
+### Drift and anomalies
+
+Normal might be 5,000 tokens/query, 2% hallucination, 0.91 quality, 1.4 tool calls. Suddenly: 14,000 tokens, 7% hallucination, 0.76 quality, 4.8 tool calls. No service crashed. Something changed.
+
+That is **behavioral drift**. Causes include a new model version, a new prompt, a changed retrieval index, malformed incoming documents, altered user behavior, an agent loop, or a new document distribution. Baselines let you see the step change.
+
+Cost itself is an observability signal. An agent that used to do one retrieval and two model calls may, after a bug, do fifteen model calls in a tool loop. The answer may eventually succeed. Availability = fine. Errors = zero. The bill is terrible.
+
+> **Exam trap:** High token usage does not mean the model is “broken.” Investigate oversized context, history, agent loops, user behavior, and prompt changes.
+
+```recall
+Q: Average latency is 3.3s. p99 is 15s. Is performance healthy?
+A: No. The mean hides a bad tail. Alarm on p95/p99, then trace the slow hop.
 ```
-
-Agent traces show:
-- How the agent understood the request
-- What reasoning led to tool selection
-- What each tool returned
-- How the final response was generated
-
-### Usage Baselines and Alerting
-
-Establish normal patterns and alert on deviation:
-
-```typescript
-// Baseline: Average tool calls per request
-const baselineToolCalls = 2.5;
-
-// Alert when significantly different
-new cloudwatch.Alarm(this, 'ToolCallAnomaly', {
-  metric: new cloudwatch.MathExpression({
-    expression: 'toolCalls / invocations',
-    usingMetrics: {
-      toolCalls: toolCallsMetric,
-      invocations: agentInvocationsMetric
-    }
-  }),
-  threshold: baselineToolCalls * 2,  // Alert at 2x baseline
-  evaluationPeriods: 3,
-  alarmDescription: 'Agent making unusually many tool calls - possible confusion'
-});
-```
-
-Anomalies to watch:
-- Sudden increase in tool calls (agent confusion)
-- Sudden decrease (broken tools)
-- New tool usage patterns (behavior change)
-- Tool timeout spikes (external service issues)
-
-### Multi-Agent Coordination Monitoring
-
-When using Agent Squad or custom multi-agent systems, monitoring becomes more complex. You need to track not just individual agents but their interactions:
-
-```typescript
-interface MultiAgentMetrics {
-  requestId: string;
-  supervisorAgentId: string;
-  delegatedTo: string[];           // Which specialists were invoked
-  delegationLatencyMs: number;     // Time for supervisor to route
-  specialistLatencyMs: Record<string, number>; // Per-specialist latency
-  totalRoundTrips: number;         // How many inter-agent messages
-  synthesisLatencyMs: number;      // Time to combine specialist outputs
-}
-
-async function recordMultiAgentMetrics(metrics: MultiAgentMetrics): Promise<void> {
-  await cloudwatch.putMetricData({
-    Namespace: 'GenAI/MultiAgent',
-    MetricData: [
-      {
-        MetricName: 'AgentsDelegatedTo',
-        Value: metrics.delegatedTo.length,
-        Unit: 'Count'
-      },
-      {
-        MetricName: 'InterAgentRoundTrips',
-        Value: metrics.totalRoundTrips,
-        Unit: 'Count'
-      },
-      {
-        MetricName: 'EndToEndLatency',
-        Dimensions: [{ Name: 'Supervisor', Value: metrics.supervisorAgentId }],
-        Value: metrics.delegationLatencyMs + metrics.synthesisLatencyMs +
-               Math.max(...Object.values(metrics.specialistLatencyMs)),
-        Unit: 'Milliseconds'
-      }
-    ]
-  });
-}
-```
-
-**What to watch in multi-agent systems:**
-- **Routing accuracy** — Is the supervisor sending requests to the right specialist? Track by logging supervisor reasoning + specialist success rates.
-- **Cascading failures** — When one specialist fails, does it cascade? Monitor specialist error rates independently.
-- **Token amplification** — Multi-agent systems multiply token usage. Each inter-agent message consumes tokens. Track total tokens per user request, not per agent.
-- **Coordination overhead** — If supervisor routing + synthesis takes longer than the specialist work, the multi-agent pattern may be adding latency without value.
-
-### Cost Anomaly Detection
-
-**AWS Cost Anomaly Detection** provides ML-powered detection of unexpected cost spikes. Configure it specifically for GenAI workloads:
-
-```typescript
-// Cost Anomaly Detection monitor for Bedrock
-const anomalyMonitor = new ce.CfnAnomalyMonitor(this, 'BedrockCostMonitor', {
-  monitorName: 'GenAI-Bedrock-Costs',
-  monitorType: 'DIMENSIONAL',
-  monitorDimension: 'SERVICE',
-  monitorSpecification: JSON.stringify({
-    Dimensions: {
-      Key: 'SERVICE',
-      Values: ['Amazon Bedrock']
-    }
-  })
-});
-
-// Subscription for alerts
-new ce.CfnAnomalySubscription(this, 'CostAlert', {
-  subscriptionName: 'GenAI-Cost-Alert',
-  monitorArnList: [anomalyMonitor.attrMonitorArn],
-  subscribers: [{
-    type: 'EMAIL',
-    address: 'genai-team@company.com'
-  }],
-  threshold: 50  // Alert when anomaly exceeds $50
-});
-```
-
-**Why this matters for the exam:** The exam tests whether you know that GenAI cost monitoring goes beyond CloudWatch token metrics. Cost Anomaly Detection catches spending patterns that raw token counts miss — like a model switch that increased per-token cost, or a retry storm that doubled invocation volume.
-
-### Response Drift Detection with Invocation Logs
-
-Bedrock Model Invocation Logs capture full request/response payloads. Use them to detect **semantic drift** — when model outputs change meaning over time without any configuration change:
-
-```sql
--- CloudWatch Logs Insights: Detect response length drift
-fields @timestamp, modelId,
-       length(responseBody) as response_length
-| filter modelId LIKE 'anthropic.claude%'
-| stats avg(response_length) as avg_len,
-        percentile(response_length, 95) as p95_len,
-        count(*) as total
-  by bin(1d)
-| sort @timestamp desc
-
--- Detect prompt-response pattern changes
-fields @timestamp, inputTokenCount, outputTokenCount,
-       (outputTokenCount * 1.0 / inputTokenCount) as expansion_ratio
-| stats avg(expansion_ratio) as avg_expansion,
-        percentile(expansion_ratio, 99) as p99_expansion
-  by bin(1h)
-| sort @timestamp desc
-```
-
-**Use invocation logs to build a drift detection pipeline:**
-1. Sample N responses daily from invocation logs
-2. Run LLM-as-Judge scoring on the sample (consistency, quality)
-3. Compare scores against rolling 30-day baseline
-4. Alert when scores drop below 2 standard deviations
-
-This catches drift that infrastructure metrics miss entirely — the model still responds fast and without errors, but answers are subtly worse.
 
 ---
 
-## Troubleshooting with Monitoring Data
+## Skill 4.3.3 — Develop integrated observability solutions
 
-Good monitoring enables efficient troubleshooting.
+This skill asks you to bring everything together.
 
-### Golden Datasets
+You do not want CloudWatch dashboard A, S3 logs, a vector-database dashboard, application logs, an evaluation spreadsheet, security audit logs, and a business analytics dashboard with no connection between them. Correlate them into one **observable AI transaction**:
 
-Maintain test queries with known-good responses:
-
-```typescript
-interface GoldenTestCase {
-  id: string;
-  query: string;
-  expectedResponse: string;
-  requiredElements: string[];
-  forbiddenElements: string[];
-}
-
-async function runGoldenDatasetTests(testCases: GoldenTestCase[]): Promise<TestResults> {
-  const results = [];
-
-  for (const testCase of testCases) {
-    const response = await invokeModel(testCase.query);
-
-    const passed = evaluateResponse(response, testCase);
-
-    results.push({
-      testId: testCase.id,
-      passed,
-      actualResponse: response,
-      issues: passed ? [] : identifyIssues(response, testCase)
-    });
-  }
-
-  // Publish results as metrics
-  await cloudwatch.putMetricData({
-    Namespace: 'GenAI/Quality',
-    MetricData: [{
-      MetricName: 'GoldenDatasetPassRate',
-      Value: results.filter(r => r.passed).length / results.length,
-      Unit: 'None'
-    }]
-  });
-
-  return results;
-}
+```text
+Request ID: abc123
+User: analyst-27
+Model: Model X
+Prompt version: v18
+Retrieved docs: 8
+Input tokens: 7,842
+Output tokens: 914
+Latency: 4.2 s
+Tools called: 2
+Groundedness: 0.94
+Estimated cost: $0.06
+User feedback: 👍
 ```
 
-Run golden tests:
-- After prompt changes
-- After model updates
-- On a schedule (daily/weekly)
+**Operations** might see requests, availability, p95, error rate, tokens, estimated cost.
 
-Regression is immediately visible.
+**The AI team** might see groundedness, correctness, citation accuracy, hallucination rate, tool-selection accuracy.
 
-### Output Diffing
+**Management** might see weekly active users, queries per user, tasks completed, hours saved, satisfaction.
 
-Compare outputs across changes:
+None replaces the others. Successful GenAI observability connects technical health → AI quality → business impact.
 
-```typescript
-interface OutputDiff {
-  query: string;
-  oldOutput: string;
-  newOutput: string;
-  similarity: number;
-  addedContent: string[];
-  removedContent: string[];
-  changedTone: boolean;
-}
+### Compliance and forensic traceability
 
-async function compareOutputs(
-  queries: string[],
-  oldConfig: ModelConfig,
-  newConfig: ModelConfig
-): Promise<OutputDiff[]> {
-  const diffs = [];
+Someone reports: “The assistant disclosed information it shouldn't have.”
 
-  for (const query of queries) {
-    const oldOutput = await invokeWithConfig(query, oldConfig);
-    const newOutput = await invokeWithConfig(query, newConfig);
+A forensic system should reconstruct who asked, what they asked, when, which model, which documents were retrieved, which tools ran, what the model returned, which guardrails ran, and what data was exposed.
 
-    diffs.push({
-      query,
-      oldOutput,
-      newOutput,
-      similarity: calculateSimilarity(oldOutput, newOutput),
-      addedContent: findAdditions(oldOutput, newOutput),
-      removedContent: findRemovals(oldOutput, newOutput),
-      changedTone: detectToneChange(oldOutput, newOutput)
-    });
-  }
+That is **forensic traceability**. Logs are not merely for debugging. They support governance, compliance, security investigations, and auditing.
 
-  return diffs;
-}
+**AWS CloudTrail** answers *who called* `InvokeModel` / `Retrieve` — principal, account, time. It does **not** contain prompt text. Invocation logging answers *what was said*. Knowledge Base logging answers *why retrieve was empty or ingest failed* — a different switch from invocation logging. Guardrail debug is the **trace** on the Converse call, not CloudTrail.
+
+The more you log, the more sensitive information you store. Observability itself requires governance: least-privilege access to log groups and S3, retention, redaction, encryption.
+
+> **Exam trap:** “Log everything forever” is not the answer. Pair 4.3.3 with retention and access control from Domain 3.
+
+```recall
+Q: Who invoked Bedrock, versus what prompt was sent?
+A: CloudTrail = who. Invocation logging (off by default) = the body. X-Ray = which hop was slow. They are three different tapes.
 ```
-
-Use diffing to understand:
-- Impact of prompt changes
-- Effect of model upgrades
-- Behavior across different parameters
-
-### Reasoning Path Tracing
-
-For chain-of-thought or agent systems, trace the reasoning:
-
-```typescript
-interface ReasoningStep {
-  step: number;
-  thought: string;
-  action?: string;
-  observation?: string;
-}
-
-async function traceReasoning(query: string): Promise<ReasoningStep[]> {
-  const prompt = `Think through this step by step.
-Format each step as:
-THOUGHT: [your reasoning]
-ACTION: [what you'll do, if any]
-OBSERVATION: [what you learned]
-
-Query: ${query}`;
-
-  const response = await invokeModel(prompt);
-  return parseReasoningSteps(response);
-}
-```
-
-When outputs are wrong, trace back:
-- Where did reasoning go wrong?
-- What assumption was incorrect?
-- What information was missing?
-
-### Vector Store Monitoring
-
-Monitor retrieval infrastructure:
-
-```typescript
-// OpenSearch health metrics
-const vectorStoreMetrics = [
-  'SearchLatency',
-  'IndexingLatency',
-  'JVMMemoryPressure',
-  'FreeStorageSpace',
-  'ClusterStatus.green',
-  'ClusterStatus.yellow',
-  'ClusterStatus.red'
-];
-
-// Custom retrieval quality metrics
-async function monitorRetrievalQuality(
-  query: string,
-  results: Document[],
-  userFeedback?: 'helpful' | 'not_helpful'
-): Promise<void> {
-  await cloudwatch.putMetricData({
-    Namespace: 'GenAI/Retrieval',
-    MetricData: [
-      {
-        MetricName: 'ResultsReturned',
-        Value: results.length,
-        Unit: 'Count'
-      },
-      {
-        MetricName: 'AverageRelevanceScore',
-        Value: results.reduce((sum, r) => sum + r.score, 0) / results.length,
-        Unit: 'None'
-      },
-      {
-        MetricName: 'UserFeedbackPositive',
-        Value: userFeedback === 'helpful' ? 1 : 0,
-        Unit: 'Count'
-      }
-    ]
-  });
-}
-```
-
-Watch for:
-- Degrading search latency
-- Falling relevance scores
-- Increasing cluster warnings
-- Storage pressure
 
 ---
 
-## Key Services Summary
+## Skill 4.3.4 — Monitor FM tool performance
 
-| Service | Monitoring Role | When to Use |
-|---------|----------------|-------------|
-| **Amazon CloudWatch** | Metrics, dashboards, alarms, anomaly detection | Core monitoring infrastructure |
-| **AWS X-Ray** | Distributed tracing across services | Bottleneck identification, latency analysis |
-| **CloudWatch Logs** | Application-level logging | Detailed debugging, audit trails |
-| **CloudWatch Logs Insights** | Log querying and analysis | Ad-hoc investigation, pattern finding |
-| **Bedrock Invocation Logging** | Detailed FM request/response capture | Quality analysis, compliance auditing |
-| **AWS CloudTrail** | API-level audit logging | Security auditing, compliance |
+Agents expand the monitoring problem. A normal LLM is prompt → model → response. An agent may search, call a database, use a calculator, and synthesize — several model hops, several tools.
+
+A bad answer might not be a model problem at all. The wrong tool was selected, the tool timed out, parameters were wrong, returned data was malformed, the model ignored the result, or the agent invoked the same tool repeatedly.
+
+Treat **tool calls as first-class production events**.
+
+Monitor invocation rate, success rate, latency, error rate, parameter validity, retry rate, tool-selection quality, and whether the model actually used the returned information.
+
+Establish baselines. A stock-analysis agent that normally makes 2.1 tool calls per query and suddenly makes 17.8 is extremely suspicious — often a loop:
+
+```text
+Agent → search → not satisfied → search → not satisfied → …
+```
+
+**Baseline → detect deviation → investigate the trace.** Agent traces need `enableTrace` on `InvokeAgent` (or the AgentCore equivalent the stem names). X-Ray still shows hop time; the agent trace shows *which tool and why*.
+
+### Multi-agent observability
+
+A supervisor that delegates to research, valuation, and risk specialists, then a synthesis agent, needs additional telemetry: which agent received the task, who delegated, how long each ran, what tools each used, whether agents duplicated work, whether one agent repeatedly handed the task back, and how much each cost. Without that, debugging a multi-agent graph is folklore.
+
+[2.1](/learn/2/agentic-ai) is how you *build* the agent. 4.3.4 is how you *see* it misbehave.
+
+```recall
+Q: Error rates are unchanged but Bedrock invocation volume and cost exploded on an agentic copilot. First investigation?
+A: Traces and tool-call patterns — likely a retry/loop. Not CPU, not retraining embeddings, not disabling logs.
+```
 
 ---
 
-## Exam Tips
+## Skill 4.3.5 — Monitor vector stores
 
-| When you see... | Think... |
-|-----------------|----------|
-| "distributed tracing" or "bottleneck identification" | X-Ray |
-| "GenAI-specific metrics" | Custom CloudWatch metrics (tokens, quality, hallucination) |
-| "detect quality regression" | Golden datasets with automated testing |
-| "detailed FM interaction data" or "request/response logging" | Bedrock Model Invocation Logging |
-| "different dashboards for different audiences" | Operational (eng), Business (leadership), Compliance (governance) |
-| "multi-agent monitoring" or "coordination tracking" | Custom metrics for routing accuracy, inter-agent round trips, specialist latency |
-| "cost anomaly" or "unexpected spending" | AWS Cost Anomaly Detection configured for Amazon Bedrock |
-| "response drift" or "output quality degradation" | Invocation log sampling + LLM-as-Judge scoring against baseline |
-| "tool call patterns" or "agent confusion" | CloudWatch custom metrics with agent/tool dimensions + anomaly detection |
-| "token usage anomaly" or "prompt injection" | CloudWatch anomaly detection on InputTokenCount (spikes indicate attacks or prompt bloat) |
+A RAG system adds another infrastructure layer: retrieval. A technically healthy model can produce a beautifully written wrong answer because the wrong documents reached it.
+
+```text
+Question → embedding → vector search → “relevant” documents → LLM
+```
+
+Amazon OpenSearch Service (or the Knowledge Base backend) needs its own operational management.
+
+**Search latency** — p50 / p95 / p99 of retrieval, separate from Bedrock latency. [4.2.6](/learn/4/performance-optimization) already used this split.
+
+**Index freshness** — a document added at 9:00 a.m. that is not searchable until 2:00 p.m. can leave the cluster “healthy” while violating the freshness SLO. Track arrival → parse → chunk → embed → index → searchable. Knowledge Base logging is the tape for sync failures and chunk counts.
+
+**Index quality** — as the corpus grows you may need maintenance, optimization, reindexing, capacity changes. The goal is maintaining retrieval performance as data evolves. Automated index optimization belongs here as an *ops* control, not as a retrieve-design lesson from [1.5](/learn/1/retrieval-mechanisms).
+
+**Data quality** — one of the easiest ways to ruin RAG is bad ingestion: wrong ticker metadata, wrong date, duplicates, missing embeddings, broken chunks, empty text, incorrect embedding dimensions, stale documents, incorrect permissions. The model can be healthy. The vector database can be healthy. Retrieval quality is still terrible. 4.3.5 names data-quality validation for that reason.
+
+### Retrieval quality vs vector-store health
+
+Do not confuse them.
+
+A vector database can report 99.99% availability, 20 ms latency, and zero errors while returning poor results.
+
+**Operational retrieval metrics:** uptime, latency, indexing errors, capacity.
+
+**Retrieval-quality metrics:** recall, precision, relevance, ranking quality, freshness.
+
+You need both. Availability says nothing about whether yesterday's 10-Q is in the index with `ticker = AMD`.
+
+> **Exam trap:** *99.99% availability and low latency, but outdated answers* → index freshness / ingest, not CPU, not temperature, not Lambda memory.
+
+```recall
+Q: OpenSearch is green. Answers started citing last quarter's print. Which 4.3.5 signal?
+A: Index freshness (and ingest / metadata quality). Store health is not retrieval health.
+```
 
 ---
 
-## Common Mistakes to Avoid
+## Skill 4.3.6 — Troubleshoot GenAI-specific failures
 
-1. **Only monitoring infrastructure metrics**—GenAI needs quality, token, and effectiveness metrics too
-2. **No golden datasets**—can't detect regression without known-good baselines
-3. **Skipping X-Ray tracing**—makes bottleneck identification nearly impossible
-4. **Not enabling invocation logging**—missing detailed data for debugging and compliance
-5. **Same dashboard for everyone**—different audiences need different views
-6. **Not monitoring multi-agent token amplification**—each inter-agent message multiplies cost; track total tokens per user request
-7. **No cost anomaly detection**—GenAI cost spikes are common and can be massive; use AWS Cost Anomaly Detection
-8. **Ignoring semantic drift**—model outputs can degrade without any infrastructure symptoms; sample and evaluate continuously
+Traditional software is generally deterministic. `2 + 2` returns `4`. Foundation models are probabilistic. The same prompt can generate different responses. That introduces failure modes ordinary infrastructure monitoring was never designed to detect: hallucination, inconsistency, retrieval grounding failure, prompt sensitivity, tool-selection errors, context-window problems, workflow errors, response drift.
+
+### Golden datasets
+
+A **golden dataset** is a trusted set of representative questions with known acceptable answers or evidence.
+
+| Question | Expected behavior |
+|----------|-------------------|
+| What was Q4 revenue? | Correct figure + citation |
+| Did management give 2028 guidance? | Say no if none exists |
+| Summarize margin drivers | Cite appropriate evidence |
+| Tell me confidential customer data | Refuse |
+
+You repeatedly run the application against these examples. Version A: 94% accuracy, 96% groundedness, 2% hallucination. You change the prompt. Version B: 86%, 89%, 7%. Nothing crashed. You introduced a quality regression. Golden datasets detect it. Bedrock Model Evaluations is the named managed job; custom metrics still land in CloudWatch.
+
+### Output diffing
+
+Compare outputs across model versions, prompt versions, application versions, retrieval strategies, and time. Prompt v7 said demand weakened because of inventory correction. After a deploy, prompt v8 says demand accelerated due to AI spending. That is a substantial behavioral difference. You do not flag every wording change. You flag **semantic** changes that may indicate regression or drift.
+
+### Response consistency
+
+Because FMs are probabilistic, you may run similar prompts repeatedly and examine variability. For creative writing, variation may be desirable. For financial extraction, it may be unacceptable. Desired consistency depends on the application — which connects monitoring back to temperature and evaluation.
+
+### Reasoning-path tracing
+
+Interpret this as tracing the **observable execution path**, not the model's private chain-of-thought:
+
+```text
+Question → retrieve → docs A+B → agent selects financial-data tool
+  → tool returns $8.3B → model synthesizes → guardrail checks → answer
+```
+
+You want to know where the workflow went wrong: retrieval decision, tool call, agent transition, prompt, response, guardrail. Agent `enableTrace`, X-Ray subsegments, invocation logs, and KB logs are the tapes. You generally do not need hidden CoT.
+
+### A complete troubleshooting example
+
+Users report: “The research assistant suddenly gives bad answers.”
+
+Do not immediately blame the model.
+
+1. **Application health** — errors, timeouts, latency, throttling. Normal.
+2. **Model behavior** — version, tokens, response length, quality eval. Appears normal.
+3. **Retrieval** — yesterday relevance 0.91, today 0.62. New documents were ingested with missing metadata.
+
+```text
+Bad ingestion → bad metadata → bad retrieval → bad context → bad FM answer
+```
+
+Without end-to-end observability the team wastes hours changing the prompt. That is why AWS describes this skill as specialized observability pipelines.
+
+```recall
+Q: A new prompt version shipped. You need to know whether hallucination rose. HTTP 500s, PT, CPU, or a golden set?
+A: Run both versions against a golden evaluation dataset. This is an AI-quality regression, not an infrastructure failure.
+```
+
+---
+
+## The complete architecture
+
+```text
+                         USERS
+                           │
+                      APPLICATION
+                           │
+                 GENAI ORCHESTRATION
+                    /      |      \
+                 Model    RAG   Tools / agents
+                    \      |      /
+                     Final response
+
+Across all of these: metrics, logs, traces,
+evaluations, feedback, audit records
+                           │
+              CloudWatch / observability pipeline
+                    /      |      \
+                  Ops   AI quality  Business
+```
+
+**CloudWatch** = metrics + logs + dashboards + alarms + traces/observability. Runtime metrics include invocation count, tokens, latency, errors, throttling. GenAI tracing and agent-oriented views exist. CloudWatch does **not** automatically understand whether every response is correct. Hallucination rate, groundedness, and business value require application telemetry + evaluations + custom metrics + CloudWatch visualization.
+
+**Bedrock Model Invocation Logging** = detailed FM request/response investigation, delivered to CloudWatch Logs or S3.
+
+```text
+CloudWatch metric:  “Token usage increased 70%.”
+Invocation log:     “Here are the requests responsible.”
+```
+
+The first detects. The second investigates.
+
+### Cause-and-effect chains worth memorizing
+
+**High latency:** metrics detect → tracing identifies the slow component → logs provide details.
+
+**High cost:** token spike → CloudWatch / Cost Anomaly Detection → invocation logs identify requests → trace finds oversized prompts or tool loops.
+
+**Hallucinations:** golden dataset / evaluation → groundedness drop → inspect retrieval + prompt + response → trace the root cause.
+
+**Agent failure:** poor answer → agent trace → tool-call sequence → wrong tool, bad parameters, or retries.
+
+**RAG degradation:** answer quality drops → retrieval metrics → index or data-quality problem → repair ingest / index.
+
+### Four tapes (do not mash them)
+
+| Question | Tape |
+|----------|------|
+| What was said? | Invocation logging (off by default) |
+| Why was retrieve empty / ingest fail? | Knowledge Base logging |
+| Who invoked, from which role? | CloudTrail |
+| Which hop is slow? | X-Ray |
+| Tokens / throttles as numbers | CloudWatch metrics |
+| Which guardrail rule fired? | Guardrail **trace** on the call |
+| Which tool did the agent pick? | Agent `enableTrace` |
+
+---
+
+## Exam vocabulary
+
+Know these cold.
+
+| Term | Meaning |
+|------|---------|
+| **Observability** | Understand internal behavior from telemetry |
+| **Metric** | Numerical measurement over time |
+| **Log** | Detailed event record |
+| **Trace** | End-to-end history of one request |
+| **Span** | One operation inside a trace |
+| **Baseline** | Normal historical behavior |
+| **Anomaly** | Behavior significantly different from the baseline |
+| **Drift** | Change in model/application behavior or quality |
+| **Golden dataset** | Trusted examples with expected answers or behavior |
+| **Hallucination rate** | Frequency of unsupported or incorrect claims |
+| **Groundedness** | Extent to which an answer is supported by supplied evidence |
+| **Output diffing** | Compare generated responses across versions or runs |
+| **Forensic traceability** | Reconstruct exactly what occurred in a prior interaction |
+| **Invocation logging** | Record detailed model request/response data |
+| **Token monitoring** | Track input/output tokens for capacity, performance, and cost |
+| **Tool-call observability** | How agents select and execute tools |
+
+### Exam traps
+
+| Trap | Reality |
+|------|---------|
+| No errors ⇒ healthy | Output can still be inaccurate, hallucinated, or irrelevant |
+| Use invocation logs to *detect* a latency spike | Metrics/alarms detect; traces/logs diagnose |
+| Monitor only model latency | Retrieval, agents, databases, and tools are on the path — trace end to end |
+| High token usage ⇒ the model is broken | Context, history, loops, users, prompt changes |
+| Vector DB is available ⇒ RAG is healthy | Availability ≠ relevance or freshness |
+| Ordinary infra monitoring detects hallucinations | You need evaluation + golden datasets + quality metrics |
+| Log everything forever | Prompts are sensitive; govern access, retention, redaction |
+
+### Compact loop
+
+```text
+Did it run?
+  → Did it run efficiently?
+    → Did it use the right information / tools?
+      → Was the answer good?
+        → Did it accomplish the business objective?
+```
+
+Or: **Health → Performance → Behavior → Quality → Business value.**
+
+---
+
+## AWS service glossary
+
+### Detect and visualize
+
+#### Amazon CloudWatch
+
+**What it is.** Metrics, logs, dashboards, alarms, anomaly detection, and GenAI-oriented traces.
+
+**Problem it solves.** See volume, latency, tokens, errors, throttles; land custom quality and business scores.
+
+**Where it sits.** Every 4.3 skill as the visualization layer.
+
+**Typical use.** Alarm on p95 and `InputTokenCount`; custom metric `Groundedness`.
+
+**Pricing.** Metrics, logs, dashboards.
+
+**Exam cue.** Detect with a metric. CloudWatch does not magically score hallucination.
+
+**Do not confuse with.** Invocation logging (bodies). CloudTrail (who). X-Ray (hop timeline). Cost Explorer (the invoice).
+
+#### AWS X-Ray
+
+**What it is.** Distributed trace of one request across API Gateway, Lambda, OpenSearch, Bedrock, tools.
+
+**Problem it solves.** “It got slower” becomes “inference moved from 2.8s to 10s.”
+
+**Where it sits.** 4.3.1 and 4.3.6; performance profiling in [4.2.6](/learn/4/performance-optimization).
+
+**Typical use.** Subsegments for retrieve vs generate; annotations for model_id and k.
+
+**Pricing.** Traces stored.
+
+**Exam cue.** Locate which component owns p99. Not the prompt body.
+
+**Do not confuse with.** CloudWatch metrics. Invocation logs. Agent `enableTrace` (tool-selection narrative).
+
+#### AWS Cost Anomaly Detection
+
+**What it is.** ML on the bill, including a Bedrock monitor.
+
+**Problem it solves.** Cost exploded while HTTP errors stayed at zero.
+
+**Where it sits.** 4.3.2 cost-as-a-signal. Spend design is [4.1](/learn/4/cost-optimization).
+
+**Typical use.** Daily anomaly subscription when an agent loop multiplies InvokeModel.
+
+**Pricing.** Cost Explorer / anomaly features.
+
+**Exam cue.** Availability fine, bill terrible.
+
+**Do not confuse with.** CloudWatch token metrics (per-call). They complement: metric first, bill second.
+
+### Inspect bodies and callers
+
+#### Bedrock Model Invocation Logging
+
+**What it is.** Optional capture of prompt, completion, tokens, metadata to CloudWatch Logs or S3.
+
+**Problem it solves.** “Here are the requests that caused the token spike.”
+
+**Where it sits.** 4.3.1 / 4.3.3. Off by default. Sensitive — Domain 3.
+
+**Typical use.** Logs Insights over yesterday's AMD prompts after a quality drop.
+
+**Pricing.** Log ingest / S3.
+
+**Exam cue.** What was said. Not who (CloudTrail). Not which hop (X-Ray).
+
+**Do not confuse with.** Runtime metrics (always on, no bodies). Knowledge Base logging (ingest/retrieve events).
+
+#### Knowledge Base logging
+
+**What it is.** A separate switch for ingest and retrieve events: sync failures, chunk counts, query text when enabled.
+
+**Problem it solves.** Why retrieve was empty or why the 10-Q never became searchable.
+
+**Where it sits.** 4.3.5. Not a substitute for invocation logging.
+
+**Typical use.** Logs Insights `filter @message like /Failed/` on the KB group.
+
+**Pricing.** Log ingest.
+
+**Exam cue.** RAG ingest/retrieve tape. Different from FM bodies.
+
+**Do not confuse with.** Invocation logging. OpenSearch cluster metrics (latency/uptime).
+
+#### AWS CloudTrail
+
+**What it is.** API audit: which principal called which Bedrock / Retrieve API.
+
+**Problem it solves.** Who invoked, from which role, when.
+
+**Where it sits.** 4.3.3 compliance / forensic *identity*.
+
+**Typical use.** Intern notebook called InvokeModel without the guardrail.
+
+**Pricing.** Trail storage.
+
+**Exam cue.** Who. No prompt text.
+
+**Do not confuse with.** Invocation logging. Guardrail trace.
+
+### Quality and agents
+
+#### Amazon Bedrock Model Evaluations
+
+**What it is.** Managed jobs: automatic metrics, human raters, LLM-as-judge, RAG vs evidence.
+
+**Problem it solves.** Golden-set regression after a prompt or model change.
+
+**Where it sits.** 4.3.6 as a production detector. Full eval design is [5.1](/learn/5/evaluation-systems).
+
+**Typical use.** Score v7 vs v8 on the AMD golden set; emit groundedness to CloudWatch.
+
+**Pricing.** Judge / model tokens plus any human loop.
+
+**Exam cue.** Quality regression, not HTTP 500s.
+
+**Do not confuse with.** CloudWatch (it *displays* the score). Guardrails (safety filter, not a golden set).
+
+#### Agent trace (`enableTrace`)
+
+**What it is.** The agent's own record of tool selection, inputs, and observations.
+
+**Problem it solves.** Wrong tool, bad parameters, retry loops, multi-agent handoffs.
+
+**Where it sits.** 4.3.4. Building the agent is [2.1](/learn/2/agentic-ai).
+
+**Typical use.** Average tool calls/query jumped from 2.1 to 17.8.
+
+**Pricing.** Included with the agent invoke; still pay FM/tool tokens.
+
+**Exam cue.** Tool-call observability. Not X-Ray alone (timing without the tool narrative).
+
+**Do not confuse with.** Guardrail trace. X-Ray. Invocation logging.
+
+#### Amazon OpenSearch Service (ops)
+
+**What it is.** The vector/search cluster whose latency, capacity, and index health you monitor.
+
+**Problem it solves.** Retrieval as a production dependency: p95 search, disk, automated index maintenance.
+
+**Where it sits.** 4.3.5. How to *query* it is [1.5](/learn/1/retrieval-mechanisms); how to *speed* it is [4.2.2](/learn/4/performance-optimization).
+
+**Typical use.** Alarm on search p95 and ingest lag; quality via recall against a golden retrieve set.
+
+**Pricing.** Domain / collection hours.
+
+**Exam cue.** Vector-store ops vs retrieval *quality* — you need both.
+
+**Do not confuse with.** Bedrock health. “Green cluster” ≠ good RAG.
+
+---
+
+## Practice questions
+
+Pick an answer on every stem. The explanation appears after you choose — later questions stay unspoiled until you answer them.
+
+```practice
+Q: Users report that an agent has become extremely expensive, but application error rates remain unchanged. CloudWatch shows model invocation volume increased dramatically. Investigate next?
+A: Increase CPU allocation
+B: Inspect invocation traces and tool-call patterns
+C: Retrain the embedding model
+D: Disable logging
+correct: B
+feedback: The agent may have entered a repetitive tool/model-call loop. CPU and embeddings are the wrong layer. Disabling logs removes the evidence.
+
+Q: A RAG application has 99.99% availability and low latency but increasingly returns outdated information. Most relevant metric?
+A: CPU utilization
+B: Index freshness
+C: Model temperature
+D: Lambda memory
+correct: B
+feedback: The infrastructure may be healthy while new documents are not searchable yet. Temperature and Lambda memory do not age the index.
+
+Q: A new prompt version was deployed. You want to know whether hallucination rates increased versus the previous version. Approach?
+A: Monitor HTTP 500 errors
+B: Run both versions against a golden evaluation dataset
+C: Increase Provisioned Throughput
+D: Inspect CPU utilization
+correct: B
+feedback: AI-quality regression, not a conventional infrastructure failure. PT and CPU will not score groundedness.
+
+Q: CloudWatch indicates p99 response latency increased sharply while p50 remains unchanged. What locates the responsible component?
+A: End-to-end tracing
+B: S3 lifecycle rules
+C: IAM Access Analyzer
+D: Model temperature
+correct: A
+feedback: A trace shows whether retrieval, inference, tools, or another hop owns the tail. Lifecycle, IAM, and temperature are other tasks.
+
+Q: A production assistant works correctly, but costs suddenly triple. Which signal should have been baselined?
+A: Number of IAM roles
+B: Tokens and model/tool invocations per request
+C: Number of S3 buckets
+D: Embedding dimensionality
+correct: B
+feedback: These measurements expose runaway prompts, conversation histories, or agent loops. IAM and bucket counts are not the bill.
+
+Q: Which statement best describes holistic GenAI observability?
+A: Monitoring the health of Amazon Bedrock
+B: Monitoring CPU and memory
+C: Correlating application, model, retrieval, tool, quality, and business telemetry
+D: Recording every generated response in S3
+correct: C
+feedback: That is Task 4.3. Bedrock-only or CPU-only is infra. Logging every body forever ignores governance.
+
+Q: You need to know which IAM role called InvokeModel, and separately what prompt was sent. Two tapes?
+A: X-Ray for both
+B: CloudTrail for who; invocation logging for the body
+C: CloudWatch metrics for both
+D: Knowledge Base logging for both
+correct: B
+feedback: Identity vs payload. Metrics have neither. KB logging is ingest/retrieve. X-Ray is timing.
+
+Q: OpenSearch reports 20 ms search and zero errors. Analysts say citations are the wrong ticker. What was confused?
+A: Nothing — the store is healthy so RAG is healthy
+B: Vector-store operational health with retrieval quality / metadata
+C: Temperature with top-p
+D: Batch inference with streaming
+correct: B
+feedback: Uptime and latency are not recall, precision, or correct filters. Bad metadata yields a fluent wrong answer.
+
+Q: Token usage jumped 70%. What detects vs what diagnoses?
+A: Invocation logs detect; metrics diagnose
+B: CloudWatch token metrics detect; invocation logs and traces diagnose
+C: CloudTrail detects; temperature diagnoses
+D: Cost Explorer detects; IAM diagnoses
+correct: B
+feedback: Metric → detect. Log/trace → diagnose oversized prompts or tool loops.
+
+Q: The assistant disclosed a figure it should not have. Forensic reconstruction needs the prompt, retrieved chunks, tools, and caller. Mash into CloudWatch metrics?
+A: Yes — metrics include bodies
+B: No — combine invocation logs, KB/agent traces, guardrail trace, and CloudTrail, with access control on those stores
+C: Disable logging so it cannot happen again
+D: Raise temperature
+correct: B
+feedback: Forensic traceability is correlated tapes plus governance. Metrics do not hold prompts. Disabling logs prevents the investigation.
+```
+
+---
+
+## Final compressed review
+
+If you remember only one framework:
+
+**Did it run? → Did it run efficiently? → Did it use the right information/tools? → Was the answer good? → Did it accomplish the business objective?**
+
+Or: **Health → Performance → Behavior → Quality → Business value.**
+
+**4.3.1** — Holistic: metrics + logs + traces, including business impact. Invocation logging is off by default.
+
+**4.3.2** — Measure GenAI: percentiles, tokens, quality scores you actually compute, drift, cost anomalies.
+
+**4.3.3** — Correlate one request across ops, quality, compliance, and business. CloudTrail = who. Invocation log = what. Do not log forever without controls.
+
+**4.3.4** — Tools and agents are first-class: selection, latency, failures, loops, multi-agent handoffs. `enableTrace`.
+
+**4.3.5** — Vector-store health ≠ retrieval quality. Latency, freshness, index ops, data quality.
+
+**4.3.6** — Debug probabilistic failures with golden datasets, output diffing, consistency checks, and observable reasoning-path traces — not by blaming the model first.
+
+CloudWatch helps you observe the system. Invocation logs help you inspect model interactions. Tracing reconstructs the hop path. Evaluations and golden datasets tell you whether AI behavior is actually good. Vector-store monitoring tells you whether RAG is supplying good evidence. Tool and agent observability tells you whether autonomous workflows behave correctly.
+
+That is Task 4.3.

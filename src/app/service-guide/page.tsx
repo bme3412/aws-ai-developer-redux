@@ -1,31 +1,65 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import guideData from '@/data/service-decision-guide.json';
-import Link from 'next/link';
+import catalogData from '@/data/aws-services-catalog.json';
 import {
   Search,
   Map,
   ChevronDown,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
   Database,
   Shield,
   Layers,
-  DollarSign,
   Bot,
   Eye,
-  Lock,
-  Rocket,
   BarChart2,
-  HeartHandshake,
-  FileText,
-  Zap,
+  Cpu,
+  Box,
+  Phone,
+  Wrench,
+  ArrowRightLeft,
+  Globe,
+  HardDrive,
+  TrendingUp,
+  Lightbulb,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 
+type CatalogService = {
+  name: string;
+  summary: string;
+  example: string;
+  tags?: string[];
+  detail?: string;
+  chooseWhen?: string[];
+  notFor?: string;
+  vs?: string;
+};
+
+type CatalogCategory = {
+  id: string;
+  title: string;
+  icon: string;
+  color: string;
+  services: CatalogService[];
+};
+
+const catalog = catalogData as { categories: CatalogCategory[] };
+
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  Database, Shield, Layers, DollarSign, Bot, Eye, Lock, Rocket, BarChart2, HeartHandshake, FileText,
+  BarChart2,
+  Layers,
+  Cpu,
+  Box,
+  Phone,
+  Database,
+  Wrench,
+  Bot,
+  Eye,
+  ArrowRightLeft,
+  Globe,
+  Shield,
+  HardDrive,
 };
 
 const colorMap: Record<string, { bg: string; border: string; text: string; light: string; pill: string; accent: string }> = {
@@ -42,10 +76,21 @@ const colorMap: Record<string, { bg: string; border: string; text: string; light
   sky:     { bg: 'bg-sky-50',     border: 'border-sky-200',     text: 'text-sky-700',     light: 'bg-sky-100',     pill: 'bg-sky-100 text-sky-700',     accent: 'border-l-sky-400' },
 };
 
+const INVESTING_PREFIX = 'Investment angle:';
+
+function isInvestingExample(example: string) {
+  return example.startsWith(INVESTING_PREFIX);
+}
+
+function exampleBody(example: string) {
+  return isInvestingExample(example)
+    ? example.slice(INVESTING_PREFIX.length).trim()
+    : example;
+}
+
 export default function ServiceGuidePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const handleToggleCategory = (id: string) => {
@@ -57,71 +102,66 @@ export default function ServiceGuidePage() {
     });
   };
 
-  const handleToggleService = (key: string) => {
-    setExpandedServices(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
   const expandAll = () => {
-    setExpandedCategories(new Set(guideData.categories.map(c => c.id)));
+    setExpandedCategories(new Set(catalog.categories.map(c => c.id)));
   };
 
   const collapseAll = () => {
     setExpandedCategories(new Set());
-    setExpandedServices(new Set());
   };
 
   const filteredCategories = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    return guideData.categories.filter(cat => {
-      if (selectedCategory && cat.id !== selectedCategory) return false;
-      if (!term) return true;
-      if (cat.title.toLowerCase().includes(term)) return true;
-      if (cat.subtitle.toLowerCase().includes(term)) return true;
-      if (cat.decisionPatterns.some((p: Record<string, string>) =>
-        (p.scenario || p.signal || '').toLowerCase().includes(term) ||
-        (p.service || p.answer || '').toLowerCase().includes(term) ||
-        (p.why || '').toLowerCase().includes(term)
-      )) return true;
-      if (cat.services.some(s =>
-        s.name.toLowerCase().includes(term) ||
-        s.whatItDoes.toLowerCase().includes(term) ||
-        s.examKeywords.some(k => k.toLowerCase().includes(term)) ||
-        s.commonTraps.some(t => t.toLowerCase().includes(term))
-      )) return true;
-      return false;
-    });
+    const term = searchTerm.toLowerCase().trim();
+    return catalog.categories
+      .filter(cat => !selectedCategory || cat.id === selectedCategory)
+      .map(cat => {
+        if (!term) return cat;
+        const categoryMatches = cat.title.toLowerCase().includes(term);
+        const matchingServices = cat.services.filter(s =>
+          s.name.toLowerCase().includes(term) ||
+          s.summary.toLowerCase().includes(term) ||
+          s.example.toLowerCase().includes(term) ||
+          (s.detail || '').toLowerCase().includes(term) ||
+          (s.vs || '').toLowerCase().includes(term) ||
+          (s.notFor || '').toLowerCase().includes(term) ||
+          (s.tags || []).some(t => t.toLowerCase().includes(term)) ||
+          (s.chooseWhen || []).some(c => c.toLowerCase().includes(term))
+        );
+        if (categoryMatches) return cat;
+        if (matchingServices.length === 0) return null;
+        return { ...cat, services: matchingServices };
+      })
+      .filter((cat): cat is CatalogCategory => cat !== null);
   }, [searchTerm, selectedCategory]);
 
-  const totalServices = guideData.categories.reduce((sum, c) => sum + c.services.length, 0);
+  const totalServices = catalog.categories.reduce((sum, c) => sum + c.services.length, 0);
+  const visibleServices = filteredCategories.reduce((sum, c) => sum + c.services.length, 0);
+  const searchActive = searchTerm.trim().length > 0;
 
   return (
     <div className="overflow-x-hidden">
       <div className="max-w-4xl mx-auto px-3 md:px-6 py-6 md:py-8 pb-24 md:pb-8">
-        {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-1">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center">
               <Map className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Service Decision Guide</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">AWS Services Reference</h1>
           </div>
           <p className="text-gray-500 text-sm ml-12">
-            {guideData.categories.length} categories &middot; {totalServices} services &middot; derived from 100 practice questions
+            {catalog.categories.length} categories &middot; {totalServices} services
+            {searchActive || selectedCategory ? (
+              <span className="text-gray-400"> &middot; showing {visibleServices}</span>
+            ) : null}
           </p>
         </div>
 
-        {/* Search */}
         <div className="mb-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search services, keywords, patterns..."
+              placeholder="Search services, summaries, examples..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
@@ -129,7 +169,6 @@ export default function ServiceGuidePage() {
           </div>
         </div>
 
-        {/* Category Filter Pills */}
         <div className="mb-4 flex gap-1.5 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap md:overflow-visible scrollbar-none">
           <button
             onClick={() => setSelectedCategory(null)}
@@ -141,7 +180,7 @@ export default function ServiceGuidePage() {
           >
             All
           </button>
-          {guideData.categories.map(cat => {
+          {catalog.categories.map(cat => {
             const colors = colorMap[cat.color] || colorMap.blue;
             return (
               <button
@@ -153,13 +192,12 @@ export default function ServiceGuidePage() {
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {cat.title.length > 30 ? cat.title.slice(0, 27) + '...' : cat.title}
+                {cat.title}
               </button>
             );
           })}
         </div>
 
-        {/* Expand/Collapse All */}
         <div className="mb-5 flex gap-3 text-xs">
           <button onClick={expandAll} className="text-orange-600 hover:text-orange-700 font-medium">
             Expand all
@@ -170,183 +208,140 @@ export default function ServiceGuidePage() {
           </button>
         </div>
 
-        {/* Categories */}
-        <div className="space-y-4">
+        <div className="space-y-6">
           {filteredCategories.map(cat => {
             const colors = colorMap[cat.color] || colorMap.blue;
             const Icon = iconMap[cat.icon] || Database;
-            const isExpanded = expandedCategories.has(cat.id);
+            const isExpanded = searchActive || expandedCategories.has(cat.id);
 
             return (
-              <div key={cat.id} className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                {/* Category Header */}
+              <section key={cat.id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
                 <button
                   onClick={() => handleToggleCategory(cat.id)}
-                  className="w-full flex items-center gap-2.5 px-3 md:px-4 py-3 text-left bg-white hover:bg-gray-50 transition-colors"
+                  className="w-full flex items-center gap-3 px-4 md:px-5 py-4 text-left hover:bg-gray-50/80 transition-colors"
                   aria-expanded={isExpanded}
                 >
-                  <div className={`w-8 h-8 rounded-lg ${colors.light} flex items-center justify-center flex-shrink-0`}>
-                    <Icon className={`w-4 h-4 ${colors.text}`} />
+                  <div className={`w-9 h-9 rounded-xl ${colors.light} flex items-center justify-center flex-shrink-0`}>
+                    <Icon className={`w-[18px] h-[18px] ${colors.text}`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h2 className="font-semibold text-gray-900 text-sm">{cat.title}</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">{cat.services.length} services &middot; {cat.decisionPatterns.length} patterns</p>
+                    <h2 className="font-semibold text-gray-900 text-[15px]">{cat.title}</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">{cat.services.length} {cat.services.length === 1 ? 'service' : 'services'}</p>
                   </div>
                   <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? '' : '-rotate-90'}`} />
                 </button>
 
-                {/* Expandable Content */}
                 <div
                   className="grid transition-[grid-template-rows] duration-300 ease-in-out"
                   style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
                 >
                   <div className="overflow-hidden">
-                    <div className="border-t border-gray-100">
-
-                      {/* Quick Decision Patterns — scenario-based */}
-                      <div className="px-3 md:px-4 py-3 bg-gray-50/70">
-                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-                          When you see a scenario like this...
-                        </h3>
-                        <div className="space-y-2.5">
-                          {cat.decisionPatterns.map((pattern: Record<string, string>, i: number) => (
-                            <div key={i} className="bg-white rounded-lg border border-gray-200 p-2.5 md:p-3">
-                              <p className="text-xs md:text-[13px] text-gray-700 leading-relaxed mb-2">
-                                {pattern.scenario || pattern.signal}
-                              </p>
-                              <div className="flex items-start gap-1.5">
-                                <span className="text-green-500 text-sm leading-none mt-0.5 shrink-0">&#10132;</span>
-                                <div className="min-w-0">
-                                  <span className="text-[13px] md:text-sm font-semibold text-gray-900">{pattern.service || pattern.answer}</span>
-                                  {pattern.why && (
-                                    <p className="text-[11px] md:text-xs text-gray-500 mt-0.5 leading-relaxed">{pattern.why}</p>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Service Cards */}
-                      <div className="px-3 md:px-4 py-3 space-y-2">
-                        {cat.services.map((svc, i) => {
-                          const svcKey = `${cat.id}-${i}`;
-                          const isSvcExpanded = expandedServices.has(svcKey);
-                          return (
-                            <div key={i} className={`rounded-lg border-l-4 ${colors.accent} bg-white border border-gray-200 overflow-hidden`}>
-                              {/* Service Header — always visible */}
-                              <button
-                                onClick={() => handleToggleService(svcKey)}
-                                className="w-full text-left px-3 py-2.5 hover:bg-gray-50/50 transition-colors"
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <h4 className="font-semibold text-gray-900 text-sm leading-tight">{svc.name}</h4>
-                                    <p className="text-xs text-gray-500 mt-0.5 leading-snug">{svc.whatItDoes}</p>
+                    <div className={`${colors.bg} border-t ${colors.border} px-3 md:px-5 py-5 space-y-5`}>
+                      {cat.services.map((svc, i) => {
+                        const investing = isInvestingExample(svc.example);
+                        const n = String(i + 1).padStart(2, '0');
+                        return (
+                          <article
+                            key={svc.name}
+                            className="rounded-xl bg-white border border-gray-200/80 shadow-sm px-4 py-4 md:px-5 md:py-5"
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className={`mt-0.5 font-mono text-[11px] font-semibold tabular-nums ${colors.text} opacity-70`}>
+                                {n}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-semibold text-gray-900 text-base leading-snug tracking-tight">
+                                  {svc.name}
+                                </h3>
+                                {svc.tags && svc.tags.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {svc.tags.map(tag => (
+                                      <span
+                                        key={tag}
+                                        className={`px-2 py-0.5 text-[11px] font-medium rounded-md ${colors.pill}`}
+                                      >
+                                        {tag}
+                                      </span>
+                                    ))}
                                   </div>
-                                  <ChevronDown className={`w-4 h-4 text-gray-300 mt-0.5 flex-shrink-0 transition-transform ${isSvcExpanded ? '' : '-rotate-90'}`} />
-                                </div>
+                                )}
+                                <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+                                  {svc.summary}
+                                </p>
+                                {svc.detail && (
+                                  <p className="text-sm text-gray-700 mt-3 leading-relaxed">
+                                    {svc.detail}
+                                  </p>
+                                )}
 
-                                {/* Exam keywords — always visible as the "hook" */}
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  {svc.examKeywords.map((kw, j) => (
-                                    <span key={j} className={`px-1.5 py-0.5 text-[10px] rounded ${colors.pill} font-medium`}>
-                                      {kw}
-                                    </span>
-                                  ))}
-                                </div>
-                              </button>
-
-                              {/* Expandable detail */}
-                              <div
-                                className="grid transition-[grid-template-rows] duration-200 ease-in-out"
-                                style={{ gridTemplateRows: isSvcExpanded ? '1fr' : '0fr' }}
-                              >
-                                <div className="overflow-hidden">
-                                  <div className="px-3 pb-3 space-y-3 border-t border-gray-100 pt-3">
-
-                                    {/* Choose / Avoid — side by side */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                      <div className="rounded-lg bg-green-50 p-2.5">
-                                        <div className="flex items-center gap-1.5 mb-2">
-                                          <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                                          <span className="text-[11px] font-bold text-green-700 uppercase tracking-wide">Use when</span>
+                                {(svc.chooseWhen || svc.notFor) && (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                                    {svc.chooseWhen && (
+                                      <div className="rounded-lg bg-emerald-50/80 border border-emerald-100 px-3 py-2.5">
+                                        <div className="flex items-center gap-1.5 mb-1.5">
+                                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Use when</span>
                                         </div>
                                         <ul className="space-y-1.5">
-                                          {svc.whenToChoose.map((r, j) => (
-                                            <li key={j} className="text-[13px] text-green-800 leading-snug flex gap-2 items-start">
-                                              <span className="text-green-500 font-bold leading-none mt-[3px]">&bull;</span>
-                                              <span>{r}</span>
+                                          {svc.chooseWhen.map(item => (
+                                            <li key={item} className="text-[13px] text-emerald-950 leading-snug flex gap-2">
+                                              <span className="text-emerald-500 mt-0.5">•</span>
+                                              <span>{item}</span>
                                             </li>
                                           ))}
                                         </ul>
-                                      </div>
-                                      <div className="rounded-lg bg-red-50 p-2.5">
-                                        <div className="flex items-center gap-1.5 mb-2">
-                                          <XCircle className="w-3.5 h-3.5 text-red-400" />
-                                          <span className="text-[11px] font-bold text-red-600 uppercase tracking-wide">Not for</span>
-                                        </div>
-                                        <ul className="space-y-1.5">
-                                          {svc.whenNotToChoose.map((r, j) => (
-                                            <li key={j} className="text-[13px] text-red-700 leading-snug flex gap-2 items-start">
-                                              <span className="text-red-400 font-bold leading-none mt-[3px]">&bull;</span>
-                                              <span>{r}</span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    </div>
-
-                                    {/* Common Traps — each trap gets its own card */}
-                                    {svc.commonTraps.length > 0 && (
-                                      <div className="space-y-2">
-                                        {svc.commonTraps.map((trap, j) => (
-                                          <div key={j} className="rounded-lg bg-amber-50 border border-amber-200 p-3 flex gap-2.5">
-                                            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                                            <div className="min-w-0">
-                                              <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wide">Exam Trap</span>
-                                              <p className="text-[13px] text-amber-900 leading-relaxed mt-0.5">
-                                                {trap}
-                                              </p>
-                                            </div>
-                                          </div>
-                                        ))}
                                       </div>
                                     )}
-
-                                    {/* Question links */}
-                                    <div className="flex items-center gap-1.5 pt-1 flex-wrap">
-                                      <Zap className="w-3 h-3 text-gray-300" />
-                                      <span className="text-[10px] text-gray-400 font-medium">Practice:</span>
-                                      {svc.questionIds.map(qid => (
-                                        <Link
-                                          key={qid}
-                                          href="/official-practice"
-                                          className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-500 rounded hover:bg-orange-100 hover:text-orange-600 transition-colors font-mono"
-                                        >
-                                          {qid}
-                                        </Link>
-                                      ))}
-                                    </div>
+                                    {svc.notFor && (
+                                      <div className="rounded-lg bg-rose-50/70 border border-rose-100 px-3 py-2.5">
+                                        <div className="flex items-center gap-1.5 mb-1.5">
+                                          <XCircle className="w-3.5 h-3.5 text-rose-500" />
+                                          <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Not for</span>
+                                        </div>
+                                        <p className="text-[13px] text-rose-950 leading-relaxed">{svc.notFor}</p>
+                                      </div>
+                                    )}
                                   </div>
+                                )}
+
+                                {svc.vs && (
+                                  <p className="mt-3 text-[13px] text-gray-500 leading-relaxed">
+                                    <span className="font-semibold text-gray-700">Contrast. </span>
+                                    {svc.vs}
+                                  </p>
+                                )}
+
+                                <div className={`mt-4 pl-3 border-l-2 ${investing ? 'border-amber-400' : 'border-orange-300'}`}>
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    {investing ? (
+                                      <TrendingUp className="w-3 h-3 text-amber-600" />
+                                    ) : (
+                                      <Lightbulb className="w-3 h-3 text-orange-500" />
+                                    )}
+                                    <span className={`text-[10px] font-bold uppercase tracking-wider ${investing ? 'text-amber-700' : 'text-orange-600'}`}>
+                                      {investing ? 'Investing' : 'On the desk'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[13px] text-gray-700 leading-relaxed">
+                                    {exampleBody(svc.example)}
+                                  </p>
                                 </div>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
+                          </article>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
-              </div>
+              </section>
             );
           })}
         </div>
 
         {filteredCategories.length === 0 && (
           <div className="text-center py-12 text-gray-500 text-sm">
-            No categories match your search.
+            No services match your search.
           </div>
         )}
       </div>

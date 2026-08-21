@@ -1,21 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { getDomain } from '@/lib/domains';
-import { getDomainQuestions } from '@/lib/content';
-import { markArticleRead, isArticleRead } from '@/lib/progress';
+import { getDomainQuestions, getNotesDrillByTask } from '@/lib/content';
+import { formatSkillCompletedAt } from '@/lib/progress';
 import { Question } from '@/types/review';
 import ArticleLayout from '@/components/learn/ArticleLayout';
+import { SkillProgressProvider } from '@/components/learn/SkillProgressContext';
+import StampCheckbox, { StampToast } from '@/components/learn/StampCheckbox';
+import { useTaskStamps } from '@/hooks/useTaskStamps';
 import QuestionCard from '@/components/review/QuestionCard';
 import {
   ArrowLeft,
   ArrowRight,
   Loader2,
   X,
-  ClipboardCheck,
-  CheckCircle,
+  Target,
 } from 'lucide-react';
 
 // Domain color schemes
@@ -47,7 +49,7 @@ export default function TopicPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startTime] = useState(Date.now());
-  const [isMarkedComplete, setIsMarkedComplete] = useState(false);
+  const { completed, burstId, toast, toggleTask } = useTaskStamps();
 
   // Modal state
   const [showQuizModal, setShowQuizModal] = useState(false);
@@ -56,21 +58,21 @@ export default function TopicPage() {
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [showResults, setShowResults] = useState<Record<string, boolean>>({});
   const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [quizSource, setQuizSource] = useState<'drill' | 'bank'>('drill');
+  const [drillCount, setDrillCount] = useState(0);
 
   const domain = getDomain(domainId);
   const task = domain?.tasks.find(t => t.articleSlug === topicSlug);
+  const articleKey = `${domainId}-${topicSlug}`;
+  const completedAt = completed[articleKey];
+  const domainTaskKeys = useMemo(
+    () => domain?.tasks.map((t) => `${domainId}-${t.articleSlug}`) ?? [],
+    [domain, domainId]
+  );
 
   const currentTaskIndex = domain?.tasks.findIndex(t => t.articleSlug === topicSlug) ?? -1;
   const prevTask = currentTaskIndex > 0 ? domain?.tasks[currentTaskIndex - 1] : null;
   const nextTask = currentTaskIndex < (domain?.tasks.length ?? 0) - 1 ? domain?.tasks[currentTaskIndex + 1] : null;
-
-  // Load completion state on mount
-  useEffect(() => {
-    const articleKey = `${domainId}-${topicSlug}`;
-    if (isArticleRead(articleKey)) {
-      setIsMarkedComplete(true);
-    }
-  }, [domainId, topicSlug]);
 
   useEffect(() => {
     async function loadContent() {
@@ -94,7 +96,19 @@ export default function TopicPage() {
     loadContent();
   }, [domainId, topicSlug]);
 
-  const openQuizModal = async () => {
+  useEffect(() => {
+    if (!task?.id) return;
+    let cancelled = false;
+    getNotesDrillByTask(task.id).then((items) => {
+      if (!cancelled) setDrillCount(items.length);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [task?.id]);
+
+  const openQuizModal = async (source: 'drill' | 'bank') => {
+    setQuizSource(source);
     setShowQuizModal(true);
     setQuestionsLoading(true);
     setCurrentIndex(0);
@@ -102,10 +116,17 @@ export default function TopicPage() {
     setShowResults({});
 
     try {
-      const allQuestions = await getDomainQuestions(domainId);
-      const taskQuestions = allQuestions.filter(q => q.task === task?.id);
-      const shuffled = taskQuestions.sort(() => Math.random() - 0.5);
-      setQuestions(shuffled);
+      if (source === 'drill') {
+        const items = await getNotesDrillByTask(task?.id ?? '');
+        setQuestions(items);
+      } else {
+        const allQuestions = await getDomainQuestions(domainId);
+        const taskQuestions = allQuestions.filter(q =>
+          q.skills?.includes(task?.id ?? '') || q.task === task?.id
+        );
+        const shuffled = taskQuestions.sort(() => Math.random() - 0.5);
+        setQuestions(shuffled);
+      }
     } catch (err) {
       console.error('Failed to load questions:', err);
     }
@@ -119,8 +140,15 @@ export default function TopicPage() {
 
   const handleMarkComplete = () => {
     const timeSpent = Math.round((Date.now() - startTime) / 60000);
-    markArticleRead(`${domainId}-${topicSlug}`, Math.max(timeSpent, 1));
-    setIsMarkedComplete(true);
+    toggleTask(
+      articleKey,
+      {
+        taskId: task?.id ?? topicSlug,
+        domainTaskKeys,
+        domainId,
+      },
+      Math.max(timeSpent, 1)
+    );
   };
 
   const handleAnswer = (selectedIds: string[]) => {
@@ -159,7 +187,8 @@ export default function TopicPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8">
+    <SkillProgressProvider skillIds={task.skills.map((s) => s.id)}>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
         <Link href="/learn" className="hover:text-gray-700">Learn</Link>
@@ -171,23 +200,37 @@ export default function TopicPage() {
         <span className="text-gray-700">Task {task.id}</span>
       </div>
 
-      {/* Practice Questions Button - At Top */}
-      <div className={`flex items-center justify-between p-4 bg-gradient-to-r ${colors.gradientFrom} ${colors.gradientTo} border ${colors.border} rounded-lg mb-6`}>
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-lg ${colors.bg} flex items-center justify-center`}>
-            <ClipboardCheck className={`w-5 h-5 ${colors.text}`} />
+      {/* Practice / notes drill — At Top */}
+      <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gradient-to-r ${colors.gradientFrom} ${colors.gradientTo} border ${colors.border} rounded-lg mb-6`}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-10 h-10 rounded-lg ${colors.bg} flex items-center justify-center shrink-0`}>
+            <Target className={`w-5 h-5 ${colors.text}`} />
           </div>
-          <div>
-            <span className="font-medium text-gray-800">Practice Questions</span>
-            <p className="text-sm text-gray-500">Test your knowledge of Task {task.id}</p>
+          <div className="min-w-0">
+            <span className="font-medium text-gray-800">Task {task.id} checks</span>
+            <p className="text-sm text-gray-500">
+              {drillCount > 0
+                ? `${drillCount} notes drills for this section, plus the longer practice bank.`
+                : `Practice bank for Task ${task.id}. Notes drills are not in this pack yet.`}
+            </p>
           </div>
         </div>
-        <button
-          onClick={openQuizModal}
-          className={`px-5 py-2.5 ${colors.accent} hover:opacity-90 text-white text-sm font-medium rounded-lg transition-colors shadow-sm`}
-        >
-          Start Practice
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          {drillCount > 0 && (
+            <button
+              onClick={() => openQuizModal('drill')}
+              className={`w-full sm:w-auto px-5 py-2.5 ${colors.accent} hover:opacity-90 text-white text-sm font-medium rounded-lg transition-colors shadow-sm`}
+            >
+              Notes drill ({drillCount})
+            </button>
+          )}
+          <button
+            onClick={() => openQuizModal('bank')}
+            className="w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-gray-50 text-gray-800 text-sm font-medium rounded-lg transition-colors border border-gray-200"
+          >
+            Practice bank
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -209,18 +252,24 @@ export default function TopicPage() {
 
       {/* Mark Complete */}
       <div className="flex items-center justify-center my-8">
-        <button
-          onClick={handleMarkComplete}
-          disabled={isMarkedComplete}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-            isMarkedComplete
-              ? 'bg-green-100 text-green-600 cursor-default'
-              : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+        <div
+          className={`flex items-center gap-3 px-6 py-3 rounded-lg font-medium ${
+            completedAt ? 'bg-emerald-50 text-emerald-800' : 'bg-gray-100 text-gray-800'
           }`}
         >
-          <CheckCircle className={`w-5 h-5 ${isMarkedComplete ? 'text-green-600' : ''}`} />
-          {isMarkedComplete ? 'Marked as Complete' : 'Mark as Complete'}
-        </button>
+          <StampCheckbox
+            completedAt={completedAt}
+            bursting={burstId === articleKey}
+            onToggle={handleMarkComplete}
+            ariaLabel={completedAt ? 'Mark task incomplete' : 'Mark task complete'}
+          />
+          <span>{completedAt ? 'Task stamped' : 'Mark task complete'}</span>
+          {completedAt && (
+            <span className="text-[11px] font-medium tabular-nums text-emerald-700 skill-time-in">
+              {formatSkillCompletedAt(completedAt)}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Navigation */}
@@ -273,7 +322,9 @@ export default function TopicPage() {
               {/* Modal Header */}
               <div className={`sticky top-0 bg-gradient-to-r ${colors.modalFrom} ${colors.modalTo} px-6 py-4 flex items-center justify-between`}>
                 <div>
-                  <h2 className="font-semibold text-white">Task {task.id} Practice</h2>
+                  <h2 className="font-semibold text-white">
+                    {quizSource === 'drill' ? `Task ${task.id} notes drill` : `Task ${task.id} practice`}
+                  </h2>
                   {questions.length > 0 && (
                     <p className={`text-sm ${colors.modalSubtext}`}>
                       Question {currentIndex + 1} of {questions.length}
@@ -346,5 +397,7 @@ export default function TopicPage() {
         </div>
       )}
     </div>
+    <StampToast message={toast} />
+    </SkillProgressProvider>
   );
 }

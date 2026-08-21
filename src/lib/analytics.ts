@@ -160,7 +160,9 @@ export function getTaskStats(progress: Progress, allQuestions: Question[], domai
   if (!domain) return [];
 
   return domain.tasks.map(task => {
-    const taskQuestions = allQuestions.filter(q => q.domain === domainId && q.task === task.id);
+    const taskQuestions = allQuestions.filter(q =>
+      q.domain === domainId && (q.task === task.id || q.skills.includes(task.id))
+    );
     const attempted = taskQuestions.filter(q => completed.has(q.id));
     const correct = attempted.filter(q => completed.get(q.id)).length;
 

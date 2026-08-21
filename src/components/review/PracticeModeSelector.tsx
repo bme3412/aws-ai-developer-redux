@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Shuffle, Clock, Flame, Target, Brain } from 'lucide-react';
+import { Shuffle, Clock, Flame, Target, Brain, Crosshair } from 'lucide-react';
 
 const modes = [
   {
@@ -10,6 +10,15 @@ const modes = [
     description: '20 random questions',
     icon: Shuffle,
     color: 'text-blue-600 bg-blue-50 border-blue-200 hover:border-blue-300',
+    href: '/review?mode=practice',
+  },
+  {
+    key: 'drill',
+    label: 'Notes drill',
+    description: 'Short items by section',
+    icon: Crosshair,
+    color: 'text-amber-700 bg-amber-50 border-amber-200 hover:border-amber-300',
+    href: '/review?source=drill&mode=all',
   },
   {
     key: 'quick',
@@ -17,6 +26,7 @@ const modes = [
     description: '10 questions, 15 min',
     icon: Clock,
     color: 'text-emerald-600 bg-emerald-50 border-emerald-200 hover:border-emerald-300',
+    href: '/review?mode=quick',
   },
   {
     key: 'hard',
@@ -24,6 +34,7 @@ const modes = [
     description: 'Medium + hard only',
     icon: Flame,
     color: 'text-red-600 bg-red-50 border-red-200 hover:border-red-300',
+    href: '/review?mode=hard',
   },
   {
     key: 'weak-areas',
@@ -31,6 +42,7 @@ const modes = [
     description: 'Focus on gaps',
     icon: Target,
     color: 'text-amber-600 bg-amber-50 border-amber-200 hover:border-amber-300',
+    href: '/review?mode=weak-areas',
   },
   {
     key: 'adaptive',
@@ -38,6 +50,7 @@ const modes = [
     description: 'Smart difficulty mix',
     icon: Brain,
     color: 'text-violet-600 bg-violet-50 border-violet-200 hover:border-violet-300',
+    href: '/review?mode=adaptive',
   },
 ];
 
@@ -45,11 +58,11 @@ export default function PracticeModeSelector() {
   return (
     <div className="mb-8">
       <h2 className="text-lg font-semibold text-gray-900 mb-3">Practice Modes</h2>
-      <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-5 sm:overflow-visible">
-        {modes.map(({ key, label, description, icon: Icon, color }) => (
+      <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 lg:grid-cols-6 sm:overflow-visible">
+        {modes.map(({ key, label, description, icon: Icon, color, href }) => (
           <Link
             key={key}
-            href={`/review?mode=${key}`}
+            href={href}
             className={`border rounded-xl p-4 text-center transition-colors flex-shrink-0 w-36 sm:w-auto ${color}`}
           >
             <Icon className="w-5 h-5 mx-auto mb-2" />

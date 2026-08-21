@@ -1,989 +1,772 @@
-# Cost Optimization for GenAI Applications
+# Cost Optimization and Resource Efficiency
 
-**Domain 4 | Task 4.1 | ~35 minutes**
+**Domain 4 · Task 4.1 · Skills 4.1.1–4.1.4**
 
----
+Task 4.1 is really about one idea: make a GenAI system economically efficient without making it meaningfully worse.
 
-## Why This Matters
+That distinction matters. Cost optimization does not mean “always use the cheapest model,” “always minimize tokens,” or “always reduce infrastructure.” A system that costs half as much but produces unreliable answers is not well optimized. The goal is the lowest-cost architecture that still meets your requirements for accuracy, latency, throughput, and reliability.
 
-GenAI costs can spiral out of control faster than you'd believe possible. A single poorly-designed prompt that's 10x longer than necessary multiplies your costs by 10x. A conversational application that includes the entire conversation history in every request accumulates costs exponentially. A system that uses Claude Opus for simple FAQ queries burns money that could be spent on complex tasks where quality matters.
+Walk this scenario as you read:
 
-The difference between a well-optimized GenAI application and a naive one can be 10-100x in cost. That's not hyperbole—it's arithmetic. Token costs compound. Model choices compound. Caching opportunities missed compound. Organizations that don't actively optimize find themselves explaining to finance why their AI budget exploded.
+> An internal investment-research copilot. Analysts ask questions like “What changed in AMD management's view of data-center demand over the past four quarters?” The system retrieves earnings-call transcripts, builds a prompt, calls a foundation model, and returns an answer. Another analyst asks essentially the same thing ten minutes later. Someone else asks “What was Q2 revenue?”
 
-The good news is that optimization is systematic. You measure token usage, identify waste, and apply specific techniques: model tiering routes queries to appropriate models, caching prevents redundant computation, prompt engineering reduces input tokens, and response controls limit output tokens. AWS provides the tools—Bedrock pricing tiers, CloudWatch metrics, ElastiCache for caching, prompt caching—but you need to apply them strategically.
+A naive system sends forty transcript chunks to an expensive model, asks for a 2,000-token essay, repeats that work for every analyst, and uses the same expensive model for a one-number lookup. None of those problems requires a better model. They require better engineering.
 
-This isn't about being cheap. It's about being smart. Every dollar saved on redundant computation is a dollar available for more sophisticated AI capabilities, better user experiences, or simply sustainable unit economics.
+That is what Task 4.1 tests.
 
----
-
-## Under the Hood: How GenAI Billing Actually Works
-
-Understanding what drives costs helps you optimize systematically.
-
-### The Cost Formula
-
-Every Bedrock API call has this cost structure:
-
-```mermaid
-graph LR
-    subgraph "Your Request"
-        A[System Prompt] --> D[Total Input]
-        B[User Message] --> D
-        C[Retrieved Context] --> D
-    end
-
-    subgraph "Cost Calculation"
-        D --> E[Input Tokens × Input Price]
-        F[Model Response] --> G[Output Tokens × Output Price]
-        E --> H[Total Cost]
-        G --> H
-    end
-```
-
-```
-Total Cost = (Input Tokens × Input Price) + (Output Tokens × Output Price)
-```
-
-### Why Output Tokens Cost More
-
-Output tokens are 3-5x more expensive because they require **sequential generation**:
-
-| Phase | Processing | Cost Driver |
-|-------|-----------|-------------|
-| Input processing | Parallel (fast) | One forward pass |
-| Output generation | Sequential (slow) | One forward pass **per token** |
-
-A 1000-token response requires 1000 forward passes through the model. A 1000-token input requires just 1 forward pass. This fundamental asymmetry is why output costs more.
-
-### Where Your Money Actually Goes
-
-For a typical RAG query:
-
-```
-Input breakdown:
-├── System prompt:     ~500 tokens  (fixed per request)
-├── Retrieved context: ~2000 tokens (variable by k)
-├── Conversation history: ~300 tokens (grows over time)
-└── User query:        ~50 tokens   (small)
-Total input: ~2850 tokens
-
-Output: ~300 tokens (controllable via max_tokens)
-
-With Claude 3.5 Sonnet:
-- Input cost:  2850 × $3.00/1M = $0.00855
-- Output cost: 300 × $15.00/1M = $0.0045
-- Total: $0.01305 per query
-
-With Claude 3.5 Haiku:
-- Input cost:  2850 × $0.80/1M = $0.00228
-- Output cost: 300 × $4.00/1M = $0.0012
-- Total: $0.00348 per query
-
-Haiku saves 73% while potentially delivering equivalent quality for simple queries.
-```
-
-### The Compounding Effect
-
-Costs compound in ways that aren't obvious:
-
-```mermaid
-graph TD
-    subgraph "Conversation Turn 1"
-        A1[System: 500] --> T1[Total: 550]
-        B1[User: 50] --> T1
-    end
-
-    subgraph "Conversation Turn 2"
-        A2[System: 500] --> T2[Total: 900]
-        B2[History: 350] --> T2
-        C2[User: 50] --> T2
-    end
-
-    subgraph "Conversation Turn 3"
-        A3[System: 500] --> T3[Total: 1550]
-        B3[History: 1000] --> T3
-        C3[User: 50] --> T3
-    end
-
-    T1 --> |"+ response"| B2
-    T2 --> |"+ response"| B3
-```
-
-By turn 10, you might be sending 5000+ tokens per request—even though the user's message is still just 50 tokens.
-
-### Prompt Caching Economics
-
-Bedrock's prompt caching stores processed prompt prefixes. The economics:
-
-| Scenario | Input Cost |
-|----------|-----------|
-| No caching | Full price |
-| Cache write (first request) | Full price + small write cost |
-| Cache read (subsequent) | ~90% discount on cached portion |
-
-**Break-even:** If your system prompt is 1000 tokens and you make 10+ requests with the same prefix, prompt caching pays off.
+> **Exam tip:** Cost optimization is **constrained optimization**. Minimize cost *subject to* required quality, freshness, latency, and reliability — not regardless of consequences.
 
 ---
 
-## Decision Framework: Which Optimization to Apply
+## Four levers on one equation
 
-Use this framework to prioritize cost optimization efforts.
+GenAI cost is not four unrelated skills. They are four ways to attack the same relationship:
 
-### Quick Reference
-
-| Situation | Best Optimization | Expected Savings |
-|-----------|------------------|------------------|
-| Simple queries using expensive models | **Model tiering** | 50-90% |
-| Repeated identical/similar queries | **Semantic caching** | Up to 100% (cache hits) |
-| Long system prompts shared across requests | **Prompt caching** | 70-90% on cached portion |
-| Long conversation histories | **Context summarization** | 30-60% |
-| Unnecessarily verbose responses | **max_tokens + prompt instructions** | 20-50% |
-| Bulk processing not time-sensitive | **Batch inference** | ~50% |
-| High steady-state utilization | **Provisioned throughput** | 20-40% |
-
-### Decision Tree
-
-```mermaid
-graph TD
-    A[Optimize GenAI Costs] --> B{What's the biggest<br/>cost driver?}
-
-    B -->|Model costs| C{Query complexity<br/>varies?}
-    B -->|Token volume| D{Input or output<br/>heavy?}
-    B -->|Request volume| E{Repeated queries?}
-
-    C -->|Yes| F[Implement Model Tiering<br/>Route simple → Haiku]
-    C -->|No| G{Using most expensive<br/>model?}
-
-    G -->|Yes| H[Evaluate cheaper model<br/>for your use case]
-    G -->|No| I[Focus on token/request<br/>optimization]
-
-    D -->|Input heavy| J{Long system<br/>prompts?}
-    D -->|Output heavy| K[Reduce max_tokens<br/>Prompt for brevity]
-
-    J -->|Yes| L[Enable prompt caching]
-    J -->|No| M{Large context<br/>windows?}
-
-    M -->|Yes| N[Reduce k in retrieval<br/>Summarize history]
-    M -->|No| O[Check for redundant<br/>context]
-
-    E -->|Yes| P{Exact or similar<br/>matches?}
-    E -->|No| Q[Focus on per-request<br/>optimization]
-
-    P -->|Exact| R[Response caching<br/>CloudFront/ElastiCache]
-    P -->|Similar| S[Semantic caching<br/>with embeddings]
+```text
+GenAI cost  ≈  number of requests
+             × tokens per request
+             × model cost
+             − savings from reuse
 ```
 
-### Optimization Priority by Application Type
+Performance adds another question: can the system process the required workload without paying for substantially more capacity than it actually uses?
 
-| Application Type | Priority 1 | Priority 2 | Priority 3 |
-|------------------|-----------|-----------|-----------|
-| Customer support chatbot | Model tiering | Semantic caching | Context summarization |
-| Document Q&A (RAG) | Reduce retrieval k | Prompt caching | Model tiering |
-| Content generation | Output token control | Model selection | Batch processing |
-| Code assistant | Model tiering | Prompt caching | Response streaming |
-| Bulk classification | Batch inference | Cheapest viable model | Parallel processing |
+| Skill | Lever | Plain meaning |
+|-------|-------|----------------|
+| **4.1.1** | Token efficiency | Send less. Generate less. |
+| **4.1.2** | Model selection | Use the cheapest model that still meets the bar. |
+| **4.1.3** | Compute use | Keep inference capacity efficiently used. |
+| **4.1.4** | Caching | Do not recompute what you already know. |
 
-### Trade-off Analysis
+The memory device is:
 
-| Optimization | Cost Savings | Implementation Effort | Quality Risk |
-|--------------|-------------|----------------------|--------------|
-| Model tiering | High (50-90%) | Medium | Medium (if misrouted) |
-| Semantic caching | High (cache hits) | Medium-High | Low |
-| Prompt caching | Medium (70-90% on prefix) | Low | None |
-| Context reduction | Medium (30-60%) | Low | Medium (if over-reduced) |
-| max_tokens limits | Low-Medium (20-50%) | Low | Low (if set appropriately) |
-| Provisioned throughput | Medium (20-40%) | Low | None |
-| Batch inference | Medium (~50%) | Medium | None (same quality) |
+**Shrink → Route → Utilize → Reuse**
 
-### When NOT to Optimize
+Shrink the work you send to the model. Route work to an appropriately priced model. Utilize inference resources efficiently. Reuse previous computation whenever it is still valid.
 
-**Don't optimize prematurely:**
-- Small-scale applications where total spend is < $100/month
-- Early prototyping where requirements are still changing
-- When quality is paramount and you haven't validated cheaper alternatives work
+```text
+                         GenAI COST
+                             │
+        ┌────────────────────┼────────────────────┐
+        │                    │                    │
+        ▼                    ▼                    ▼
+   TOKEN USAGE          MODEL CHOICE          COMPUTE USE
+      4.1.1                4.1.2                 4.1.3
+        │                    │                    │
+   Send less            Use cheapest         Keep capacity
+   Generate less        capable model         efficiently used
+        │                    │                    │
+        └────────────────────┼────────────────────┘
+                             │
+                             ▼
+                           CACHE
+                            4.1.4
+                             │
+                      Don't recompute
+                    what you already know
+```
 
-**Don't over-optimize:**
-- Saving $0.001 per request isn't worth hours of engineering if you have 100 requests/day
-- Cache infrastructure costs can exceed savings for low-volume applications
+Adjacent tasks sit next door and are **not** this article:
+
+- **[1.2](/learn/1/model-selection)** picks the FM and the capacity SKU as a *design* decision. 4.1.2 asks whether you keep sending *every* production query to that expensive pick.
+- **[1.5](/learn/1/retrieval-mechanisms)** is how you find evidence. 4.1.1 is why sending thirty loosely relevant chunks is also a *bill*.
+- **[2.2](/learn/2/model-deployment)** is how you *serve* the model (on-demand, Provisioned Throughput, SageMaker). 4.1.3 is whether that capacity is utilized.
+- **[4.2](/learn/4/performance-optimization)** is latency. Some of the same knobs appear; here the exam is asking about money.
+- **[4.3](/learn/4/monitoring-systems)** is the dashboard. You cannot optimize 4.1 without the metrics 4.3 collects.
 
 ---
 
-## Token Economics: Understanding What You're Paying For
+## Skill 4.1.1 — Token efficiency
 
-Tokens are the fundamental unit of GenAI cost. Every character you send to a model costs tokens. Every character the model generates costs tokens. Understanding token economics is step one for optimization.
+Token efficiency means reducing the amount of information processed or generated by the model while preserving what is necessary to do the task correctly.
 
-### How Tokens Work
+Foundation-model inference is commonly priced on **input tokens** and **output tokens**. Sending unnecessary information costs money before the model has even begun answering. Generating an essay when five sentences would do costs money after.
 
-Tokens aren't characters or words—they're pieces that tokenizers use to break down text. A rough approximation: 1 token ≈ 4 characters or 0.75 words. But this varies:
-- Common words might be single tokens ("the", "and")
-- Uncommon words might be multiple tokens ("optimization" = 2-3 tokens)
-- Code often tokenizes inefficiently (special characters, formatting)
+A well-designed application asks two questions before every invocation:
 
-**Input tokens** are what you send: system prompts, user messages, retrieved context, conversation history. Input tokens are processed in parallel (fast) and typically cost less.
+1. What information does the model actually need?
+2. How much does the model actually need to generate?
 
-**Output tokens** are what the model generates. Output tokens are generated sequentially (slower) and typically cost more—often 3-5x more than input tokens.
+Those questions sound obvious. They affect almost every part of a GenAI architecture.
 
-### Bedrock Pricing Model
+Think of a RAG request for:
 
-Bedrock uses pay-per-token pricing with different rates per model:
+> “Why did management become more cautious about gaming?”
 
-| Model | Input (per 1M tokens) | Output (per 1M tokens) |
-|-------|----------------------|------------------------|
-| Claude 3.5 Haiku | $0.80 | $4.00 |
-| Claude 3.5 Sonnet | $3.00 | $15.00 |
-| Claude 3 Opus | $15.00 | $75.00 |
-| Titan Text Lite | $0.15 | $0.20 |
-| Titan Text Express | $0.20 | $0.60 |
+The naive package is system instructions + conversation history + twenty retrieved transcript chunks + the user question → a long answer. The first optimization question should be: does the model actually need all of this? Usually, no.
 
-The 5x ratio between Haiku and Sonnet, and 5x again between Sonnet and Opus, means model selection has massive cost implications. A query that costs $0.001 with Haiku costs $0.025 with Opus—25x more.
+### Measure tokens before you try to optimize them
 
-### Tracking Token Usage
+You cannot optimize what you do not measure.
 
-You can't optimize what you don't measure. CloudWatch metrics track token usage automatically for Bedrock:
+If the copilot is processing thousands of requests, you should understand average input tokens, average output tokens, consumption by model, by application, by user, and by query type. Track average and p95. Track cost per query. Track cache-read versus cache-write tokens once caching is in play.
 
-```typescript
-// CloudWatch metrics available for Bedrock
-const metrics = [
-  'InputTokenCount',      // Tokens in request
-  'OutputTokenCount',     // Tokens in response
-  'InvocationCount',      // Number of API calls
-  'InvocationLatency',    // Time per request
-];
+Suppose the copilot produces this pattern:
 
-// Create a dashboard for token visibility
-const tokenDashboard = new cloudwatch.Dashboard(this, 'TokenDashboard', {
-  dashboardName: 'GenAI-Token-Usage'
-});
+| Request | Input tokens | What it tells you |
+|---------|--------------|-------------------|
+| “What was AMD Q2 revenue?” | 14,000 | Massive over-retrieval. A simple fact lookup should not look like this. |
+| “Summarize AMD's Q2 call” | 16,000 | Probably in range for the task. |
+| “Compare AMD strategy over eight quarters” | 22,000–35,000 | Harder work. Still worth asking whether the context can be compressed. |
 
-tokenDashboard.addWidgets(
-  new cloudwatch.GraphWidget({
-    title: 'Daily Token Usage',
-    left: [
-      new cloudwatch.Metric({
-        namespace: 'AWS/Bedrock',
-        metricName: 'InputTokenCount',
-        statistic: 'Sum',
-        period: Duration.days(1)
-      }),
-      new cloudwatch.Metric({
-        namespace: 'AWS/Bedrock',
-        metricName: 'OutputTokenCount',
-        statistic: 'Sum',
-        period: Duration.days(1)
-      })
-    ]
-  })
-);
+The first row should look suspicious immediately. That is the point of measurement: it tells you *where* to focus.
+
+AWS gives you the instruments. Bedrock's **CountTokens** API estimates token usage *before* inference and does not charge for the count itself. CloudWatch exposes Bedrock runtime metrics such as `InputTokenCount` and `OutputTokenCount`. Model-invocation logging can record request/response metadata and token counts. Custom CloudWatch dimensions (application, feature, model, user segment) turn a lump sum into something you can attribute.
+
+> **Exam tip:** When the stem says *reduce excessive FM input cost* or *establish a cost-per-request baseline*, the first move is measurement — CountTokens, CloudWatch token metrics, invocation logging — not a random smaller model.
+
+```recall
+Q: A simple revenue lookup is sending 14,000 input tokens. What is the first thing Task 4.1 wants you to do?
+A: Measure token consumption (input/output by query type, model, and application) so you can see the waste. Optimization without a baseline is guesswork.
 ```
 
-Go further with custom metrics that track tokens by application, feature, or user segment:
+### Context-window optimization
 
-```typescript
-// Custom token tracking with dimensions
-await cloudwatch.putMetricData({
-  Namespace: 'GenAI/Tokens',
-  MetricData: [
-    {
-      MetricName: 'TokensConsumed',
-      Dimensions: [
-        { Name: 'Application', Value: 'CustomerSupport' },
-        { Name: 'Feature', Value: 'ChatBot' },
-        { Name: 'Model', Value: 'claude-3-sonnet' }
-      ],
-      Value: inputTokens + outputTokens,
-      Unit: 'Count'
-    }
-  ]
-});
+A model may support a huge context window. That does not mean you should fill it.
+
+A context window defines the *maximum* the model can accept. Context optimization is how much you actually choose to send. A larger context has costs: more input tokens, greater latency, more irrelevant material, and potentially worse attention to the important evidence.
+
+For RAG, retrieve the minimum evidence necessary to answer reliably. Instead of retrieving thirty chunks and sending everything, retrieve candidates, filter and rerank, remove duplicates, and send the best evidence. Metadata filters shrink the search space *before* semantic retrieval: ticker = AMD, period = last four quarters, document type = earnings transcript.
+
+This is an important connection between RAG quality and cost:
+
+**Better retrieval can reduce both hallucination risk and token cost.**
+
+The retrieval curriculum lives in [1.5](/learn/1/retrieval-mechanisms). Here the exam is asking you to notice that over-retrieval is a *cost* defect, not only a quality defect.
+
+### Context pruning
+
+Pruning means actively removing context that is no longer useful.
+
+Conversation history is the usual example. An analyst may have had a thirty-message conversation with the copilot. If every new request includes all thirty messages, the prompt grows continuously even though the user's latest question is still fifty tokens.
+
+A production application retains the current question, recent turns, important persistent facts, relevant retrieved evidence, and a compact summary of older history. The old conversation has not necessarily been lost. It has been compressed into a more efficient representation.
+
+You can think of pruning as: *what can I safely remove?*
+
+### Prompt compression
+
+Do not confuse prompt compression with context pruning.
+
+**Pruning** removes information entirely: ten retrieved chunks → keep the best four.
+
+**Compression** preserves information using fewer tokens: a long investment-policy document becomes condensed relevant instructions. Verbose system text becomes the same intent in fewer words.
+
+Bad: “Please ensure that under no circumstances whatsoever should you provide information that is not directly supported by the source documents that have been retrieved and supplied as context.”
+
+Better: “Answer only from supplied evidence. If unsupported, say so.”
+
+The principle is not to make every prompt artificially short. The goal is to remove unnecessary verbosity. Compression becomes economically significant when a large instruction block is repeated thousands or millions of times. A 500-token reduction does not sound large for one request. Across one million requests it is 500 million fewer input tokens.
+
+### Response-size controls
+
+Input tokens are not the only cost. Output tokens matter too — often more, because generation is sequential.
+
+If an analyst asks “What was Nvidia's gross margin?”, you do not need an essay. Controls include `maxTokens` (Bedrock `inferenceConfig`), an explicit desired length in the prompt, structured outputs, concise response templates, and stop sequences when they fit the workload.
+
+Different query types should produce different limits. Fact lookup → a short answer. Summary → several paragraphs. Deep comparative research → a longer response. Do not set `maxTokens = 8000` because the model *might* need it. Set it according to the workload. CloudWatch output-token metrics tell you what “according to the workload” actually is.
+
+```text
+Input efficiency  →  what the model reads
+Output efficiency →  what the model writes
+```
+
+```recall
+Q: What is the difference between context pruning and prompt compression?
+A: Pruning removes information (drop old turns, drop weak chunks). Compression keeps the meaning in fewer tokens (condense a policy, shorten instructions).
 ```
 
 ---
 
-## Token Optimization Techniques
+## Skill 4.1.2 — Cost-effective model selection
 
-Once you're tracking tokens, optimize them systematically.
+The second lever is model choice. One of the easiest ways to waste money is to send every request to the most capable model available.
 
-### Context Window Optimization
+Consider three investment questions.
 
-Context windows have limits (8K to 200K+ tokens depending on model), but more importantly, they have costs. Every token in context costs money. Don't waste context on irrelevant information.
+**Query A.** “Extract AMD Q2 revenue.” Simple extraction.
 
-**Selective Context Inclusion:**
-Don't dump everything into context. For RAG systems, retrieve only the most relevant chunks. For conversation history, include recent turns in full but summarize older turns.
+**Query B.** “Summarize management's explanation for lower gaming revenue.” Moderate reasoning.
 
-```typescript
-// Good: Selective context
-const relevantChunks = await retrieveTopK(query, k=3);  // Only top 3
-const context = relevantChunks.map(c => c.text).join('\n\n');
+**Query C.** “Compare AMD and Nvidia's competitive positioning in AI accelerators and identify changes in management commentary across eight quarters.” Substantially harder synthesis.
 
-// Bad: Dump everything
-const allChunks = await retrieveTopK(query, k=20);  // Way more than needed
+These tasks do not require the same level of reasoning. Using your strongest model for all three wastes money.
+
+### The least expensive model that reliably satisfies the requirement
+
+A cost-efficient architecture recognizes the difference:
+
+```text
+User question
+      ↓
+Assess complexity
+      ↓
+ ┌────┼─────────┐
+ ↓    ↓         ↓
+Easy  Moderate  Complex
+ ↓    ↓         ↓
+Small Medium    Strong
+ FM    FM        FM
 ```
 
-**Context Summarization:**
-For long conversations, summarize older turns instead of including them verbatim:
+This is **tiered FM usage**, or **model routing**. Simple work goes to a cheaper model. More complex work is escalated to a stronger model.
 
-```typescript
-function buildConversationContext(history: Message[]): string {
-  const recentTurns = history.slice(-4);  // Last 4 turns in full
-  const olderTurns = history.slice(0, -4);
+The principle is: use the least expensive model that *reliably* satisfies the quality requirement.
 
-  if (olderTurns.length === 0) {
-    return formatMessages(recentTurns);
-  }
+Notice the last clause. The cheapest model is not automatically the best economic choice.
 
-  // Summarize older turns
-  const summary = `Previous conversation summary: The user asked about ${extractTopics(olderTurns)}. Key points discussed: ${extractKeyPoints(olderTurns)}.`;
+### Cost-capability tradeoff
 
-  return summary + '\n\n' + formatMessages(recentTurns);
-}
+Model selection should consider at least accuracy, reasoning depth, latency, input cost, output cost, context-window needs, and reliability. Price alone is a bad metric.
+
+Suppose an evaluation on *your* analyst questions shows:
+
+- Model A: 94% quality, high cost
+- Model B: 91% quality, much lower cost
+- Model C: 73% quality, extremely low cost
+
+If the production floor is quality ≥ 90%, Model B may be the economically rational choice. Model C is not “optimized.” It is simply cheap. It does not satisfy the requirement.
+
+That is why this skill is constrained optimization. You are minimizing cost subject to accuracy, latency, reliability, context needs, safety, and task complexity.
+
+> **Exam trap:** A stem that says “lowest cost” and also states a quality or latency floor is not asking for the cheapest model in the catalog. It is asking for the cheapest model that *clears the floor*.
+
+### Price-to-performance, and cost per successful answer
+
+Rather than comparing models only by list price, evaluate useful performance received per dollar spent. Accuracy, faithfulness, latency, cost per request, tokens consumed — and especially **cost per successful answer**.
+
+Imagine Model A costs half as much per call as Model B, but it fails so often that many questions must be retried or escalated. Model A's nominal price looks cheaper. The actual system cost is not. Evaluate model economics at the *application* level, not from the token price sheet alone.
+
+Task [1.2](/learn/1/model-selection) is where you run that evaluation to *pick* an FM. 4.1.2 is the production habit of not sending every subsequent query to the winner of that bake-off if a cheaper sibling still clears the bar.
+
+### Routing and escalation
+
+You can implement routing yourself: classify the query, send simple work to a cheap model, send complex work to a stronger one. Amazon Bedrock **Intelligent Prompt Routing** can dynamically choose between models in a supported family based on predicted response quality and cost. For the exam, the broader concept matters more than the product name:
+
+**Do not statically send every workload to the most capable model.**
+
+Escalation is the other useful pattern. Start cheap. If confidence, retrieval quality, validation, or structured output is insufficient, call the stronger model.
+
+```text
+Question
+   ↓
+Smaller model
+   ↓
+Confidence / quality sufficient?
+  / \
+yes  no
+ |    |
+answer  stronger model
 ```
 
-### Prompt Compression
+Escalate when the system detects low retrieval confidence, complex reasoning, conflicting evidence, unusually long context, failed validation, or poor structured output. Most easy requests stay inexpensive. Stronger reasoning remains available when it is actually needed.
 
-Shorter prompts cost less. Compress without losing clarity.
+Amazon Comprehend (or a small classifier) can label intent — extraction vs summary vs multi-document compare — before you spend a frontier-model call. That is routing, not “an agent.”
 
-**Remove Redundancy:**
+### Efficient inference patterns
+
+Do not use an FM for something deterministic that conventional software can calculate perfectly. Revenue growth is arithmetic. A ticker-to-name lookup is a database read. A strong architecture asks: is generative inference actually necessary here?
+
+This is a recurring exam theme across domains: use the appropriate computing tool rather than treating the FM as the solution to every problem.
+
+```recall
+Q: Model A is 94% accurate and expensive. Model B is 91% and much cheaper. The floor is 90%. Which is the cost-optimized choice?
+A: Model B. Cost optimization means the cheapest option that still meets the requirement — not the cheapest option in the catalog, and not the most accurate at any price.
 ```
-// Verbose (45 tokens)
-"You are a helpful AI assistant. Your job is to help users with their questions.
-When answering questions, please be helpful and informative. Make sure to provide
-accurate information in your responses."
-
-// Compressed (15 tokens)
-"You are a helpful assistant. Provide accurate, informative answers."
-```
-
-**Use Structured Formats:**
-```
-// Verbose instruction
-"Please analyze the following text and identify any named entities such as
-people, organizations, and locations. For each entity you find, provide the
-entity text and its type."
-
-// Structured format
-"Extract entities from the text:
-- Format: {entity: string, type: PERSON|ORG|LOCATION}
-- Return JSON array"
-```
-
-**Abbreviate When Clear:**
-Models understand common abbreviations. "Respond in 2-3 sentences" works as well as "Please provide a response that is between two and three sentences in length."
-
-### Response Size Controls
-
-Output tokens cost more than input tokens. Control response length explicitly.
-
-**Set max_tokens:**
-```typescript
-const response = await bedrock.invokeModel({
-  modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
-  body: JSON.stringify({
-    messages: [{ role: 'user', content: query }],
-    max_tokens: 256,  // Limit response length
-    // ...
-  })
-});
-```
-
-Choose max_tokens based on actual needs:
-- Simple answers: 100-256 tokens
-- Explanations: 256-512 tokens
-- Detailed analysis: 512-1024 tokens
-- Long-form content: 1024+ tokens
-
-**Prompt for Brevity:**
-```
-"Answer in 2-3 sentences."
-"Provide a brief summary."
-"List the top 3 points only."
-```
-
-The model follows these instructions, generating fewer (and cheaper) tokens.
 
 ---
 
-## Model Tiering: Right Model for the Right Job
+## Skill 4.1.3 — Use inference capacity efficiently
 
-Not every query needs your most capable (and expensive) model. Model tiering routes queries to appropriate models based on complexity.
+Skill 4.1.3 shifts from how much work you ask the model to do toward how efficiently you use the infrastructure performing that work.
 
-### The Tiering Strategy
+The key terms are **batching**, **capacity planning**, **utilization monitoring**, **auto scaling**, and **provisioned throughput**.
 
-Think of models in tiers:
+Imagine buying a fleet of trucks. The goal is not merely to own enough trucks. You want them carrying useful cargo rather than sitting idle. Inference capacity works the same way.
 
-**Tier 1 - Simple (Haiku/Titan Lite):**
-- FAQ responses
-- Simple classification
-- Basic summarization
-- Routine formatting
+### Batching
 
-**Tier 2 - Moderate (Sonnet/Titan Express):**
-- Multi-step reasoning
-- Code generation
-- Analysis tasks
-- Content creation
+Batching means grouping work instead of processing each piece individually.
 
-**Tier 3 - Complex (Opus):**
-- Novel problem-solving
-- Expert-level analysis
-- Complex multi-turn reasoning
-- High-stakes decisions
+Embedding 100,000 transcript chunks one request at a time wastes overhead. A batch-oriented job groups many chunks, processes them together, and writes results. This is especially valuable for asynchronous workloads: document ingestion, embedding generation, offline evaluation, large-scale summarization, backfills.
 
-### Building a Query Router
+The important distinction is **interactive versus batch**.
 
-Route queries to appropriate tiers automatically:
+An analyst asking a question expects a response quickly. You cannot wait while hundreds of requests accumulate. Generating embeddings overnight for 500,000 historical filings is a natural batching use case. Bedrock **Batch Inference** (JSONL in, JSONL out) is the managed path for that overnight pile. SageMaker **Batch Transform** is the equivalent when you are hosting the model yourself.
 
-```typescript
-async function routeQuery(query: string): Promise<ModelTier> {
-  // Simple heuristics for routing
-  const queryLength = query.split(' ').length;
-  const hasCodeMarkers = /```|function|class|def /.test(query);
-  const hasReasoningMarkers = /why|how|explain|analyze|compare/.test(query.toLowerCase());
-  const isSimpleQuestion = /^(what is|who is|when|where)/.test(query.toLowerCase());
+> **Exam tip:** *Large asynchronous workload* → batching. *Sub-second interactive chat* → not batch. A stem with both workloads wants **two** answers, not one compromise.
 
-  // Simple questions -> Tier 1
-  if (isSimpleQuestion && queryLength < 20 && !hasReasoningMarkers) {
-    return 'tier1';  // Haiku
-  }
+### Capacity planning
 
-  // Code or analysis -> Tier 2
-  if (hasCodeMarkers || hasReasoningMarkers) {
-    return 'tier2';  // Sonnet
-  }
+Capacity planning means estimating how much inference capacity the workload actually requires.
 
-  // Complex or ambiguous -> Tier 2 (default)
-  // Only escalate to Tier 3 for explicitly complex tasks
-  return 'tier2';
-}
+Suppose the copilot has 100 users and 1,000 requests per day, but 70% of those requests arrive between 8:30 a.m. and noon. Designing only around the daily average underestimates the morning peak.
 
-const modelMap = {
-  tier1: 'anthropic.claude-3-haiku-20240307-v1:0',
-  tier2: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-  tier3: 'anthropic.claude-3-opus-20240229-v1:0'
-};
+Plan against requests per second, peak concurrency, token volume, model latency, expected growth, and service-level objectives. The goal is enough capacity to meet performance requirements without paying for large amounts of unused capacity.
+
+### Utilization and observability
+
+If you pay for dedicated inference capacity and it operates at 8% utilization, most of what you purchased is sitting idle. At the other extreme, 100% sustained utilization creates queues and latency spikes. The appropriate goal is healthy utilization with enough headroom to handle variation.
+
+Metrics include requests per second, tokens per second, latency, queue depth, capacity utilization, and error rates. CloudWatch belongs in this skill because Task 4.1 does not treat monitoring as separate from optimization. You need observability to know whether resources are underutilized or overloaded. The fuller dashboard lives in [4.3](/learn/4/monitoring-systems); here the exam wants you to *act* on utilization.
+
+### Auto scaling
+
+Auto scaling addresses variable demand. The copilot is quiet overnight and extremely busy immediately after Nvidia reports earnings. Static capacity sized for earnings-night traffic is wasteful most of the week.
+
+A scalable architecture tracks the workload: low demand → low capacity; demand rises → scale out; demand falls → scale back. The economic advantage is that capacity follows load. The operational challenge is scaling quickly enough to keep latency acceptable. SageMaker endpoints scale on invocations per instance, queue depth, or token rate — not only CPU.
+
+### Provisioned throughput versus on-demand
+
+With **on-demand** inference you consume shared service capacity as requests arrive and pay per token. Idle is free.
+
+With **Provisioned Throughput** you reserve a defined amount of model capacity (model units, billed by the hour). It can make sense when workloads are large, predictable, sustained, and sensitive to throughput or performance consistency. It makes less sense for a small or highly intermittent application, because you pay for capacity that sits unused.
+
+```text
+Unpredictable / small / spiky   →  on-demand
+                                  (Cross-Region inference if the issue is peak throttle)
+Large / predictable / sustained →  consider Provisioned Throughput
 ```
 
-### Classifier-Based Routing
+Cross-Region inference is still an on-demand capacity strategy. It buys peak room and Regional spare capacity, not a cheaper token. Do not rent overnight model units for a three-hour spike. Do not buy Provisioned Throughput “to make the model faster” — it addresses **capacity certainty**, not generation speed. The serving detail is in [2.2](/learn/2/model-deployment); 4.1.3 is the utilization and cost side of that same choice.
 
-For more sophisticated routing, train a classifier:
+> **Exam trap:** Provisioned Throughput is not a cost-optimization default. Unused reserved capacity is the opposite of optimization. Variable traffic stays on-demand.
 
-```typescript
-// Use a cheap model to classify query complexity
-async function classifyComplexity(query: string): Promise<'simple' | 'moderate' | 'complex'> {
-  const classifierPrompt = `Classify this query's complexity:
-- simple: factual questions, basic requests
-- moderate: requires reasoning or analysis
-- complex: requires expert knowledge or multi-step reasoning
-
-Query: "${query}"
-
-Classification (one word):`;
-
-  const response = await bedrock.invokeModel({
-    modelId: 'anthropic.claude-3-haiku-20240307-v1:0',  // Cheap classifier
-    body: JSON.stringify({
-      messages: [{ role: 'user', content: classifierPrompt }],
-      max_tokens: 10
-    })
-  });
-
-  return parseClassification(response);
-}
+```recall
+Q: Overnight you must summarize 200,000 filings. During the day, analysts chat interactively. One capacity strategy or two?
+A: Two. Batch inference (or Batch Transform) for the overnight pile. On-demand — possibly with caching — for interactive chat. Provisioned Throughput is for sustained predictable load, not a one-shot backfill.
 ```
-
-The classifier costs fractions of a cent and saves dollars on misrouted queries.
-
-### Price-to-Performance Analysis
-
-Cheaper isn't always more cost-effective. Consider total cost:
-
-```
-Scenario: Query with 30% error rate on Haiku, 5% error rate on Sonnet
-
-Haiku: $0.001 per query
-- 70% success: 0.7 × $0.001 = $0.0007
-- 30% retry with Sonnet: 0.3 × ($0.001 + $0.005) = $0.0018
-- Total expected cost: $0.0025
-
-Sonnet: $0.005 per query
-- 95% success: 0.95 × $0.005 = $0.00475
-- 5% manual handling: varies
-- Total expected cost: ~$0.005
-
-For this query type, Haiku with fallback is still cheaper.
-But if retry rate were 60%:
-- Haiku path: 0.4 × $0.001 + 0.6 × $0.006 = $0.004
-- Sonnet direct: $0.005
-Now they're nearly equivalent, and Sonnet gives better UX.
-```
-
-Measure error rates per query type. Route based on actual performance data.
 
 ---
 
-## Caching Strategies: Don't Compute Twice
+## Skill 4.1.4 — Intelligent caching
 
-Why pay to generate the same response twice? Caching stores and reuses results.
+The first three skills ask: how can we perform this inference more efficiently?
 
-### Semantic Caching
+Caching asks: **do we need to perform the inference at all?**
 
-Semantic caching matches queries by meaning, not exact text. "What's the capital of France?" and "Tell me France's capital" should return the same cached response.
+If a result has already been computed and remains valid, reuse is far cheaper than regenerating it.
 
-```typescript
-import { createClient } from 'redis';
+Five analysts separately ask “Summarize Microsoft's latest Azure growth commentary.” Without a cache, that is five retrievals and five model calls. With a cache, the first request computes and stores; the rest reuse.
 
-class SemanticCache {
-  private redis: RedisClient;
-  private embedder: EmbeddingFunction;
-  private similarityThreshold = 0.95;
+That reduces both cost and latency.
 
-  async get(query: string): Promise<CachedResponse | null> {
-    const queryEmbedding = await this.embedder.embed(query);
+### Deterministic request hashing
 
-    // Search for similar queries in cache
-    const results = await this.redis.call(
-      'FT.SEARCH', 'idx:queries',
-      `*=>[KNN 1 @embedding $vec AS score]`,
-      'PARAMS', '2', 'vec', queryEmbedding.buffer,
-      'RETURN', '2', 'response', 'score'
-    );
+The simplest cache works when requests are exactly identical. You create a deterministic representation of the request and hash it: model + prompt + parameters + context. If the same request appears again, look up the hash.
 
-    if (results.length > 0 && results[0].score >= this.similarityThreshold) {
-      return {
-        response: results[0].response,
-        cached: true,
-        similarity: results[0].score
-      };
-    }
+This works well when identical inputs should produce reusable results. The limitation is obvious. “What was AMD's Q2 revenue?” and “How much revenue did AMD report in Q2?” are semantically almost identical but have different literal text. An exact hash treats them as different requests.
 
-    return null;
-  }
+### Semantic caching
 
-  async set(query: string, response: string): Promise<void> {
-    const embedding = await this.embedder.embed(query);
-    const key = `query:${generateId()}`;
+Semantic caching reuses responses for requests that *mean* the same thing. Embed the new question, compare it with cached queries, and if similarity exceeds a threshold and the underlying information is still current, return the cached result.
 
-    await this.redis.hSet(key, {
-      query,
-      response,
-      embedding: embedding.buffer,
-      timestamp: Date.now()
-    });
-  }
-}
+This can dramatically increase hit rates in natural-language applications, because users express the same intent in different words. It also introduces risk. If the threshold is too loose, “What was AMD Q2 revenue?” might match “What was AMD Q2 data-center revenue?” Those are related but not equivalent.
+
+Amazon **ElastiCache** is the usual exam store for this lookup (often with embeddings in a vector index beside it). Choose the threshold carefully and validate.
+
+> **Exam tip:** *Users repeatedly ask equivalent questions* → semantic cache. *Exact identical deterministic requests* → hash / fingerprint. Do not swap them.
+
+### Cache invalidation
+
+Caching sounds easy until the underlying information changes.
+
+A cached answer that says “AMD's latest quarterly revenue was X” is stale the morning AMD reports a new quarter. A cheap stale answer can be worse than an expensive fresh answer.
+
+Invalidate when underlying documents change, new earnings arrive, the prompt version changes, the model changes, important application logic changes, or a time-to-live expires. Freshness is part of the quality bar, not an afterthought.
+
+### Result fingerprinting
+
+Result fingerprinting is caching at the workflow level. The system creates a unique identifier from the relevant inputs. If the fingerprint matches an existing result, skip recomputation.
+
+This is particularly useful in data pipelines. If an earnings transcript has not changed since it was last summarized, there is no reason to regenerate the summary every time the ingestion job runs:
+
+```text
+document contents
+      ↓
+fingerprint
+      ↓
+Same as last run?
+  yes → reuse existing output
+  no  → recompute
 ```
 
-Use ElastiCache with Redis for the cache backend. Vector similarity search finds matching queries.
+### Prompt caching
 
-### Prompt Caching in Bedrock
+Prompt caching addresses repeated portions of *large prompts*, not the final answer.
 
-Bedrock prompt caching stores processed prompt prefixes. When multiple requests share a common system prompt, significant savings apply.
+Imagine the copilot repeatedly sending a 10,000-token investment methodology plus a large company-background package plus a new analyst question. The first two sections may be identical across many requests. Supported models let you mark that stable prefix (`cachePoint` on Converse) so later calls skip re-processing those input tokens — cheaper, often faster.
 
-```typescript
-// Requests with shared system prompt benefit from prompt caching
-const systemPrompt = `You are a customer service agent for Acme Corp.
-[... 2000 tokens of instructions, policies, product details ...]`;
+The conceptual distinction is the one the exam will test:
 
-// First request: full processing
-const response1 = await bedrock.invokeModel({
-  modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-  body: JSON.stringify({
-    system: systemPrompt,  // Cached after first use
-    messages: [{ role: 'user', content: 'What is your return policy?' }]
-  })
-});
+**Response caching** reuses the final answer.
 
-// Subsequent requests: cached prefix
-const response2 = await bedrock.invokeModel({
-  modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-  body: JSON.stringify({
-    system: systemPrompt,  // Cache hit - reduced processing
-    messages: [{ role: 'user', content: 'How do I track my order?' }]
-  })
-});
-```
+**Prompt caching** reuses computation associated with a repeated prompt prefix, then still generates a *new* answer for the new question.
 
-Prompt caching is automatic when prompts match. Organize applications so requests share common prefixes.
+Prompt caching does not help if every call has a unique 8k retrieved blob and nothing shared. Keep cacheable content at the start of the prompt. Mixing variable retrieved chunks into the prefix breaks the cache.
 
-**Key prompt caching details for the exam:**
-
-| Aspect | Detail |
-|--------|--------|
-| **How it works** | Bedrock caches the processed representation of prompt prefixes (system prompt + early messages). Subsequent requests with the same prefix skip re-processing. |
-| **Cache scope** | Per-model, per-account. Different models have separate caches. |
-| **Cost structure** | Cache write: ~25% premium on first request. Cache read: ~90% discount on cached tokens. Net savings after 2-3 requests. |
-| **TTL** | Cache entries expire after ~5 minutes of inactivity. High-traffic applications keep caches warm. |
-| **What to cache** | Long system prompts (instructions, policies, personas), few-shot examples, static context. These are ideal because they repeat across requests. |
-| **What not to cache** | User messages, dynamic context, conversation history. These change per request and won't produce cache hits. |
-
-**Design for cacheability:** Structure your prompts so the cacheable portion (system prompt, examples) comes first, and the variable portion (user query, retrieved context) comes last:
-
-```typescript
-// Good: Cacheable prefix is stable and long
-const request = {
-  system: longSystemPrompt,                    // ← Cached (2000 tokens)
-  messages: [
-    { role: 'user', content: fewShotExamples },  // ← Cached (500 tokens)
-    { role: 'user', content: userQuery }          // ← Not cached (50 tokens)
-  ]
-};
-
-// Bad: Variable content mixed into the prefix
-const request = {
-  system: `${systemPrompt}\n\nContext: ${retrievedDocs}`,  // ← Breaks cache
-  messages: [{ role: 'user', content: userQuery }]
-};
-```
-
-### Result Fingerprinting
-
-For deterministic queries (classification, extraction, structured output), generate a hash of the request and cache the response. Unlike semantic caching, this uses exact matching — faster and cheaper:
-
-```typescript
-import { createHash } from 'crypto';
-
-class ResultFingerprintCache {
-  private cache: Map<string, CachedResult> = new Map();
-
-  fingerprint(request: ModelRequest): string {
-    // Hash the deterministic components
-    const hashInput = JSON.stringify({
-      model: request.modelId,
-      system: request.systemPrompt,
-      messages: request.messages,
-      temperature: 0  // Only fingerprint deterministic requests
-    });
-    return createHash('sha256').update(hashInput).digest('hex');
-  }
-
-  async getOrInvoke(request: ModelRequest): Promise<string> {
-    // Only cache deterministic requests (temperature = 0)
-    if (request.temperature > 0) {
-      return await invokeModel(request);
-    }
-
-    const key = this.fingerprint(request);
-    const cached = this.cache.get(key);
-
-    if (cached && Date.now() - cached.timestamp < cached.ttlMs) {
-      return cached.response;  // Free — no model invocation
-    }
-
-    const response = await invokeModel(request);
-    this.cache.set(key, {
-      response,
-      timestamp: Date.now(),
-      ttlMs: 3600000  // 1 hour
-    });
-
-    return response;
-  }
-}
-```
-
-**When to use which caching strategy:**
-
-| Strategy | Match Type | Best For | Cost to Implement |
-|----------|-----------|----------|-------------------|
-| **Bedrock prompt caching** | Prefix match (automatic) | Shared system prompts across requests | None (automatic) |
-| **Result fingerprinting** | Exact request hash | Deterministic queries (temp=0), classification | Low |
-| **Semantic caching** | Embedding similarity | Paraphrased queries, natural language variations | Medium (needs Redis + embeddings) |
-| **Edge caching (CloudFront)** | URL + query string | Geographically distributed, common queries | Low |
-
-### Edge Caching with CloudFront
-
-For geographically distributed users with common queries, CloudFront caches responses at edge locations:
-
-```typescript
-// API Gateway + CloudFront for edge caching
-const api = new apigateway.RestApi(this, 'GenAIApi');
-
-const distribution = new cloudfront.Distribution(this, 'CDN', {
-  defaultBehavior: {
-    origin: new origins.RestApiOrigin(api),
-    cachePolicy: new cloudfront.CachePolicy(this, 'GenAICachePolicy', {
-      cachePolicyName: 'GenAI-Query-Cache',
-      defaultTtl: Duration.minutes(15),
-      maxTtl: Duration.hours(1),
-      minTtl: Duration.minutes(1),
-      queryStringBehavior: cloudfront.CacheQueryStringBehavior.all(),
-      headerBehavior: cloudfront.CacheHeaderBehavior.none(),
-      cookieBehavior: cloudfront.CacheCookieBehavior.none(),
-    })
-  }
-});
-```
-
-Edge caching works best for:
-- Deterministic queries (same input = same output)
-- Common queries (FAQs, popular questions)
-- Read-heavy workloads
-
-### Cache Invalidation
-
-Cached responses become stale. Implement cache invalidation:
-
-```typescript
-class CacheManager {
-  // TTL-based expiration
-  async setWithTTL(key: string, value: string, ttlSeconds: number): Promise<void> {
-    await this.redis.setEx(key, ttlSeconds, value);
-  }
-
-  // Event-based invalidation
-  async invalidateOnDataChange(dataSource: string): Promise<void> {
-    const pattern = `cache:${dataSource}:*`;
-    const keys = await this.redis.keys(pattern);
-    if (keys.length > 0) {
-      await this.redis.del(keys);
-    }
-  }
-
-  // Version-based invalidation
-  async setWithVersion(key: string, value: string, version: string): Promise<void> {
-    await this.redis.hSet(`${key}:${version}`, { value, timestamp: Date.now() });
-  }
-}
-```
-
-Set TTLs appropriate to your data freshness requirements. Trigger invalidation when underlying data changes.
-
----
-
-## Capacity Planning and Resource Utilization
-
-Right-sizing infrastructure prevents both waste (over-provisioning) and failures (under-provisioning).
-
-### Provisioned Throughput
-
-Bedrock provisioned throughput commits to capacity for lower per-token costs:
-
-```typescript
-// Create provisioned throughput commitment
-const provisionedCapacity = await bedrock.createProvisionedModelThroughput({
-  modelUnits: 1,  // Capacity units
-  provisionedModelName: 'my-sonnet-capacity',
-  modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-  commitmentDuration: 'OneMonth'  // or 'SixMonths'
-});
-```
-
-**When provisioned throughput makes sense:**
-- Predictable, sustained workloads
-- Utilization above 40-60% of committed capacity
-- Cost savings justify commitment risk
-
-**Calculate break-even:**
-```
-On-demand: $3.00 per million input tokens
-Provisioned: ~$1.50 per million tokens (varies by commitment)
-
-If you process 100M tokens/month:
-- On-demand: $300
-- Provisioned: $150 + commitment risk
-
-Break-even: When savings exceed commitment risk
-```
-
-### Batching for Efficiency
-
-Batch requests to maximize throughput:
-
-**SageMaker Batch Transform** for offline bulk processing:
-```typescript
-const batchJob = await sagemaker.createTransformJob({
-  TransformJobName: 'bulk-inference-job',
-  ModelName: 'my-model',
-  TransformInput: {
-    DataSource: {
-      S3DataSource: {
-        S3DataType: 'S3Prefix',
-        S3Uri: 's3://bucket/input/'
-      }
-    },
-    ContentType: 'application/json'
-  },
-  TransformOutput: {
-    S3OutputPath: 's3://bucket/output/'
-  },
-  TransformResources: {
-    InstanceType: 'ml.g5.xlarge',
-    InstanceCount: 2
-  },
-  BatchStrategy: 'MultiRecord',
-  MaxPayloadInMB: 6
-});
-```
-
-**Request batching** for interactive workloads:
-```typescript
-class RequestBatcher {
-  private pending: Array<{ query: string; resolve: Function }> = [];
-  private batchTimeout: NodeJS.Timeout | null = null;
-
-  async query(text: string): Promise<string> {
-    return new Promise((resolve) => {
-      this.pending.push({ query: text, resolve });
-
-      if (!this.batchTimeout) {
-        this.batchTimeout = setTimeout(() => this.flush(), 50);  // 50ms window
-      }
-    });
-  }
-
-  private async flush(): Promise<void> {
-    const batch = this.pending.splice(0);
-    this.batchTimeout = null;
-
-    // Process batch together
-    const responses = await this.processBatch(batch.map(b => b.query));
-
-    batch.forEach((item, i) => item.resolve(responses[i]));
-  }
-}
-```
-
-### Auto-Scaling
-
-Scale capacity based on GenAI-relevant metrics:
-
-```typescript
-// SageMaker endpoint auto-scaling
-const scalingTarget = new applicationAutoscaling.ScalableTarget(this, 'ScalingTarget', {
-  serviceNamespace: applicationAutoscaling.ServiceNamespace.SAGEMAKER,
-  resourceId: `endpoint/${endpoint.attrEndpointName}/variant/AllTraffic`,
-  scalableDimension: 'sagemaker:variant:DesiredInstanceCount',
-  minCapacity: 1,
-  maxCapacity: 10
-});
-
-// Scale on invocations per instance
-scalingTarget.scaleToTrackMetric('InvocationScaling', {
-  targetValue: 100,  // Target invocations per instance
-  customMetric: new cloudwatch.Metric({
-    namespace: 'AWS/SageMaker',
-    metricName: 'InvocationsPerInstance',
-    dimensionsMap: {
-      EndpointName: endpoint.attrEndpointName,
-      VariantName: 'AllTraffic'
-    },
-    statistic: 'Average',
-    period: Duration.minutes(1)
-  }),
-  scaleInCooldown: Duration.minutes(5),
-  scaleOutCooldown: Duration.minutes(2)
-});
-```
-
-Scale on GenAI-specific metrics, not just CPU:
-- Invocations per instance
-- Queue depth
-- Token processing rate
-- Response latency
-
----
-
-## Cost Monitoring and Anomaly Detection
-
-Optimization is ongoing. You need visibility into where money goes and alerts when spending deviates from expectations.
-
-### AWS Cost Anomaly Detection for GenAI
-
-Cost Anomaly Detection uses ML to learn your normal spending patterns and alerts when costs deviate. Configure it specifically for Bedrock:
-
-```typescript
-import * as ce from 'aws-cdk-lib/aws-ce';
-
-// Monitor specifically for Bedrock costs
-const bedrockMonitor = new ce.CfnAnomalyMonitor(this, 'BedrockCostMonitor', {
-  monitorName: 'GenAI-Bedrock-Spending',
-  monitorType: 'DIMENSIONAL',
-  monitorDimension: 'SERVICE'
-});
-
-// Alert when anomaly exceeds threshold
-new ce.CfnAnomalySubscription(this, 'CostAnomalyAlert', {
-  subscriptionName: 'GenAI-Cost-Alerts',
-  monitorArnList: [bedrockMonitor.attrMonitorArn],
-  subscribers: [
-    { type: 'EMAIL', address: 'genai-ops@company.com' },
-    { type: 'SNS', address: costAlertTopic.topicArn }
-  ],
-  threshold: 100,  // Alert when daily anomaly exceeds $100
-  frequency: 'DAILY'
-});
-```
-
-**Common GenAI cost anomalies and their causes:**
-
-| Anomaly Pattern | Likely Cause | Response |
-|----------------|-------------|----------|
-| Sudden 10x spike | Retry storm, infinite agent loop, or new feature without cost guard | Kill runaway process, add iteration limits |
-| Gradual 2x increase | Growing conversation histories, prompt bloat, or increased traffic | Implement context summarization, review prompts |
-| Periodic spikes | Batch processing jobs, scheduled evaluations | Expected — suppress alerts for known patterns |
-| Cost shift between models | Query router sending more to expensive tier | Review routing logic, check classifier accuracy |
-
-### Cost Attribution by Feature
-
-Track which features drive costs using CloudWatch custom dimensions:
-
-```typescript
-// After every model invocation, record cost attribution
-await cloudwatch.putMetricData({
-  Namespace: 'GenAI/Cost',
-  MetricData: [{
-    MetricName: 'EstimatedCost',
-    Dimensions: [
-      { Name: 'Application', Value: 'CustomerSupport' },
-      { Name: 'Feature', Value: 'OrderInquiry' },
-      { Name: 'Model', Value: modelId }
+```python
+response = bedrock.converse(
+    modelId="anthropic.claude-sonnet-4-20250514-v1:0",
+    system=[
+        {
+            "text": ir_policy,          # stable 4k-token prefix
+            "cachePoint": {"type": "default"},
+        }
     ],
-    Value: estimateCost(inputTokens, outputTokens, modelId),
-    Unit: 'None'  // Dollar amount
-  }]
-});
+    messages=[{"role": "user", "content": [{"text": question}]}],
+)
 ```
 
-Build dashboards showing cost per feature, per user segment, and per model. This data drives optimization decisions: if 60% of costs come from one feature, optimize that feature first.
+### Edge caching
+
+Edge caching places reusable content closer to users. It is most relevant when GenAI outputs are delivered through applications and some responses or generated assets are safe to reuse. A public company overview that changes once per day might sit on **CloudFront** rather than being regenerated for every visitor.
+
+The broader principle: put frequently requested, reusable content closer to the consumer when doing so is safe and appropriate.
+
+```recall
+Q: Every blotter call resends the same 4k-token IR policy plus a unique question. Which cache?
+A: Prompt caching on the stable prefix. Not a semantic answer cache (the questions differ) and not Provisioned Throughput (that does not shrink tokens).
+```
 
 ---
 
-## Key Services Summary
+## How the four skills work together
 
-| Service | Cost Optimization Role | When to Use |
-|---------|----------------------|-------------|
-| **Amazon Bedrock** | Pay-per-token pricing, prompt caching, provisioned throughput | Model invocation with cost control |
-| **Amazon CloudWatch** | Token usage tracking, cost dashboards | Monitoring and optimization visibility |
-| **Amazon ElastiCache** | Semantic caching to avoid redundant computation | High-volume applications with repeated queries |
-| **Amazon CloudFront** | Edge caching for geographically distributed users | Global applications with common queries |
-| **Amazon SageMaker** | Batch transform for bulk processing, endpoint auto-scaling | Custom models or bulk workloads |
-| **AWS Cost Anomaly Detection** | ML-powered cost spike detection | Alert on unexpected GenAI spending changes |
-| **AWS Cost Explorer** | Cost analysis and forecasting | Understand spending trends and plan budgets |
+Now imagine the optimized AMD copilot.
+
+An analyst asks: “Why has AMD become more cautious on gaming over the last four quarters?”
+
+First the application checks whether an equivalent *current* answer already exists in the cache. If not, retrieval limits the search to AMD, gaming, and the relevant four quarters. It reranks passages and sends only the best evidence rather than thirty loosely relevant chunks. The system decides the question needs moderate synthesis, not eight-quarter multi-name reasoning, so it chooses a mid-tier model. Output is constrained to several evidence-backed paragraphs. The reusable result is cached. Meanwhile infrastructure scales with analyst demand, and embedding new transcripts happens in overnight batches.
+
+```text
+Analyst query
+      ↓
+Cache lookup ──────────→ cached answer
+      │
+    miss
+      ↓
+Efficient retrieval (filter, rerank, metadata)
+      ↓
+Prune / compress context
+      ↓
+Assess task complexity
+      ↓
+Choose appropriate FM
+      ↓
+Generate a bounded response
+      ↓
+Cache the reusable result
+      ↓
+Return the answer
+```
+
+Task 4.1 is asking whether you understand all of those decisions — and which one the stem is actually about.
 
 ---
 
-## Exam Tips
+## Almost every optimization introduces a tradeoff
 
-| When you see... | Think... |
-|-----------------|----------|
-| "reduce GenAI costs" | Model tiering + caching (semantic, prompt, edge) + token optimization |
-| "variable traffic" | On-demand Bedrock; provisioned throughput only with 40%+ utilization |
-| "avoid redundant computation" | Semantic caching (ElastiCache), prompt caching (Bedrock), result fingerprinting, edge caching (CloudFront) |
-| "track token usage" | CloudWatch metrics with custom dimensions by application/feature |
-| "long system prompts shared across requests" | Bedrock prompt caching (~90% discount on cached prefix tokens) |
-| "deterministic queries" or "classification caching" | Result fingerprinting with exact hash matching |
-| "paraphrased queries" or "similar questions" | Semantic caching with embedding similarity |
-| "unexpected cost spike" or "cost anomaly" | AWS Cost Anomaly Detection configured for Amazon Bedrock |
-| "cost attribution" or "which feature costs most" | Custom CloudWatch dimensions (Application, Feature, Model) on token metrics |
+Reducing context saves money, but excessive pruning can remove necessary evidence.
+
+Using a cheaper model lowers cost, but a model that lacks sufficient capability reduces accuracy.
+
+Batching increases throughput, but waiting to accumulate batches increases latency.
+
+Provisioned capacity can improve predictable throughput, but unused capacity wastes money.
+
+Caching can dramatically reduce latency and inference cost, but cached information can become stale.
+
+Semantic caching increases hit rates, but overly broad similarity matching can return an answer to the wrong question.
+
+The recurring exam mindset:
+
+**Optimize cost while preserving the application's required quality, freshness, latency, and reliability.**
+
+### When you see this phrase, think this skill
+
+| Stem language | Think |
+|---------------|--------|
+| Reduce excessive FM input cost | 4.1.1 — prune, compress, measure, retrieve less |
+| Simple and complex queries have different requirements | 4.1.2 — model routing, tiered FM usage |
+| Large asynchronous workload | 4.1.3 — batching |
+| Predictable sustained inference demand | 4.1.3 — capacity planning, possibly Provisioned Throughput |
+| Highly variable / spiky demand | 4.1.3 — auto scaling, on-demand |
+| Users repeatedly ask equivalent questions | 4.1.4 — semantic caching |
+| Exact identical deterministic requests | 4.1.4 — request hashing / result fingerprinting |
+| Large repeated prompt prefix | 4.1.4 — prompt caching |
+| Generated asset reused across a global user base | 4.1.4 — edge caching (CloudFront) |
 
 ---
 
-## Common Mistakes to Avoid
+## AWS service glossary
 
-1. **Not measuring before optimizing**—you can't optimize what you don't track
-2. **Using the most capable model for all queries**—tiering saves 5-25x on simple queries
-3. **No caching strategy**—redundant computation is pure waste
-4. **Provisioned throughput with low utilization**—commitment without sufficient usage burns money
-5. **Ignoring output token costs**—output tokens cost 3-5x more than input; control response length
-6. **Mixing variable content into prompt prefix**—breaks prompt caching; keep cacheable content at the start
-7. **No cost anomaly detection**—GenAI cost spikes are common and can be massive; configure Cost Anomaly Detection for Bedrock
-8. **No cost attribution by feature**—you can't prioritize optimization without knowing which features drive costs
+### Measure and observe
+
+#### Amazon Bedrock CountTokens
+
+**What it is.** An API that estimates how many tokens a request would consume, without running inference.
+
+**Problem it solves.** You can budget and trim context *before* you pay for a completion.
+
+**Where it sits.** 4.1.1, in front of Converse / InvokeModel.
+
+**Typical use.** Reject or prune a 40k-token RAG package before calling Sonnet.
+
+**Pricing.** The count itself is not billed as inference.
+
+**Exam cue.** Measure before you optimize. Token estimation without a model call.
+
+**Do not confuse with.** CloudWatch `InputTokenCount` (after the fact). Invocation logging (bodies and metadata, opt-in).
+
+#### Amazon CloudWatch (token and capacity metrics)
+
+**What it is.** Runtime metrics for Bedrock and SageMaker: `InputTokenCount`, `OutputTokenCount`, invocations, latency, utilization.
+
+**Problem it solves.** Baselines, attribution, and the signal that capacity is idle or overloaded.
+
+**Where it sits.** 4.1.1 measurement and 4.1.3 utilization. Fuller observability is [4.3](/learn/4/monitoring-systems).
+
+**Typical use.** Dashboards by model and application; alarms on token p95 and MU utilization.
+
+**Pricing.** Metrics and logs.
+
+**Exam cue.** Track tokens. Track utilization. Custom dimensions for cost attribution.
+
+**Do not confuse with.** CloudTrail (who called the API). Cost Explorer (the bill, not the per-call tokens).
+
+### Route and serve
+
+#### Intelligent Prompt Routing
+
+**What it is.** Bedrock chooses a small or large model in a supported family at request time, trading predicted quality against cost.
+
+**Problem it solves.** Mixed easy-vs-hard traffic without a handwritten classifier for every intent.
+
+**Where it sits.** 4.1.2. Design-time model *pick* is still [1.2](/learn/1/model-selection).
+
+**Typical use.** Extraction → cheap sibling; eight-quarter compare → stronger sibling, same family.
+
+**Pricing.** Tokens of whichever model actually ran.
+
+**Exam cue.** Do not send every query to the most capable model. Same family, runtime.
+
+**Do not confuse with.** Cross-Region inference (same FM, more Regions). AppConfig (your pointer). Distillation (a new smaller artifact).
+
+#### Amazon Bedrock Batch Inference
+
+**What it is.** Asynchronous JSONL-in / JSONL-out inference.
+
+**Problem it solves.** Large offline jobs at lower operational intensity than one interactive call per document.
+
+**Where it sits.** 4.1.3 batching.
+
+**Typical use.** Overnight summaries of 200,000 transcripts.
+
+**Pricing.** Batch token rates; hours of wait, not chat latency.
+
+**Exam cue.** Large asynchronous workload. Not a chatbot.
+
+**Do not confuse with.** Provisioned Throughput. Interactive Converse. SageMaker Batch Transform (self-hosted equivalent).
+
+#### Bedrock Provisioned Throughput
+
+**What it is.** Reserved model units, billed by the hour.
+
+**Problem it solves.** Predictable sustained demand, or custom models that require reserved capacity.
+
+**Where it sits.** 4.1.3 utilization; serving mechanics in [2.2](/learn/2/model-deployment).
+
+**Typical use.** 24/7 copilot at healthy MU utilization.
+
+**Pricing.** Hours of reserved capacity, including 3 a.m.
+
+**Exam cue.** Large, predictable, sustained. Not a three-hour spike. Not “makes the model faster.”
+
+**Do not confuse with.** On-demand. Cross-Region inference. Prompt caching.
+
+#### SageMaker Batch Transform / endpoint auto scaling
+
+**What it is.** Offline multi-record transform jobs, and endpoints that scale on invocations or queue depth.
+
+**Problem it solves.** Efficient use of *your* GPUs for bulk work and variable interactive load.
+
+**Where it sits.** 4.1.3 when the stem is a hosted model, not Bedrock on-demand.
+
+**Typical use.** Embed a corpus overnight; scale the realtime variant after earnings.
+
+**Pricing.** Instance hours.
+
+**Exam cue.** Self-hosted capacity utilization. Scale on GenAI metrics, not only CPU.
+
+**Do not confuse with.** Bedrock Batch Inference. Buying more instance types as a substitute for batching.
+
+### Reuse
+
+#### Amazon Bedrock prompt caching
+
+**What it is.** Cached compute for a supported, repeated prompt prefix (`cachePoint`).
+
+**Problem it solves.** A stable 4k–10k system / methodology block resent on every call.
+
+**Where it sits.** 4.1.4. Also named at design time in [1.2](/learn/1/model-selection) / [1.6](/learn/1/prompt-engineering).
+
+**Typical use.** IR policy + tools cached; the analyst question varies.
+
+**Pricing.** Cache write once, then discounted cache reads on the prefix. The completion is still generated.
+
+**Exam cue.** Large repeated prefix. Not an answer cache. Variable content must not sit inside the cached prefix.
+
+**Do not confuse with.** Semantic caching. ElastiCache. Provisioned Throughput.
+
+#### Amazon ElastiCache (semantic / response cache)
+
+**What it is.** In-memory store for hashed or embedded prior queries and their answers.
+
+**Problem it solves.** Skip Bedrock entirely when the question has already been answered and is still fresh.
+
+**Where it sits.** 4.1.4, in front of retrieval and the FM.
+
+**Typical use.** Cosine similarity > 0.95 on “how do I reset my password” vs “password reset help,” with a short TTL.
+
+**Pricing.** Node hours.
+
+**Exam cue.** Equivalent questions, not identical strings. Pair with prompt caching when the prefix is also huge.
+
+**Do not confuse with.** Prompt caching (prefix compute). OpenSearch (the retrieval index).
+
+#### Amazon CloudFront (edge caching)
+
+**What it is.** CDN in front of reusable generated assets or safe public responses.
+
+**Problem it solves.** Do not regenerate a daily company overview for every visitor on the planet.
+
+**Where it sits.** 4.1.4 edge.
+
+**Typical use.** Cache a generated fact sheet that updates once per day.
+
+**Pricing.** Data transfer and requests.
+
+**Exam cue.** Geographically distributed consumers, reusable content, TTL that matches freshness.
+
+**Do not confuse with.** ElastiCache (application cache). Prompt caching (model-side prefix).
+
+---
+
+## Practice questions
+
+Pick an answer on every stem. The explanation appears after you choose — later questions stay unspoiled until you answer them.
+
+```practice
+Q: A simple “What was AMD Q2 revenue?” request is sending 14,000 input tokens. What is the first 4.1.1 move?
+A: Switch every query to the cheapest model in the catalog
+B: Measure token consumption by query type, then reduce retrieval and prune context
+C: Buy Provisioned Throughput so tokens are cheaper
+D: Raise maxTokens so the model can use the extra context
+correct: B
+feedback: Measure, then shrink what the model reads. A cheaper model and reserved capacity do not fix over-retrieval. Raising maxTokens makes output more expensive.
+
+Q: Ten retrieved chunks, four of which are duplicates or off-ticker. You keep the best four. What did you just do?
+A: Prompt compression
+B: Semantic caching
+C: Context pruning
+D: Provisioned Throughput
+correct: C
+feedback: Pruning removes information. Compression would keep all ten in fewer tokens. Caching and PT are other levers.
+
+Q: The system prompt is a 500-token legal paragraph that could say the same thing in 40 tokens. Across a million requests this is material. Lever?
+A: Context pruning
+B: Prompt compression
+C: Edge caching
+D: Auto scaling
+correct: B
+feedback: Same intent, fewer tokens, repeated at scale. Pruning would drop the policy entirely.
+
+Q: Fact lookups, summaries, and eight-quarter compares currently all hit the same frontier model. Production quality floor is 90%. A mid-tier model scores 91% on lookups. What does 4.1.2 want?
+A: Keep the frontier model for everything so quality is uniform
+B: Route simple work to the cheaper model that still clears the floor; escalate the hard compares
+C: Use the cheapest catalog model for all three, since it is “optimized”
+D: Fine-tune the frontier model so it becomes cheaper
+correct: B
+feedback: Least expensive model that reliably meets the requirement. Uniform frontier spend is waste. The cheapest catalog model may miss the floor. Fine-tune is a different knob (1.2.4).
+
+Q: Model A is half the token price of Model B but fails so often that many calls retry or escalate. How should you compare them?
+A: Use Model A's list price — it is cheaper
+B: Cost per successful answer at the application level
+C: Always pick B because retries prove it is better
+D: Average the two prices
+correct: B
+feedback: Price-to-performance. Nominal token price is not system cost.
+
+Q: Overnight, 200,000 transcripts must be summarized. Nobody is waiting. During the day, analysts chat. Best pair?
+A: Provisioned Throughput for both
+B: Batch inference for the overnight job; on-demand (with caching) for chat
+C: Batch inference for the chat UI so it is cheaper
+D: One huge interactive Converse loop over every filing
+correct: B
+feedback: Async bulk work batches. Interactive traffic stays on-demand. PT is for sustained predictable load, not a one-shot backfill or a chat UI.
+
+Q: Traffic is quiet six days a week and spikes for three hours after earnings. Someone proposes Provisioned Throughput sized to the spike, 24×7. What is wrong?
+A: Nothing — spikes need reserved MUs
+B: You will pay for unused capacity most of the week; prefer on-demand (and CRI if the issue is throttle)
+C: You must use SageMaker Batch Transform for interactive chat
+D: Prompt caching replaces capacity planning
+correct: B
+feedback: Reserved hours include idle hours. Spiky / unpredictable → on-demand. CRI is peak room, still on-demand.
+
+Q: Five analysts ask near-identical questions about Azure growth in different wording. The underlying 10-Q has not changed. Which cache?
+A: Prompt caching only
+B: Semantic response cache with a freshness TTL
+C: Provisioned Throughput
+D: CountTokens
+correct: B
+feedback: Equivalent intent, not a shared prefix. PT and CountTokens do not reuse answers.
+
+Q: Every call resends a 10,000-token methodology that never changes, plus a unique analyst question. First cost lever?
+A: Semantic cache of the answers
+B: Bedrock prompt caching on the stable prefix
+C: Delete the methodology
+D: Switch Regions
+correct: B
+feedback: Repeated prefix → prompt caching. The questions differ, so an answer cache will miss. Deleting the policy is not optimization.
+
+Q: A cached AMD revenue answer is still being served the morning after a new 10-Q lands. What did the design skip?
+A: A stronger model
+B: Invalidation / TTL tied to source freshness
+C: A larger context window
+D: Batch inference
+correct: B
+feedback: A cheap stale answer can be worse than an expensive fresh one.
+
+Q: The ingestion job re-summarizes every transcript every night even when the bytes have not changed. Which 4.1.4 idea?
+A: Intelligent Prompt Routing
+B: Result fingerprinting — reuse the summary when the document hash matches
+C: Raise temperature
+D: CloudFront in front of Bedrock Runtime
+correct: B
+feedback: Workflow-level reuse from a content fingerprint. Routing and temperature are not caches. CloudFront is for reusable *delivered* assets.
+
+Q: Unique queries must keep full quality. 40% of calls share a 5,000-token system prompt; 30% of user questions are near-duplicates. Best combined approach?
+A: Shorten the system prompt to 200 tokens and hope
+B: Prompt caching on the prefix plus a semantic cache (ElastiCache) for equivalent questions
+C: Provisioned Throughput so waste is cheaper
+D: One smaller model for every query, including the hard ones
+correct: B
+feedback: Two different reuse problems: prefix compute vs equivalent answers. PT and a blanket smaller model do not preserve unique-query quality.
+```
+
+---
+
+## Final compressed review
+
+If you remember nothing else:
+
+**4.1.1 — Token efficiency.** Do not make the model read or generate more than necessary. Measure first (CountTokens, CloudWatch). Optimize the window; prune; compress; bound output.
+
+**4.1.2 — Model selection.** Do not use an expensive model when a cheaper one can satisfy the requirement. Route, escalate, and judge **cost per successful answer**. Price without a quality floor is not optimization.
+
+**4.1.3 — Resource efficiency.** Do not pay for inference capacity that sits idle, and do not process large workloads one interactive call at a time. Batch the overnight pile. Plan for the peak. Scale with demand. Reserve throughput only when utilization will actually be healthy.
+
+**4.1.4 — Caching.** Do not compute something again when a valid result or a repeated prefix can safely be reused. Hash exact matches. Embed equivalent questions. Fingerprint pipeline inputs. Cache prompt prefixes. Invalidate when the world changes.
+
+**Shrink → Route → Utilize → Reuse.**
